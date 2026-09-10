@@ -1,0 +1,9 @@
+(library
+ (name core_cases)
+ (modules core_cases)
+ (libraries http-kit-core qcheck-core))
+
+(test
+ (name core_test)
+ (modules core_test)
+ (libraries core_cases harness alcotest))

@@ -2,22 +2,44 @@
 
 An OCaml HTTP toolkit being built from independently usable primitives, with native Eio and Lwt adapters planned above a sans-I/O engine.
 
-**Current scope: M0–M1 development harness. There is no HTTP implementation yet.** Passing tests validate the synthetic harness and its fault detectors, not HTTP conformance or production security.
+**Current scope: M0–M1 development harness and M2 core values.** `http-kit-core` is a real, independently installable library with no runtime dependencies beyond OCaml's standard library. Wire codecs, client/server engines, and Eio/Lwt adapters are the next layers; they are not implemented yet.
 
-The [full design and test plan](docs/test-harness-plan.md) describes later work. The [harness contract](docs/harness-contract.md) explains exactly what the current subject models.
+The [package design](docs/design.md) records current APIs and ownership decisions. The [full test plan](docs/test-harness-plan.md) describes security and release gates; the [harness contract](docs/harness-contract.md) distinguishes synthetic models from real core tests.
+
+## Use the core
+
+Link `(libraries http-kit-core)` and construct checked values:
+
+```ocaml
+open Http_kit_core
+let ( let* ) = Result.bind
+
+let request path =
+  let* target = Target.of_string path in
+  let* headers = Headers.of_list ["accept", "application/json"] in
+  Ok (Request.create ~meth:Method.get ~target ~headers ())
+```
+
+`Method`, `Header.Name`, `Header.Value`, `Target`, and `Status` have opaque types and checked constructors. `Headers` preserves duplicate fields and order, with count and byte budgets. Requests and responses are polymorphic in their body; `map_body` can change its type without changing metadata. Errors contain a category and optional byte offset, never untrusted input.
+
+Targets retain raw bytes and escapes. This is lexical validation: the upcoming codec must still check target forms, Host, framing conflicts, and status/method-specific body rules. See [the precise limits and contracts](docs/design.md#core-contracts).
 
 ## Setup
 
-Prerequisites: a C build toolchain, Python 3, Git, and either Dune 3.24.1 or opam to bootstrap it. **Dune package management owns the project compiler and dependencies.** Setup copies the pinned Dune executable into `.toolchain/bin/`; if necessary, it uses a project-local opam switch solely to build Dune. Existing switches and shell profiles are untouched.
+Prerequisites: mise, a C build toolchain, Python 3, and Git. **mise manages opam; opam manages Dune; Dune package management owns the project compiler and dependencies.** `mise.toml` pins opam 2.5.2. Setup uses that opam to install Dune 3.24.1 in the project-local `dune-bootstrap` switch, then links `.toolchain/bin/dune` to the opam-owned executable. It never copies an unrelated Dune from PATH. Existing global opam switches and shell profiles are untouched.
 
 ```sh
-python3 tools/bootstrap.py 5.5.0
+mise trust
+mise install opam
+mise run setup
 python3 tools/bootstrap.py 5.2.1
 tools/harness doctor
-tools/harness run --tier fast
+mise run test
 ```
 
-Use `HARNESS_COMPILER=5.2.1 tools/harness ...` for the minimum compiler; the default is 5.5.0. Dependencies are declared in `dune-project`; the `.opam` file is generated. `dune.lock/` and `dune.5.2.lock/` record the complete compiler/dependency solutions, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep both directories in version control. The package is development-only; production libraries will have separate dependency closures.
+Use `HARNESS_COMPILER=5.2.1 tools/harness ...` for the minimum compiler; the default is 5.5.0. Dependencies are declared in `dune-project`; both `.opam` files are generated. `dune.lock/` and `dune.5.2.lock/` record the complete compiler/dependency solutions, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep both directories in version control. `http-kit-harness` owns test and documentation dependencies; `http-kit-core` has a separate production dependency closure.
+
+`mise trust` approves this repository's tool/task configuration. The opam switch's OCaml compiler exists only to build Dune; the two Dune locks still select the compilers used to test http-kit. CI follows the same mise → opam → Dune setup.
 
 Both workspace files explicitly enable package management. Regular setup and CI consume the existing locks; they never refresh dependency versions. The wrapper rejects a missing lock rather than silently resolving a new one. To deliberately update dependencies, edit `dune-project` (or the repository revision in both workspace files), then run:
 
@@ -32,6 +54,21 @@ tools/dune-pkg build @opam --auto-promote
 Review the lock diffs and rerun both compiler validations and fuzz smoke. The wrapper selects Dune 3.24.1, a project-local cache, and the appropriate workspace/build directory. With that version installed, plain `dune build` also uses the default lock. See [Dune's locking documentation](https://dune.readthedocs.io/en/latest/tutorials/dune-package-management/locking.html).
 
 The workspace pins both opam-repository and Dune's official compatibility overlay. Both locks select `ocamlfind.1.9.8+dune`, whose relocatable configuration avoids temporary sandbox paths in Topkg builds. This is a solver constraint; generated lock files are never patched by hand.
+
+## API docs and core checks
+
+Both locks pin **odoc 3.2.1**, the [latest published release checked on 2026-09-10](https://github.com/ocaml/odoc/releases/tag/3.2.1). First-party odoc warnings are fatal. Public interface comments document byte limits, complexity, ownership, and validation boundaries.
+
+```sh
+mise run docs
+tools/harness run --suite core --count 1000
+python3 tools/test_core_consumer.py
+mise run bench
+```
+
+Open `_build-pkg-5.5.0/default/_doc/_html/http-kit-core/index.html` after generating docs. The installed-consumer check builds only core in an isolated project using the locked compiler, installs it to a temporary prefix, then compiles/runs bytecode and native consumers and the actual odoc example. Negative fixtures verify opaque constructors and private-module isolation. The staging project disables package management because Dune 3.24 does not support `dune install` in package mode; ordinary project builds and dependency resolution continue to use the locks.
+
+Benchmarks report raw nanoseconds and allocated bytes per operation for target validation, header construction, append, and lookup over geometric input sizes. They are initial local measurements without a regression threshold; they do not measure network throughput.
 
 ## Replay a deliberately broken subject
 
@@ -60,18 +97,24 @@ Release readiness deliberately returns `NOT_IMPLEMENTED` and exit code 3. Unknow
 ```sh
 python3 tools/evidence.py validate 5.2.1
 python3 tools/evidence.py validate 5.5.0
+mise run setup:afl
 python3 tools/fuzz-smoke.py
 tools/harness readiness --milestone M0
+tools/harness readiness --milestone M2
 ```
 
-Compiler validation builds and runs deterministic/property tests plus actual CLI tests. Fuzz validation builds pinned AFL++, verifies different OCaml coverage maps, finds a planted fault, replays it in an uninstrumented executable, and runs Crowbar against the bounded scenario decoder and synthetic model. First-party code is instrumented; no third-party coverage claim is made.
+Compiler validation builds docs and runs deterministic/property tests, actual CLI tests, installed consumers, and core benchmarks. Core tests exhaustively classify all 256 byte values, probe exact resource limits, and exercise injection, percent escapes, duplicate order, and body ownership.
+
+**mise manages AFL++ setup through `tools/setup-afl.sh`.** `toolchain/afl.version` pins the official source URL, tag, and full commit; setup verifies the revision and tracked-source cleanliness before building `afl-fuzz` and `afl-showmap`. Python no longer downloads or builds AFL++. The remaining Python scripts orchestrate toolchain setup, subprocesses, and evidence; the production library, models, properties, and fuzz targets are OCaml.
+
+Fuzz smoke verifies different OCaml coverage maps, discovers planted native/Crowbar faults, replays them uninstrumented, then runs separate synthetic-harness and real-core targets. First-party code is instrumented; no wire-protocol or third-party coverage claim is made. Run fuzz smoke after compiler validations finish because they share the normal build directory.
 
 The fuzzer uses SysV shared memory. A restrictive macOS sandbox may prevent allocation; that is an infrastructure failure, not a passing smoke test. Run it in a suitable local environment or use the Linux CI job. No system `sysctl` settings are modified by the scripts.
 
-M0 readiness requires source-matched evidence from both compilers and the fuzz smoke. Editing implementation, tests, toolchain, workspace, or lock files invalidates prior evidence. Reports identify the selected lock and its packages. M1 readiness executes its own self-tests. Neither gate asserts that remote CI or production HTTP work is complete.
+M0 readiness requires source-matched evidence from both compilers and the fuzz smoke. M2 additionally requires installed-consumer/docs/benchmark evidence on both compilers and the real core fuzz smoke. Editing implementation, tests, toolchain, workspace, API documentation, or lock files invalidates prior evidence. Reports identify the selected lock and its packages. M1 readiness executes its own self-tests. These gates do not assert remote CI completion or internet-facing protocol readiness.
 
 The CI workflow checks Linux on both compilers and macOS on 5.5, with a separate Linux instrumentation job. It is configured in the repository; it has not run merely because a local validation passed.
 
 ## Next boundary
 
-After reviewing this harness, M2 adds validated HTTP value types and standalone consumer tests. Codecs, client/server engines, runtime adapters, protocol fuzzing, and timing benchmarks remain pending.
+M3 starts with an independently usable HTTP/1 codec: request/response heads, strict framing policy, incremental parsing, bounded work, and fragment-by-fragment conformance cases. The [design](docs/design.md#next-implementation-boundary) gives the order. Client/server engines and native Eio then Lwt adapters follow only after codec invariants are exercised.

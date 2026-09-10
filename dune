@@ -1,3 +1,6 @@
 (env
  (fuzz
-  (ocamlopt_flags (:standard -afl-instrument))))
+  (ocamlopt_flags (:standard -afl-instrument))
+  (odoc (warnings fatal)))
+ (_
+  (odoc (warnings fatal))))

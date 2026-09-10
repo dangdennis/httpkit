@@ -2,6 +2,8 @@
 
 This is an executable scaffold for testing future HTTP primitives. Its current subject is intentionally a synthetic stream machine. `Begin` announces a message and a byte count directly; no code parses an HTTP header. The client/server role is recorded for future bindings but does not claim different protocol behavior yet.
 
+M2 adds a separate real subject: the public `http-kit-core` library. `tools/harness run --suite core` executes its constructor/security/property tests; the default `all` suite runs both subjects and labels its scope. Core does not pretend to implement the synthetic stream machine. The [package design](design.md) documents its actual limits. The installed-consumer checks and microbenchmarks are external validation steps recorded by `tools/evidence.py`, and `readiness --milestone M2` requires their source-matched evidence. Protocol and runtime capabilities remain pending.
+
 ## Independent implementations
 
 `Model` is an immutable oracle with string state. `Fake_subject` uses mutable queues and separate transition code. Neither calls the other's transition logic. `Runner` checks observations and resource snapshots after each action and stops at the first divergence. Future real subjects must bind public APIs without repairing behavior inside the test binding.
@@ -29,6 +31,8 @@ Normalization merges only adjacent body-data events with the same connection and
 Shrink attempts delete action chunks and simplify bytes/counts/time while preserving scenario prerequisites and the original failure rule. The CLI enforces a 60-second deadline plus a 1,000-attempt budget. It records exhausted budgets and writes the reduced script to a separate file. More advanced semantic/message shrinking will grow with actual protocol subjects.
 
 ## Evidence boundaries
+
+Tool ownership is mise → opam → Dune: mise pins opam, an isolated opam switch owns the pinned Dune executable, and Dune locks own the project compilers and dependencies. `mise.toml` is included in the evidence fingerprint.
 
 The current registry labels implemented entries `IMPLEMENTED_SELF_TEST`; all 15 production capability groups remain pending. Dune package management builds the compiler and dependencies from `dune.lock/` (5.5.0) or `dune.5.2.lock/` (5.2.1). Compiler evidence records the selected lock, package versions, actual running compiler, and source hashes including both workspace and lock directories. The M0 gate rejects missing or stale evidence. Raw AFL maps, logs, a discovered fault input, and replay output are retained under `_artifacts/afl/`.
 

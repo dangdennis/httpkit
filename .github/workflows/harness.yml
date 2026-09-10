@@ -1,4 +1,4 @@
-name: Harness M0-M1
+name: Harness and core
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -20,12 +20,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: ocaml/setup-ocaml@e89b2ded52a6e13f50162220cf5fe47290162032
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
         with:
-          ocaml-compiler: 5.5.0
-          dune-cache: false
-      # opam bootstraps Dune only; Dune locks supply the compiler under test.
-      - run: opam install dune.3.24.1 -y
+          version: "2026.6.10"
+          install_args: opam
+      # mise installs opam; opam bootstraps Dune; Dune locks supply the test compiler.
       - run: python3 tools/bootstrap.py ${{ matrix.compiler }}
       - run: python3 tools/evidence.py validate ${{ matrix.compiler }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -40,12 +39,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: ocaml/setup-ocaml@e89b2ded52a6e13f50162220cf5fe47290162032
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
         with:
-          ocaml-compiler: 5.5.0
-          dune-cache: false
-      - run: opam install dune.3.24.1 -y
+          version: "2026.6.10"
+          install_args: opam
       - run: python3 tools/bootstrap.py 5.5.0
+      - run: mise run setup:afl
       - run: python3 tools/fuzz-smoke.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

@@ -34,19 +34,19 @@ def run(args, *, extra=None, logfile=None, expected=0):
         raise RuntimeError(f'{args}: exit {p.returncode}\n' + (p.stdout + p.stderr).decode(errors='replace')[-4000:])
     return p
 
-if not afl.exists():
-    run(['git', 'clone', '--depth', '1', '--branch', manifest['afl_tag'],
-         manifest['afl_repository'], afl])
+repository, tag, revision = (ROOT / manifest['afl_pin']).read_text().split()
+if not all((afl / name).is_file() for name in ['afl-fuzz', 'afl-showmap']):
+    sys.exit('AFL++ is missing; run mise run setup:afl')
 actual = run(['git', '-C', afl, 'rev-parse', 'HEAD']).stdout.decode().strip()
-if actual != manifest['afl_revision']:
-    sys.exit('AFL revision mismatch; refusing unpinned tool')
-run(['make', '-C', afl, '-j4', 'afl-fuzz', 'afl-showmap', 'AFL_NO_X86=1'], logfile=out / 'build.log')
+if actual != revision:
+    sys.exit('AFL revision mismatch; run mise run setup:afl with the pinned checkout')
+run(['git', '-C', afl, 'diff', '--quiet', 'HEAD', '--'])
 prefix = [dune]
 build = '_build-fuzz-pkg-' + version
 run(prefix + ['pkg', 'validate-lockdir', lock.name])
 run(prefix + ['build', '--profile', 'fuzz', '--build-dir', build, '-j', '4',
-              'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe'])
-run(prefix + ['build', 'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe'])
+              'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe'])
+run(prefix + ['build', 'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe'])
 binary = ROOT / build / 'default/fuzz/instrumentation.exe'
 plain = ROOT / ('_build-pkg-' + version) / 'default/fuzz/instrumentation.exe'
 target = ROOT / build / 'default/fuzz/scenario_fuzz.exe'
@@ -108,12 +108,30 @@ with tempfile.TemporaryDirectory(prefix='run-', dir=out) as temp:
     if int(stats.get('execs_done', '0')) < 10:
         raise RuntimeError('insufficient fuzz execution')
     (out / 'harness-stats.txt').write_text(stats_text)
+    core_target = ROOT / build / 'default/fuzz/core_fuzz.exe'
+    run([afl / 'afl-fuzz', '-V', '5', '-m', '512', '-t', '1000', '-i', seeds,
+         '-o', temp / 'core', '--', core_target, '@@'], logfile=out / 'core.log')
+    findings = [p for p in (temp / 'core').rglob('id:*') if p.parent.name in ('crashes', 'hangs')]
+    if findings:
+        for i, path in enumerate(findings):
+            (out / f'core-finding-{i}.input').write_bytes(path.read_bytes())
+        raise RuntimeError('core fuzzing found crashes/hangs; reproducers preserved')
+    core_stats_files = list((temp / 'core').rglob('fuzzer_stats'))
+    if len(core_stats_files) != 1:
+        raise RuntimeError('missing core fuzzer statistics')
+    core_stats_text = core_stats_files[0].read_text()
+    core_stats = {k.strip(): v.strip() for k, v in
+                  (line.split(':', 1) for line in core_stats_text.splitlines() if ':' in line)}
+    if int(core_stats.get('execs_done', '0')) < 10:
+        raise RuntimeError('insufficient core fuzz execution')
+    (out / 'core-stats.txt').write_text(core_stats_text)
 if source_hash() != digest:
     raise RuntimeError('sources changed during fuzz validation')
 data = {'status': 'PASS', 'source_sha256': digest, 'afl_revision': actual,
         'compiler': version, 'lock_directory': lock.name, 'coverage_maps_differ': True, 'planted_fault_found': True,
         'uninstrumented_replay_failed_as_expected': True, 'crowbar_execs': stats['execs_done'],
         'crowbar_assertion_discovered_and_replayed': True,
-        'scope': 'M0 instrumentation and M1 synthetic harness; no HTTP fuzzing'}
+        'core_execs': core_stats['execs_done'],
+        'scope': 'M0 instrumentation, M1 synthetic harness, M2 core values; no wire protocol fuzzing'}
 evidence.write_text(json.dumps(data, indent=2) + '\n')
 print(json.dumps(data, indent=2))

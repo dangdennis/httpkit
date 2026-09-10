@@ -1,0 +1,3 @@
+(executable
+ (name core_bench)
+ (libraries http-kit-core mtime.clock.os))

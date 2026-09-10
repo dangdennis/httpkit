@@ -361,12 +361,14 @@ let cases =
       ( "registry/no-fake-http",
         fun () ->
           check
-            (List.length Registry.pending_capabilities >= 15)
+            (List.length Registry.pending_capabilities >= 14)
             "HTTP capabilities disappeared";
           check
             (List.for_all
                (fun r ->
-                 (not r.Registry.implemented) || r.layer = "harness-self")
+                 (not r.Registry.implemented)
+                 || List.mem r.layer
+                      [ "harness-self"; "core-values"; "core-install" ])
                Registry.requirements)
             "fake HTTP coverage" );
     ]
@@ -384,7 +386,9 @@ let cases =
                     (List.mem_assoc case cases)
                     ("unknown registry case: " ^ case))
                 requirement.Registry.cases)
-            Registry.requirements );
+            (List.filter
+               (fun r -> r.Registry.layer = "harness-self")
+               Registry.requirements) );
     ]
 
 let properties ~seed ~count =

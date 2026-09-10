@@ -50,7 +50,7 @@ let xml s =
          | '"' -> "&quot;"
          | c -> String.make 1 c))
 
-let run_cases ~count ~seed cases =
+let run_cases ?(scope = "M1 synthetic harness only") ~count ~seed cases =
   let results =
     List.map
       (fun (name, test) ->
@@ -69,7 +69,7 @@ let run_cases ~count ~seed cases =
     `Assoc
       [
         ("status", `String (if failures = [] then "PASS" else "FAIL"));
-        ("scope", `String "M1 synthetic harness only");
+        ("scope", `String scope);
         ("seed", `Int seed);
         ("cases_per_property", `Int count);
         ("executed", `Int (List.length results));
@@ -179,7 +179,7 @@ let main () =
       and suite = option args "--suite" "all" in
       if tier <> "fast" then
         die "NOT_IMPLEMENTED" ("tier not implemented: " ^ tier);
-      if not (List.mem suite [ "all"; "self"; "property" ]) then
+      if not (List.mem suite [ "all"; "self"; "property"; "core" ]) then
         die "NOT_IMPLEMENTED" ("suite not implemented: " ^ suite);
       let count = positive "count" (option args "--count" "200") in
       let seed =
@@ -188,10 +188,21 @@ let main () =
         | None -> die "INFRA_ERROR" "invalid seed"
       in
       let cases =
-        (if suite = "property" then [] else Self_cases.cases)
-        @ if suite = "self" then [] else Self_cases.properties ~seed ~count
+        (if suite = "all" || suite = "self" then Self_cases.cases else [])
+        @ (if suite = "all" || suite = "property" then
+             Self_cases.properties ~seed ~count
+           else [])
+        @
+        if suite = "all" || suite = "core" then
+          Core_cases.cases @ Core_cases.properties ~seed ~count
+        else []
       in
-      let json, results, ok = run_cases ~count ~seed cases in
+      let scope =
+        if suite = "core" then "M2 core values"
+        else if suite = "all" then "M1 synthetic harness and M2 core values"
+        else "M1 synthetic harness only"
+      in
+      let json, results, ok = run_cases ~scope ~count ~seed cases in
       report_files args json results;
       output json;
       if not ok then exit 1
@@ -275,11 +286,13 @@ let main () =
       in
       output json;
       if not ok then exit 1
-  | [ "readiness"; "--milestone"; "M0" ] ->
+  | [ "readiness"; "--milestone"; (("M0" | "M2") as milestone) ] ->
+      let args =
+        if milestone = "M0" then [| "python3"; "tools/evidence.py"; "check" |]
+        else [| "python3"; "tools/evidence.py"; "check"; "M2" |]
+      in
       let pid =
-        Unix.create_process "python3"
-          [| "python3"; "tools/evidence.py"; "check" |]
-          Unix.stdin Unix.stdout Unix.stderr
+        Unix.create_process "python3" args Unix.stdin Unix.stdout Unix.stderr
       in
       let _, status = Unix.waitpid [] pid in
       if status <> Unix.WEXITED 0 then exit 2

@@ -1,0 +1,22 @@
+[tools]
+opam = "2.5.2"
+
+[tasks.setup]
+description = "Install Dune with opam, then build Dune-locked dependencies"
+run = "python3 tools/bootstrap.py"
+
+[tasks.test]
+description = "Run the HTTP harness"
+run = "tools/harness run --tier fast"
+
+[tasks."setup:afl"]
+description = "Build the pinned native AFL++ tools"
+run = "sh tools/setup-afl.sh"
+
+[tasks.docs]
+description = "Build API documentation with the locked odoc"
+run = "tools/dune-pkg build @doc"
+
+[tasks.bench]
+description = "Measure core time and allocations (no performance threshold)"
+run = "tools/dune-pkg exec ./bench/core_bench.exe"

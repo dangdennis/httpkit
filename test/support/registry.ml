@@ -17,6 +17,9 @@ let req id rule cases =
     implemented = true;
   }
 
+let core id rule source cases =
+  { id; rule; source; cases; layer = "core-values"; implemented = true }
+
 let requirements =
   [
     req "SELF.INPUT.PREFIX" "Detect input overconsumption"
@@ -45,6 +48,39 @@ let requirements =
       [ "shrink/prerequisites" ];
     req "SELF.NORMALIZE" "Preserve message boundaries in normalized traces"
       [ "normalize/boundaries" ];
+    core "CORE.METHOD.TOKEN" "Validate case-sensitive method tokens"
+      "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1"
+      [ "core/method-alphabet"; "core/case-and-duplicates" ];
+    core "CORE.HEADER.LEXICAL"
+      "Reject invalid fields and preserve duplicate order"
+      "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5"
+      [
+        "core/name-alphabet";
+        "core/value-alphabet";
+        "core/injection";
+        "core/case-and-duplicates";
+      ];
+    core "CORE.HEADER.OWS"
+      "Reject surrounding whitespace at the value constructor" "project-policy"
+      [ "core/value-ows" ];
+    core "CORE.TARGET.RAW"
+      "Validate lexical targets without decoding or normalization"
+      "project-policy"
+      [ "core/target-alphabet"; "core/target-escapes" ];
+    core "CORE.LIMITS" "Bound individual fields and aggregate retained headers"
+      "project-policy"
+      [
+        "core/scalar-limits"; "core/header-budgets"; "core/default-field-limit";
+      ];
+    core "CORE.STATUS" "Accept status codes 100 through 599"
+      "https://www.rfc-editor.org/rfc/rfc9110.html#section-15"
+      [ "core/status-range" ];
+    core "CORE.BODY"
+      "Preserve caller body ownership and support type-changing mapping"
+      "project-policy"
+      [ "core/body-polymorphism" ];
+    core "CORE.ERROR" "Keep untrusted bytes out of diagnostics" "project-policy"
+      [ "core/bounded-errors" ];
     {
       id = "H1.FRAME.CL_TE";
       rule = "Strictly reject ambiguous request framing";
@@ -56,16 +92,15 @@ let requirements =
     {
       id = "API.CORE.STANDALONE";
       rule = "Core values usable without an engine or runtime";
-      layer = "core";
+      layer = "core-install";
       source = "project-policy";
-      cases = [];
-      implemented = false;
+      cases = [ "tools/test_core_consumer.py" ];
+      implemented = true;
     };
   ]
 
 let pending_capabilities =
   [
-    "core-values";
     "request-codec";
     "response-codec";
     "fixed-body";
@@ -85,7 +120,10 @@ let pending_capabilities =
 let to_json () =
   `Assoc
     [
-      ("scope", `String "harness-self evidence only");
+      ( "scope",
+        `String
+          "synthetic harness and core values; implemented is not a validation \
+           result" );
       ( "requirements",
         `List
           (List.map
@@ -98,7 +136,10 @@ let to_json () =
                    ("source", `String r.source);
                    ( "status",
                      `String
-                       (if r.implemented then "IMPLEMENTED_SELF_TEST"
+                       (if r.implemented then
+                          if r.layer = "harness-self" then
+                            "IMPLEMENTED_SELF_TEST"
+                          else "IMPLEMENTED_CORE_TEST"
                         else "NOT_IMPLEMENTED") );
                    ("cases", `List (List.map (fun s -> `String s) r.cases));
                  ])

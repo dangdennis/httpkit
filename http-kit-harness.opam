@@ -5,6 +5,7 @@ maintainer: ["http-kit maintainers"]
 authors: ["http-kit maintainers"]
 depends: [
   "dune" {>= "3.24"}
+  "http-kit-core"
   "ocaml" {>= "5.2" & < "5.6"}
   "yojson" {= "3.0.0"}
   "base64" {= "3.5.2"}
@@ -12,7 +13,7 @@ depends: [
   "qcheck-core" {= "0.91"}
   "alcotest" {= "1.9.1"}
   "crowbar" {= "0.2.2"}
-  "odoc" {with-doc}
+  "odoc" {= "3.2.1"}
 ]
 build: [
   ["dune" "subst"] {dev}

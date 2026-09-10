@@ -6,9 +6,8 @@
   ],
   "dune": "3.24.1",
   "opam_repository": "https://github.com/ocaml/opam-repository.git#5d711cd97e038d93464ab855e041c0ff624c9d07",
-  "afl_repository": "https://github.com/AFLplusplus/AFLplusplus.git",
-  "afl_revision": "9cac7ced05eb9f36c1d0b02ad594b3b09cd3938b",
-  "afl_tag": "v4.31c",
   "note": "AFL 4.31c retains the SysV shared-memory ABI used by native OCaml instrumentation on macOS. All first-party fuzz code is instrumented; third-party libraries are not claimed instrumented.",
-  "dune_overlay": "https://github.com/ocaml-dune/opam-overlays.git#99fc2e18c45b4761ed5f6d282910c03c97e32bce"
+  "dune_overlay": "https://github.com/ocaml-dune/opam-overlays.git#99fc2e18c45b4761ed5f6d282910c03c97e32bce",
+  "afl_pin": "toolchain/afl.version",
+  "odoc": "3.2.1"
 }

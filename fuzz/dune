@@ -1,4 +1,11 @@
 (executables
  (names instrumentation scenario_fuzz)
+ (modules instrumentation scenario_fuzz)
  (libraries harness crowbar)
+ (modes exe))
+
+(executable
+ (name core_fuzz)
+ (modules core_fuzz)
+ (libraries http-kit-core crowbar)
  (modes exe))

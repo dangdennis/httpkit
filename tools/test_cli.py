@@ -44,4 +44,6 @@ with tempfile.TemporaryDirectory(prefix='http-kit-cli-') as tmp:
     assert report['executed'] == 4
     assert json.loads((tmp / 'report.json').read_text()) == report
     assert ET.parse(tmp / 'report.xml').getroot().attrib['tests'] == '4'
+    core = run('run', '--suite', 'core', '--count', '5')
+    assert core['executed'] == 18 and core['scope'] == 'M2 core values'
 print('PASS: CLI exit codes, fresh replay, shrinking, JSON/JUnit, missing suites, and release status')

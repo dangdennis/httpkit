@@ -1,6 +1,6 @@
 # http-kit test harness: security, performance, and API ergonomics
 
-Status: implementation plan, not implemented or validated software. Written 2026-09-09 for a new, empty checkout. Numbers below are proposed project policies and test budgets, not measured performance or guarantees of safety.
+Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M1 harness and M2 core values are implemented; source-matched local readiness commands report validation. M3–M7 remain planned. Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
 
 Navigation: [architecture and tools](#3-harness-components-and-dependencies) · [replay](#6-deterministic-scenarios-replay-and-shrinking) · [security matrix](#9-http1-adversarial-matrix) · [runtime adapters](#12-eio-and-lwt-adapter-conformance) · [performance](#15-performance-harness) · [API ergonomics](#16-api-ergonomics-as-executable-acceptance-criteria) · [CI tiers](#18-ci-tiers-reproducibility-and-budgets) · [implementation milestones](#20-implementation-sequence-and-concrete-gates).
 
@@ -66,7 +66,7 @@ Only build harness layers needed for the current implementation milestone. Do no
 
 Verified local starting point: OCaml 5.5.0, Eio 1.4, Lwt 6.1.2, and an installed Dune 3.24.1 are present. The shell currently selects a Dune developer preview from a different directory. OCaml's compiler advertises `-afl-instrument`; `afl-fuzz` is not on PATH. Alcotest, QCheck, Crowbar, and Bisect_ppx were not in the installed package list. No installation or toolchain compatibility test has been performed for this plan.
 
-Use Dune package management and version-controlled lock directories for exact compiler and dependency solutions. Declare direct dependencies in `dune-project` and generate the opam metadata. CI consumes `dune.5.2.lock/` for the minimum supported OCaml 5.2.1 and `dune.lock/` for development baseline 5.5.0; use released Dune 3.24.1 consistently. Pin repository and compatibility-overlay revisions, verify both locks, and include lock/workspace contents in evidence hashes. Opam may bootstrap Dune itself but must not supply project dependencies. Any incompatibility must be surfaced rather than silently raising the compiler minimum. The README and harness contract record the current implementation; the preceding paragraph is the original planning-time environment snapshot.
+Use Dune package management and version-controlled lock directories for exact compiler and dependency solutions. Declare direct dependencies in `dune-project` and generate the opam metadata. CI consumes `dune.5.2.lock/` for the minimum supported OCaml 5.2.1 and `dune.lock/` for development baseline 5.5.0; use released Dune 3.24.1 consistently. Pin repository and compatibility-overlay revisions, verify both locks, and include lock/workspace contents in evidence hashes. Mise manages the pinned opam executable; opam manages Dune in an isolated bootstrap switch; Dune manages the locked project compilers and dependencies. Include `mise.toml` in evidence hashes. Any incompatibility must be surfaced rather than silently raising the compiler minimum. The README and harness contract record the current implementation; the preceding paragraph is the original planning-time environment snapshot.
 
 ## 4. Contract registry and capability reporting
 
@@ -559,7 +559,7 @@ Implement in this order. Each milestone adds real evidence and is independently 
 
 For every feature PR, require: the contract entry; smallest deterministic regression/positive case; appropriate property/model coverage; resource-limit behavior; public usage example if API changes; and benchmark coverage only when the change affects a measured hot path or retention. Avoid writing shallow tests that merely restate a trivial implementation.
 
-The first implementation task should complete M0 and M1 only. It includes no production HTTP parser or network listener. Their readiness remains explicitly pending. This preserves a useful review boundary before protocol complexity arrives.
+The first implementation task completed the M0–M1 harness. The current M2 slice adds the standalone `http-kit-core` library, 14 deterministic core cases, four constructor properties, installed bytecode/native consumers and compile-fail fixtures, executable odoc examples, a native core fuzz target, and initial allocation/time microbenchmarks. `tools/harness readiness --milestone M2` requires matching evidence from both supported compilers and AFL smoke. This slice validates lexical construction, not wire serialization; the M3 codec will validate message combinations before serialization. No parser, listener, engine, or runtime adapter is present yet.
 
 ## 21. Release acceptance and honest limits
 
