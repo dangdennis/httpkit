@@ -1,3 +1,6 @@
 (executable
  (name core_bench)
+ (modules core_bench)
  (libraries http-kit-core mtime.clock.os))
+
+(executable (name http1_bench) (modules http1_bench) (libraries http-kit-core http-kit-http1 mtime.clock.os))

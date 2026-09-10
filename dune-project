@@ -8,10 +8,15 @@
  (synopsis "Validated runtime-independent HTTP values")
  (depends (ocaml (>= 5.2))))
 (package
+ (name http-kit-http1)
+ (synopsis "Bounded incremental HTTP/1.1 codecs")
+ (depends http-kit-core ipaddr (ocaml (>= 5.2))))
+(package
  (name http-kit-harness)
  (synopsis "Development-only contract harness for http-kit")
  (depends
   http-kit-core
+  http-kit-http1
   (ocaml (and (>= 5.2) (< 5.6)))
   (yojson (= 3.0.0))
   (base64 (= 3.5.2))

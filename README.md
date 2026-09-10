@@ -2,7 +2,7 @@
 
 An OCaml HTTP toolkit being built from independently usable primitives, with native Eio and Lwt adapters planned above a sans-I/O engine.
 
-**Current scope: M0–M1 development harness and M2 core values.** `http-kit-core` is a real, independently installable library with no runtime dependencies beyond OCaml's standard library. Wire codecs, client/server engines, and Eio/Lwt adapters are the next layers; they are not implemented yet.
+**Current scope: M0–M1 harness, M2 core values, and M3 HTTP/1 codecs.** `http-kit-core` has no runtime dependencies beyond OCaml's standard library. `http-kit-http1` adds incremental head/body decoding, strict framing validation, and encoding. Client/server engines and Eio/Lwt adapters are next.
 
 The [package design](docs/design.md) records current APIs and ownership decisions. The [full test plan](docs/test-harness-plan.md) describes security and release gates; the [harness contract](docs/harness-contract.md) distinguishes synthetic models from real core tests.
 
@@ -70,6 +70,19 @@ Open `_build-pkg-5.5.0/default/_doc/_html/http-kit-core/index.html` after genera
 
 Benchmarks report raw nanoseconds and allocated bytes per operation for target validation, header construction, append, and lookup over geometric input sizes. They are initial local measurements without a regression threshold; they do not measure network throughput.
 
+## HTTP/1 codec checks
+
+```sh
+tools/harness run --suite http1 --count 1000
+python3 tools/test_protocol_consumer.py
+tools/dune-pkg exec ./bench/http1_bench.exe
+tools/harness readiness --milestone M3
+```
+
+The codec reports exactly how many input bytes it consumed, leaves pipeline/tunnel suffixes with the caller, and performs bounded work per call. It supports fixed-length, chunked (including extensions and declared trailers), and close-delimited response bodies. Head encoding validates authority and framing before returning bytes; body encoding enforces exact lengths. See [codec policy and ownership](docs/http1.md) and the generated `http-kit-http1` odoc pages.
+
+The codec suite tests all single split points for its golden heads and selected bodies, truncated input, ambiguous framing, strict syntax, limits, and outbound misuse. AFL smoke now includes request, response, and chunked fragmentation oracles, with valid seeds and uninstrumented replay of discovered queue entries. These are small smoke budgets, not release campaigns.
+
 ## Replay a deliberately broken subject
 
 ```sh
@@ -117,4 +130,4 @@ The CI workflow checks Linux on both compilers and macOS on 5.5, with a separate
 
 ## Next boundary
 
-M3 starts with an independently usable HTTP/1 codec: request/response heads, strict framing policy, incremental parsing, bounded work, and fragment-by-fragment conformance cases. The [design](docs/design.md#next-implementation-boundary) gives the order. Client/server engines and native Eio then Lwt adapters follow only after codec invariants are exercised.
+M4 composes these codecs into client/server sans-I/O engines: bounded events/output, exactly-once commands, partial acknowledgements, persistence, cancellation, early responses, and handoff. Native Eio and Lwt adapters follow. The [design](docs/design.md#next-implementation-boundary) records the sequence.

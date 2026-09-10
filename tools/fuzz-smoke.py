@@ -45,8 +45,8 @@ prefix = [dune]
 build = '_build-fuzz-pkg-' + version
 run(prefix + ['pkg', 'validate-lockdir', lock.name])
 run(prefix + ['build', '--profile', 'fuzz', '--build-dir', build, '-j', '4',
-              'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe'])
-run(prefix + ['build', 'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe'])
+              'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe', 'fuzz/http1_fuzz.exe'])
+run(prefix + ['build', 'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe', 'fuzz/http1_fuzz.exe'])
 binary = ROOT / build / 'default/fuzz/instrumentation.exe'
 plain = ROOT / ('_build-pkg-' + version) / 'default/fuzz/instrumentation.exe'
 target = ROOT / build / 'default/fuzz/scenario_fuzz.exe'
@@ -125,6 +125,32 @@ with tempfile.TemporaryDirectory(prefix='run-', dir=out) as temp:
     if int(core_stats.get('execs_done', '0')) < 10:
         raise RuntimeError('insufficient core fuzz execution')
     (out / 'core-stats.txt').write_text(core_stats_text)
+    # Valid seeds ensure all three codec tests reach semantic and body states.
+    (seeds / 'request').write_bytes(b'\x00GET / HTTP/1.1\r\nHost: x\r\n\r\n\x00')
+    (seeds / 'response').write_bytes(b'\x01HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc\x00')
+    (seeds / 'chunked').write_bytes(b'\x023\r\nabc\r\n0\r\n\r\n\x00')
+    codec_target = ROOT / build / 'default/fuzz/http1_fuzz.exe'
+    plain_codec = ROOT / ('_build-pkg-' + version) / 'default/fuzz/http1_fuzz.exe'
+    run([afl / 'afl-fuzz', '-V', '10', '-m', '512', '-t', '2000', '-i', seeds,
+         '-o', temp / 'http1', '--', codec_target, '@@'], logfile=out / 'http1.log')
+    findings = [p for p in (temp / 'http1').rglob('id:*') if p.parent.name in ('crashes', 'hangs')]
+    if findings:
+        for i, path in enumerate(findings):
+            (out / f'http1-finding-{i}.input').write_bytes(path.read_bytes())
+        raise RuntimeError('HTTP/1 fuzzing found crashes/hangs; reproducers preserved')
+    codec_stats_files = list((temp / 'http1').rglob('fuzzer_stats'))
+    if len(codec_stats_files) != 1:
+        raise RuntimeError('missing HTTP/1 fuzzer statistics')
+    codec_text = codec_stats_files[0].read_text()
+    codec_stats = {k.strip(): v.strip() for k, v in
+                   (line.split(':', 1) for line in codec_text.splitlines() if ':' in line)}
+    if int(codec_stats.get('execs_done', '0')) < 10:
+        raise RuntimeError('insufficient HTTP/1 fuzz execution')
+    (out / 'http1-stats.txt').write_text(codec_text)
+    corpus = sorted(p for p in (temp / 'http1').rglob('id:*') if p.parent.name == 'queue')[:32]
+    for case in corpus:
+        run([plain_codec, case])
+    codec_replays = len(corpus)
 if source_hash() != digest:
     raise RuntimeError('sources changed during fuzz validation')
 data = {'status': 'PASS', 'source_sha256': digest, 'afl_revision': actual,
@@ -132,6 +158,7 @@ data = {'status': 'PASS', 'source_sha256': digest, 'afl_revision': actual,
         'uninstrumented_replay_failed_as_expected': True, 'crowbar_execs': stats['execs_done'],
         'crowbar_assertion_discovered_and_replayed': True,
         'core_execs': core_stats['execs_done'],
-        'scope': 'M0 instrumentation, M1 synthetic harness, M2 core values; no wire protocol fuzzing'}
+        'http1_execs': codec_stats['execs_done'], 'http1_uninstrumented_replays': codec_replays,
+        'scope': 'M0 instrumentation, M1 synthetic harness, M2 core values and M3 HTTP/1 codecs; smoke budgets only'}
 evidence.write_text(json.dumps(data, indent=2) + '\n')
 print(json.dumps(data, indent=2))

@@ -179,8 +179,8 @@ let main () =
       and suite = option args "--suite" "all" in
       if tier <> "fast" then
         die "NOT_IMPLEMENTED" ("tier not implemented: " ^ tier);
-      if not (List.mem suite [ "all"; "self"; "property"; "core" ]) then
-        die "NOT_IMPLEMENTED" ("suite not implemented: " ^ suite);
+      if not (List.mem suite [ "all"; "self"; "property"; "core"; "http1" ])
+      then die "NOT_IMPLEMENTED" ("suite not implemented: " ^ suite);
       let count = positive "count" (option args "--count" "200") in
       let seed =
         match int_of_string_opt (option args "--seed" "42") with
@@ -197,9 +197,18 @@ let main () =
           Core_cases.cases @ Core_cases.properties ~seed ~count
         else []
       in
+      let cases =
+        cases
+        @
+        if suite = "all" || suite = "http1" then
+          Http1_cases.cases @ Http1_cases.properties ~seed ~count
+        else []
+      in
       let scope =
-        if suite = "core" then "M2 core values"
-        else if suite = "all" then "M1 synthetic harness and M2 core values"
+        if suite = "http1" then "M3 HTTP/1 codecs"
+        else if suite = "core" then "M2 core values"
+        else if suite = "all" then
+          "M1 synthetic harness, M2 core values and M3 HTTP/1 codecs"
         else "M1 synthetic harness only"
       in
       let json, results, ok = run_cases ~scope ~count ~seed cases in
@@ -289,7 +298,7 @@ let main () =
   | [ "readiness"; "--milestone"; (("M0" | "M2") as milestone) ] ->
       let args =
         if milestone = "M0" then [| "python3"; "tools/evidence.py"; "check" |]
-        else [| "python3"; "tools/evidence.py"; "check"; "M2" |]
+        else [| "python3"; "tools/evidence.py"; "check"; milestone |]
       in
       let pid =
         Unix.create_process "python3" args Unix.stdin Unix.stdout Unix.stderr

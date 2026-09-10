@@ -1,6 +1,6 @@
 # http-kit test harness: security, performance, and API ergonomics
 
-Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M1 harness and M2 core values are implemented; source-matched local readiness commands report validation. M3–M7 remain planned. Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
+Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M1 harness, M2 core values, and M3 codecs are implemented; source-matched local readiness commands report validation. M4–M7 remain planned. Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
 
 Navigation: [architecture and tools](#3-harness-components-and-dependencies) · [replay](#6-deterministic-scenarios-replay-and-shrinking) · [security matrix](#9-http1-adversarial-matrix) · [runtime adapters](#12-eio-and-lwt-adapter-conformance) · [performance](#15-performance-harness) · [API ergonomics](#16-api-ergonomics-as-executable-acceptance-criteria) · [CI tiers](#18-ci-tiers-reproducibility-and-budgets) · [implementation milestones](#20-implementation-sequence-and-concrete-gates).
 
@@ -632,3 +632,7 @@ Minimum invariant IDs that must exist before engines are marked complete:
 | API.INDEPENDENCE | A public primitive can be used with only its declared dependencies |
 
 Each ID maps to at least one positive control and one counterexample or deliberately faulty subject. This catalog is extended as capabilities arrive; deleting an invariant requires an explicit contract change and review.
+
+## M3 implementation update
+
+`http-kit-http1` supplies incremental head/body decoding and encoding with strict framing, target/Host checks, bounded work and metadata, chunk extensions, trailers, and EOF handling. The public suite, installed consumer, initial independent Python stdlib reference, fragmentation fuzz targets, and geometric head benchmarks run in compiler validation. See [HTTP/1 policy](http1.md). Engine sequencing, adapter behavior, broad interop, long fuzz campaigns and independent security review remain later gates.

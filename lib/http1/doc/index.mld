@@ -1,0 +1,31 @@
+{0 http-kit-http1}
+
+Incremental HTTP/1.1 head and body codecs. The only runtime dependencies are
+core values and the pure ipaddr authority parser (with its declared dependencies).
+
+{!Http_kit_http1.feed_head} accepts a slice and reports its consumed prefix.
+Continue with the unconsumed suffix when the per-call work budget is reached.
+Metadata appears only after the complete head passes syntax, authority and
+framing checks. A failed decoder is terminal. HTTP/1.0 is explicitly rejected.
+
+Use {!Http_kit_http1.val-body_decoder} for the resulting framing, and poll again
+with empty input after the last data to obtain End. Empty input is not EOF;
+EOF has a separate operation. One call produces at most one owned body event.
+The caller owns unconsumed pipeline or tunnel bytes.
+
+{!Http_kit_http1.encode_request} and {!Http_kit_http1.encode_response} validate
+before returning bytes. {!Http_kit_http1.val-body_encoder} enforces the matching
+body length and trailer rules. Once output is committed, an encoder error
+requires the caller to abort the exchange, not insert another HTTP response.
+
+Policy: reject duplicate or comma-list Content-Length, CL plus TE, unsupported
+transfer-coding chains, obsolete folding, and bare LF. Require exactly one valid
+request Host and agreement with absolute/CONNECT authority. Hosts use ASCII DNS
+labels or bracketed IPv6; userinfo, escapes and empty labels are rejected.
+Trailer fields must be declared and cannot carry framing, routing, authentication,
+representation interpretation, or connection-control fields listed by the policy.
+
+These codecs do not associate responses with outstanding exchanges or authorize
+upgrade handoff; the engine must check the originating request and ownership.
+
+{!modules:Http_kit_http1}

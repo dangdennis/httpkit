@@ -8,14 +8,14 @@ Updated 2026-09-10. This document records implemented core contracts and the nex
 | --- | --- | --- |
 | `http-kit-core` | Immutable checked HTTP metadata and body-polymorphic messages | Implemented in `lib/core` |
 | `http-kit-harness` | Development runners, synthetic model, conformance evidence, docs tooling | Implemented for M0–M2 |
-| `http-kit-http1` | Independently usable incremental HTTP/1 decoding and encoding | Planned; name provisional |
+| `http-kit-http1` | Independently usable incremental HTTP/1 decoding and encoding | Implemented in `lib/http1` |
 | `http-kit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Planned; name provisional |
 | `http-kit-eio` | Native Eio transport, cancellation, clocks, and body streams | Planned |
 | `http-kit-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Planned |
 
 Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Future codecs may depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. Eio and Lwt will have their own native APIs, without a shared monadic runtime abstraction.
 
-Only the two implemented packages have build definitions. Future names in this table are design boundaries, not empty libraries or passing capability stubs.
+Only the three implemented packages have build definitions. Future names in this table are design boundaries, not empty libraries or passing capability stubs.
 
 ## Core contracts
 
@@ -67,3 +67,5 @@ odoc 3.2.1 is pinned in both locks as a development dependency. First-party docu
 5. Build client/server sans-I/O lifecycles, then native Eio and Lwt adapters against shared observable conformance contracts. Adapters own clocks, cancellation, transport cleanup, and stream lifetimes.
 
 Each step needs positive controls, adversarial cases, public consumers, explicit bounds, and appropriate measured hot paths. M2 passing does not imply any M3–M7 protocol or release gate is satisfied.
+
+M3 now implements the codec steps above; see [the HTTP/1 policy](http1.md) for exact contracts and evidence. M4 is the next active boundary.

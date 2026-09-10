@@ -86,8 +86,8 @@ let requirements =
       rule = "Strictly reject ambiguous request framing";
       layer = "http1";
       source = "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3";
-      cases = [];
-      implemented = false;
+      cases = [ "http1/reject/cl-te" ];
+      implemented = true;
     };
     {
       id = "API.CORE.STANDALONE";
@@ -99,13 +99,45 @@ let requirements =
     };
   ]
 
+let requirements =
+  requirements
+  @ List.map
+      (fun (id, rule, source, cases) ->
+        { id; rule; source; cases; layer = "http1"; implemented = true })
+      [
+        ( "H1.HEAD",
+          "Strict head syntax and authority before dispatch",
+          "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+          [
+            "http1/head/origin";
+            "http1/head/absolute";
+            "http1/reject/authority-conflict";
+            "http1/reject/bare-lf";
+          ] );
+        ( "H1.BODY",
+          "Exact fixed/chunked boundaries and truncation",
+          "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+          [
+            "http1/body/fragments";
+            "http1/body/truncated";
+            "http1/close-and-eof";
+          ] );
+        ( "H1.CHUNK",
+          "Chunk grammar and declared safe trailers",
+          "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
+          [ "http1/body/chunk-reject"; "http1/body/serialization" ] );
+        ( "H1.LIMITS",
+          "Bounded metadata, per-call work and optional body quota",
+          "project-policy",
+          [ "http1/limits"; "http1/slices" ] );
+        ( "H1.OUTPUT",
+          "Validate before encoding and enforce outbound length",
+          "project-policy",
+          [ "http1/head/serialization"; "http1/body/serialization" ] );
+      ]
+
 let pending_capabilities =
   [
-    "request-codec";
-    "response-codec";
-    "fixed-body";
-    "chunked-body";
-    "trailers";
     "persistence";
     "pipelined-input";
     "informational";
@@ -139,7 +171,7 @@ let to_json () =
                        (if r.implemented then
                           if r.layer = "harness-self" then
                             "IMPLEMENTED_SELF_TEST"
-                          else "IMPLEMENTED_CORE_TEST"
+                          else "IMPLEMENTED_SUBJECT_TEST"
                         else "NOT_IMPLEMENTED") );
                    ("cases", `List (List.map (fun s -> `String s) r.cases));
                  ])

@@ -9,3 +9,9 @@
  (modules core_fuzz)
  (libraries http-kit-core crowbar)
  (modes exe))
+
+(executable
+ (name http1_fuzz)
+ (modules http1_fuzz)
+ (libraries http-kit-core http-kit-http1 crowbar)
+ (modes exe))

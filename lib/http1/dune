@@ -1,0 +1,4 @@
+(library
+ (name http_kit_http1)
+ (public_name http-kit-http1)
+ (libraries http-kit-core ipaddr))

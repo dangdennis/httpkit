@@ -15,6 +15,17 @@ env = dict(os.environ, OPAMROOT=str(ROOT / '.toolchain/opam'),
            OPAMLOGS=str(ROOT / '.toolchain/opam-logs'))
 Path(env['OPAMLOGS']).mkdir(parents=True, exist_ok=True)
 
+# opam snapshots the repository immediately after fetch. A detached Git
+# maintenance process can remove a lock during that traversal (observed on
+# Linux CI). Disable auto-maintenance only for these child processes; preserve
+# caller-supplied Git configuration and leave global configuration untouched.
+config_count = int(env.get('GIT_CONFIG_COUNT', '0'))
+for key, value in [('maintenance.auto', 'false'), ('gc.auto', '0')]:
+    env[f'GIT_CONFIG_KEY_{config_count}'] = key
+    env[f'GIT_CONFIG_VALUE_{config_count}'] = value
+    config_count += 1
+env['GIT_CONFIG_COUNT'] = str(config_count)
+
 
 def run(*args):
     subprocess.run([opam, *args], env=env, cwd=ROOT, check=True)
