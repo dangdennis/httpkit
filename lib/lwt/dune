@@ -1,1 +1,1 @@
-(library (name http_kit_lwt) (public_name http-kit-lwt) (libraries http-kit-core http-kit-engine lwt.unix mtime.clock.os))
+(library (name http_kit_lwt) (public_name http-kit-lwt) (libraries http-kit-core http-kit-engine lwt.unix mtime.clock.os) (instrumentation (backend bisect_ppx)))

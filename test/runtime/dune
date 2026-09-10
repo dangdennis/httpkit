@@ -1,3 +1,6 @@
 (library
  (name harness_runtime)
- (libraries harness unix mtime.clock.os))
+ (libraries harness unix mtime.clock.os
+  (select coverage_hook.ml from
+   (bisect_ppx.runtime -> coverage_hook.bisect.ml)
+   (!bisect_ppx.runtime -> coverage_hook.none.ml))))

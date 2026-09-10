@@ -10,7 +10,7 @@ Build an executable specification for an OCaml HTTP toolkit before building its 
 
 Established decisions:
 
-- OCaml 5.2+; immutable HTTP values and a deterministic, internally mutable sans-I/O engine.
+- OCaml 5.5.0 only; immutable HTTP values and a deterministic, internally mutable sans-I/O engine.
 - HTTP/1.1 client and server, streaming bodies, separate native Eio and Lwt adapters.
 - Protocol code has no sockets, clocks, scheduler, global event loop, or application callbacks that can suspend.
 - Request and response types are polymorphic in their bodies. Actual effectful body readers and writers belong to adapters.
@@ -66,7 +66,7 @@ Only build harness layers needed for the current implementation milestone. Do no
 
 Verified local starting point: OCaml 5.5.0, Eio 1.4, Lwt 6.1.2, and an installed Dune 3.24.1 are present. The shell currently selects a Dune developer preview from a different directory. OCaml's compiler advertises `-afl-instrument`; `afl-fuzz` is not on PATH. Alcotest, QCheck, Crowbar, and Bisect_ppx were not in the installed package list. No installation or toolchain compatibility test has been performed for this plan.
 
-Use Dune package management and version-controlled lock directories for exact compiler and dependency solutions. Declare direct dependencies in `dune-project` and generate the opam metadata. CI consumes `dune.5.2.lock/` for the minimum supported OCaml 5.2.1 and `dune.lock/` for development baseline 5.5.0; use released Dune 3.24.1 consistently. Pin repository and compatibility-overlay revisions, verify both locks, and include lock/workspace contents in evidence hashes. Mise manages the pinned opam executable; opam manages Dune in an isolated bootstrap switch; Dune manages the locked project compilers and dependencies. Include `mise.toml` in evidence hashes. Any incompatibility must be surfaced rather than silently raising the compiler minimum. The README and harness contract record the current implementation; the preceding paragraph is the original planning-time environment snapshot.
+Use Dune package management and version-controlled lock directories for exact compiler and dependency solutions. Declare direct dependencies in `dune-project` and generate the opam metadata. CI consumes `dune.lock/` for the sole supported compiler, OCaml 5.5.0; use released Dune 3.24.1 consistently. Pin repository and compatibility-overlay revisions, verify the normal and coverage locks, and include lock/workspace contents in evidence hashes. Mise manages the pinned opam executable; opam manages Dune in an isolated bootstrap switch; Dune manages the locked project compiler and dependencies. Include `mise.toml` in evidence hashes. Any incompatibility must be surfaced rather than silently raising the compiler minimum. The README and harness contract record the current implementation; the preceding paragraph is the original planning-time environment snapshot.
 
 ## 4. Contract registry and capability reporting
 
@@ -158,7 +158,7 @@ Implement a tiny correct fake subject and deliberately faulty variants. Self-tes
 
 Test scenario encode/decode, invalid schema versions, integer boundaries, binary round-trips, timeout enforcement, child-process crash reporting, and failing-test exit status. Ensure a missing or unselected suite is reported explicitly. Exercise deterministic generation for reproducibility and range boundaries; use established QCheck generation rather than a custom ad hoc PRNG.
 
-For coverage-guided fuzzing, a known branching fixture must demonstrate differing coverage maps and a planted fault must be discoverable and replayable. A running fuzzer with no valid instrumentation is an infrastructure failure. OCaml documents compiler instrumentation for AFL; Crowbar's random mode alone does not establish coverage-guided fuzzing. [OCaml AFL guide](https://ocaml.org/manual/5.2/afl-fuzz.html).
+For coverage-guided fuzzing, a known branching fixture must demonstrate differing coverage maps and a planted fault must be discoverable and replayable. A running fuzzer with no valid instrumentation is an infrastructure failure. OCaml documents compiler instrumentation for AFL; Crowbar's random mode alone does not establish coverage-guided fuzzing. [OCaml AFL guide](https://ocaml.org/manual/5.5/afl-fuzz.html).
 
 ## 8. Core value and serialization tests
 
@@ -484,7 +484,7 @@ Use separate build directories/profiles for normal, coverage, fuzz, and benchmar
 | Tier | Trigger / environment | Required work | Initial budget |
 | --- | --- | --- | --- |
 | Local fast | Explicit developer command | Harness self-tests, deterministic regressions, API fixtures, 200 cases/property | Aim for <60 s after build |
-| PR correctness | Linux x86-64, OCaml 5.2.1 and 5.5.0 | Full deterministic corpus, 1,000 cases/property, adapter mocks, API/install isolation | 10 min per compiler, excluding cold install |
+| PR correctness | Linux x86-64, OCaml 5.5.0 | Full deterministic corpus, 1,000 cases/property, adapter mocks, API/install isolation | 10 min per compiler, excluding cold install |
 | PR native | Linux 5.5.0 and macOS arm64 5.5.0 | Real socket tests for both adapters, 100 cancellation schedules/scenario family | 10 min/job |
 | PR fuzz smoke | Linux 5.5.0 | Instrumentation self-test, all regression seeds, 30 s per implemented fuzz target | About 5 min fuzz CPU plus build |
 | PR perf smoke | Ordinary Linux runner | Correct output, hard bounds, benchmark execution, advisory timing | 5 min |
@@ -646,5 +646,15 @@ The standalone engine implements both roles with one-event input backpressure, b
 Both native adapters, pure deadline policy, bounded admission/collection, mock
 lifecycle schedules, real socket streaming and separate installed-consumer tests
 are implemented. See [adapter contracts and measured test scope](adapters.md).
-Milestone evidence requires both compilers, docs, installed runtime isolation and
+Milestone evidence requires OCaml 5.5.0, docs, installed runtime isolation and
 source-matched fuzz smoke. Broader release campaigns remain separate gates.
+
+## M6–M7 implementation update
+
+M6 provides the [direct/Nginx interop and streaming evidence](interop-performance.md).
+M7 adds [executable release assessment](release.md), a separate coverage lock,
+curated source mutations, nine selectable local fuzz targets and retained campaign
+artifacts. Capability implementation and release approval remain separate: full
+release readiness stays false until every required source-matched gate completes.
+The original broad differential, long-soak and independent-review requirements
+remain in force; the new smoke lanes do not silently replace them.

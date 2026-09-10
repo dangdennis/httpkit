@@ -17,9 +17,8 @@ Run:
 ```sh
 mise run setup:nginx
 mise run interop
-HARNESS_COMPILER=5.2.1 mise run interop
 mise run performance
 tools/harness readiness --milestone M6
 ```
 
-M6 readiness requires source-matched M5 evidence, both compiler interop reports and a performance report with passing hard bounds. It establishes these implemented lanes and explicitly reports baseline limitations; it does not assert full release readiness. CI uploads `_artifacts` for inspection.
+M6 readiness requires source-matched M5 evidence, the OCaml 5.5.0 interop report and a performance report with passing hard bounds. It establishes these implemented lanes and explicitly reports baseline limitations; it does not assert full release readiness. CI uploads `_artifacts` for inspection.

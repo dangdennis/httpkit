@@ -14,8 +14,11 @@ let run ~seconds f =
   | 0 -> (
       try
         f ();
+        Coverage_hook.flush ();
         Unix._exit 0
-      with _ -> Unix._exit 1)
+      with _ ->
+        Coverage_hook.flush ();
+        Unix._exit 1)
   | pid ->
       let deadline = now () +. seconds in
       let rec wait () =

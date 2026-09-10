@@ -32,28 +32,25 @@ Prerequisites: mise, a C build toolchain, Python 3, and Git. **mise manages opam
 mise trust
 mise install opam
 mise run setup
-python3 tools/bootstrap.py 5.2.1
 tools/harness doctor
 mise run test
 ```
 
-Use `HARNESS_COMPILER=5.2.1 tools/harness ...` for the minimum compiler; the default is 5.5.0. Dependencies are declared in `dune-project`; the `.opam` files are generated. `dune.lock/` and `dune.5.2.lock/` record the complete compiler/dependency solutions, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep both directories in version control. `http-kit-harness` owns test and documentation dependencies; `http-kit-core` has a separate production dependency closure.
+Only **OCaml 5.5.0** is supported. Dependencies are declared in `dune-project`; the `.opam` files are generated. `dune.lock/` records the compiler/dependency solution, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep it in version control. `http-kit-harness` owns test and documentation dependencies; production packages have separate dependency closures.
 
-`mise trust` approves this repository's tool/task configuration. The opam switch's OCaml compiler exists only to build Dune; the two Dune locks still select the compilers used to test http-kit. CI follows the same mise → opam → Dune setup.
+`mise trust` approves this repository's tool/task configuration. The opam switch's OCaml compiler exists only to build Dune; the Dune lock selects OCaml 5.5.0 for http-kit. CI follows the same mise → opam → Dune setup.
 
-Both workspace files explicitly enable package management. Regular setup and CI consume the existing locks; they never refresh dependency versions. The wrapper rejects a missing lock rather than silently resolving a new one. To deliberately update dependencies, edit `dune-project` (or the repository revision in both workspace files), then run:
+The workspace explicitly enables package management. Regular setup and CI consume the existing lock; they never refresh dependency versions. The wrapper rejects a missing lock rather than silently resolving a new one. To deliberately update dependencies, edit `dune-project` (or the repository revision in the workspace files), then run:
 
 ```sh
 tools/dune-pkg pkg lock
-HARNESS_COMPILER=5.2.1 tools/dune-pkg pkg lock dune.5.2.lock
 tools/dune-pkg pkg validate-lockdir
-HARNESS_COMPILER=5.2.1 tools/dune-pkg pkg validate-lockdir dune.5.2.lock
 tools/dune-pkg build @opam --auto-promote
 ```
 
-Review the lock diffs and rerun both compiler validations and fuzz smoke. The wrapper selects Dune 3.24.1, a project-local cache, and the appropriate workspace/build directory. With that version installed, plain `dune build` also uses the default lock. See [Dune's locking documentation](https://dune.readthedocs.io/en/latest/tutorials/dune-package-management/locking.html).
+Review the lock diffs and rerun the compiler validation and fuzz smoke. The wrapper selects Dune 3.24.1, a project-local cache, and the workspace/build directory. With that version installed, plain `dune build` also uses the default lock. See [Dune's locking documentation](https://dune.readthedocs.io/en/latest/tutorials/dune-package-management/locking.html).
 
-The workspace pins both opam-repository and Dune's official compatibility overlay. Both locks select `ocamlfind.1.9.8+dune`, whose relocatable configuration avoids temporary sandbox paths in Topkg builds. This is a solver constraint; generated lock files are never patched by hand.
+The workspace pins both opam-repository and Dune's official compatibility overlay. The normal and coverage locks select `ocamlfind.1.9.8+dune`, whose relocatable configuration avoids temporary sandbox paths in Topkg builds. This is a solver constraint; generated lock files are never patched by hand.
 
 ## API docs and core checks
 
@@ -108,7 +105,6 @@ Release readiness deliberately returns `NOT_IMPLEMENTED` and exit code 3. Unknow
 ## Compiler and instrumentation evidence
 
 ```sh
-python3 tools/evidence.py validate 5.2.1
 python3 tools/evidence.py validate 5.5.0
 mise run setup:afl
 python3 tools/fuzz-smoke.py
@@ -124,9 +120,9 @@ Fuzz smoke verifies different OCaml coverage maps, discovers planted native/Crow
 
 The fuzzer uses SysV shared memory. A restrictive macOS sandbox may prevent allocation; that is an infrastructure failure, not a passing smoke test. Run it in a suitable local environment or use the Linux CI job. No system `sysctl` settings are modified by the scripts.
 
-M0 readiness requires source-matched evidence from both compilers and the fuzz smoke. M2 additionally requires installed-consumer/docs/benchmark evidence on both compilers and the real core fuzz smoke. Editing implementation, tests, toolchain, workspace, API documentation, or lock files invalidates prior evidence. Reports identify the selected lock and its packages. M1 readiness executes its own self-tests. These gates do not assert remote CI completion or internet-facing protocol readiness.
+M0 readiness requires source-matched evidence from OCaml 5.5.0 and the fuzz smoke. M2 additionally requires installed-consumer/docs/benchmark evidence on OCaml 5.5.0 and the real core fuzz smoke. Editing implementation, tests, toolchain, workspace, API documentation, or lock files invalidates prior evidence. Reports identify the selected lock and its packages. M1 readiness executes its own self-tests. These gates do not assert remote CI completion or internet-facing protocol readiness.
 
-The CI workflow checks Linux on both compilers and macOS on 5.5, with a separate Linux instrumentation job. It is configured in the repository; it has not run merely because a local validation passed.
+The CI workflow checks Linux and macOS on OCaml 5.5.0, with a separate Linux instrumentation job. It is configured in the repository; it has not run merely because a local validation passed.
 
 ## Next boundary
 
@@ -161,3 +157,20 @@ opposite runtime unavailable. See [adapter contracts](docs/adapters.md).
 checks both adapters directly and through Nginx with buffering on/off. `mise run
 performance` checks streaming queue bounds and records advisory timing, allocation
 and mixed-load RSS. See [scope and limitations](docs/interop-performance.md).
+
+## Release status
+
+All five production packages are implemented. Release approval remains gated by
+source-matched evidence. See [release tooling and remaining gates](docs/release.md)
+and [private vulnerability reporting](SECURITY.md).
+
+```sh
+python3 tools/coverage.py
+python3 tools/mutations.py
+python3 tools/campaign.py --seconds 30
+python3 tools/release.py
+```
+
+Coverage uses its own development dependency lock, also on OCaml 5.5.0. Normal
+production builds require no coverage runtime. `tools/dune-pkg pkg lock` refreshes
+`dune.lock`; the coverage workspace explicitly selects `coverage.lock`.

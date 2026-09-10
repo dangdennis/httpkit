@@ -5,9 +5,12 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from dune_env import ROOT, configuration
+from dune_env import ROOT, configuration, command
 
 dune, configured_env, _ = configuration()
+for version, lock in [('5.5.0', 'dune.lock')]:
+    _, target_env, _ = configuration(version)
+    assert command(dune, target_env, ['pkg', 'lock'])[-1] == lock
 original_env = dict(os.environ)
 try:
     os.environ.clear()
@@ -18,9 +21,9 @@ finally:
     os.environ.update(original_env)
 with tempfile.TemporaryDirectory(prefix='http-kit-lock-') as directory:
     root = Path(directory)
-    for name in ['dune-project', 'dune-workspace', 'dune-workspace.5.2', 'http-kit-harness.opam', 'http-kit-core.opam']:
+    for name in ['dune-project', 'dune-workspace', 'http-kit-harness.opam', 'http-kit-core.opam']:
         shutil.copy2(ROOT / name, root / name)
-    for name in ['dune.lock', 'dune.5.2.lock']:
+    for name in ['dune.lock']:
         shutil.copytree(ROOT / name, root / name)
     for name in ['tools', 'toolchain', '.toolchain/bin']:
         (root / name).mkdir(parents=True)
@@ -36,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-lock-') as directory:
         assert (result.returncode == 0) == success, (args, result.stdout, result.stderr)
         return result.stdout + result.stderr
 
-    for version, lock in [('5.5.0', 'dune.lock'), ('5.2.1', 'dune.5.2.lock')]:
+    for version, lock in [('5.5.0', 'dune.lock')]:
         run(version, 'pkg', 'enabled')
         run(version, 'pkg', 'validate-lockdir', lock)
     project = root / 'dune-project'
@@ -47,4 +50,5 @@ with tempfile.TemporaryDirectory(prefix='http-kit-lock-') as directory:
     assert 'Missing dune.lock' in error
     assert not (root / 'dune.lock').exists()
     run('invalid', 'build', success=False)
-print('PASS: package management enabled, both locks valid, stale/missing locks and invalid compilers rejected')
+    assert 'HARNESS_COMPILER must be 5.5.0' in run('5.2.1', 'build', success=False)
+print('PASS: package management enabled, 5.5.0 lock valid, stale/missing locks and invalid compilers rejected')

@@ -1,0 +1,11 @@
+[
+  {"name":"core","binary":"core_fuzz","case":null,"seed":"abc"},
+  {"name":"request","binary":"http1_fuzz","case":"request","seed":"GET / HTTP/1.1\r\nHost: x\r\n\r\n"},
+  {"name":"response","binary":"http1_fuzz","case":"response","seed":"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc"},
+  {"name":"chunked","binary":"http1_fuzz","case":"chunked","seed":"3\r\nabc\r\n0\r\n\r\n"},
+  {"name":"server","binary":"engine_fuzz","case":"server","seed":"abc"},
+  {"name":"client","binary":"engine_fuzz","case":"client","seed":"abc"},
+  {"name":"partial-write","binary":"release_fuzz","case":"partial-write","seed":"abc"},
+  {"name":"adapter","binary":"adapter_fuzz","case":null,"seed":"abc"},
+  {"name":"isolation","binary":"release_fuzz","case":"isolation","seed":"abc"}
+]

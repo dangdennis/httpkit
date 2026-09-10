@@ -17,3 +17,7 @@
  (modes exe))
 
 (executable (name engine_fuzz) (modules engine_fuzz) (libraries engine_scenarios crowbar) (modes exe))
+
+(executable (name release_fuzz) (modules release_fuzz) (libraries http-kit-core http-kit-engine crowbar) (modes exe))
+
+(executable (name adapter_fuzz) (modules adapter_fuzz) (libraries http-kit-core http-kit-engine http-kit-eio http-kit-lwt eio.mock lwt.unix crowbar) (modes exe))

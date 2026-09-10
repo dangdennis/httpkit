@@ -10,7 +10,7 @@ depends: [
   "eio"
   "cstruct"
   "mtime"
-  "ocaml" {>= "5.2"}
+  "ocaml" {= "5.5.0"}
   "odoc" {with-doc}
 ]
 build: [

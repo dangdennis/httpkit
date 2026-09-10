@@ -1,4 +1,4 @@
 (library
  (name http_kit_core)
  (public_name http-kit-core)
- (private_modules validation))
+ (private_modules validation) (instrumentation (backend bisect_ppx)))

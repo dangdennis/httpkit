@@ -5,7 +5,7 @@ maintainer: ["http-kit maintainers"]
 authors: ["http-kit maintainers"]
 depends: [
   "dune" {>= "3.24"}
-  "ocaml" {>= "5.2"}
+  "ocaml" {= "5.5.0"}
   "odoc" {with-doc}
 ]
 build: [

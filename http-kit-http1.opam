@@ -7,7 +7,7 @@ depends: [
   "dune" {>= "3.24"}
   "http-kit-core"
   "ipaddr"
-  "ocaml" {>= "5.2"}
+  "ocaml" {= "5.5.0"}
   "odoc" {with-doc}
 ]
 build: [

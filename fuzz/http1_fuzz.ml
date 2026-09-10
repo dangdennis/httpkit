@@ -72,11 +72,34 @@ let chunks wire step =
 let bounded f bytes = if String.length bytes <= 65536 then f bytes
 
 let () =
-  Crowbar.add_test ~name:"request fragmentation and serializer"
-    [ Crowbar.bytes ]
-    (bounded (check_head Request));
-  Crowbar.add_test ~name:"response fragmentation and serializer"
-    [ Crowbar.bytes ]
-    (bounded (check_head (Response Method.get)));
-  Crowbar.add_test ~name:"chunked fragmentation and progress" [ Crowbar.bytes ]
-    (bounded (fun wire -> Crowbar.check (chunks wire max_int = chunks wire 1)))
+  let selected = Sys.getenv_opt "HTTP_KIT_FUZZ_CASE" in
+  if
+    not
+      (List.mem selected
+         [ None; Some "request"; Some "response"; Some "chunked" ])
+  then invalid_arg "unknown fuzz case";
+  let add name f =
+    if selected = None || selected = Some name then
+      Crowbar.add_test ~name [ Crowbar.bytes ] (bounded f)
+  in
+  add "request" (fun wire ->
+      check_head Request wire;
+      (* Grammar-aware companion keeps semantic states reachable while arbitrary
+       bytes exercise rejection. The raw target is deterministic and valid. *)
+      check_head Request
+        ("GET /"
+        ^ Digest.to_hex (Digest.string wire)
+        ^ " HTTP/1.1\r\nHost: x\r\n\r\n"));
+  add "response" (fun wire ->
+      let meth =
+        if wire = "" then Method.get
+        else
+          List.nth
+            [ Method.get; Method.head; Method.connect ]
+            (Char.code wire.[0] mod 3)
+      in
+      check_head (Response meth) wire;
+      check_head (Response Method.get)
+        "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc");
+  add "chunked" (fun wire ->
+      Crowbar.check (chunks wire max_int = chunks wire 1))

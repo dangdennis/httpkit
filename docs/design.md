@@ -56,7 +56,7 @@ The isolated staging project disables package mode solely to use Dune 3.24's ins
 
 `bench/core_bench.ml` reports time and allocated bytes per operation for valid and late-rejected targets at 16/256/8192 bytes and header workloads at 1/10/100 fields. Fixture setup is outside measured work; an opaque identity keeps results observable to the optimizer. Results include compiler and source fingerprints through `tools/evidence.py`. There are no pass/fail timing thresholds on developer laptops; stable-runner baselines and repeated statistical comparison are M6 work.
 
-odoc 3.2.1 is pinned in both locks as a development dependency. First-party documentation warnings are fatal. The API reference is authored beside the code in `.mli` files; this document explains cross-module decisions rather than duplicating every signature.
+odoc 3.2.1 is pinned in the normal and coverage locks as a development dependency. First-party documentation warnings are fatal. The API reference is authored beside the code in `.mli` files; this document explains cross-module decisions rather than duplicating every signature.
 
 ## Next implementation boundary
 

@@ -16,9 +16,9 @@ OUT = ROOT / '_artifacts'
 def source_hash():
     digest = hashlib.sha256()
     paths = [ROOT / 'mise.toml', ROOT / 'http-kit-core.opam', ROOT / 'dune', ROOT / 'dune-project', ROOT / 'http-kit-harness.opam',
-             ROOT / 'dune-workspace', ROOT / 'dune-workspace.5.2']
+             ROOT / 'dune-workspace', ROOT / 'dune-workspace.coverage']
     paths += list(ROOT.glob('*.opam'))
-    for directory in ['examples', 'lib', 'bench', 'test', 'fuzz', 'tools', 'toolchain', '.github', 'dune.lock', 'dune.5.2.lock']:
+    for directory in ['examples', 'lib', 'bench', 'test', 'fuzz', 'tools', 'toolchain', '.github', 'dune.lock', 'coverage.lock']:
         paths += [p for p in (ROOT / directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts]
     for path in sorted(paths):
         if path.exists():
@@ -33,9 +33,9 @@ def record(name, extra):
 def check(milestone='M0'):
     expected = source_hash()
     rank = int(milestone[1:])
-    names = ['compiler-5.2.1.json', 'compiler-5.5.0.json', 'afl/evidence.json']
+    names = ['compiler-5.5.0.json', 'afl/evidence.json']
     if rank >= 6:
-        names += ['interop-5.2.1.json', 'interop-5.5.0.json', 'performance-5.5.0.json']
+        names += ['interop-5.5.0.json', 'performance-5.5.0.json']
     results = {}
     for name in names:
         try:
@@ -123,7 +123,7 @@ if __name__ == '__main__':
         sys.exit(check())
     if len(sys.argv)==3 and sys.argv[1]=='check' and sys.argv[2] in ['M2','M3','M4','M5','M6']:
         sys.exit(check(sys.argv[2]))
-    if len(sys.argv) == 3 and sys.argv[1] == 'validate' and sys.argv[2] in ['5.2.1', '5.5.0']:
+    if len(sys.argv) == 3 and sys.argv[1] == 'validate' and sys.argv[2] in ['5.5.0']:
         validate(sys.argv[2])
     else:
-        sys.exit('usage: evidence.py check | validate 5.2.1|5.5.0')
+        sys.exit('usage: evidence.py check | validate 5.5.0')

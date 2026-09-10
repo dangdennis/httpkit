@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "fuzz_seconds_per_target": 28800,
+  "coverage_minimum_percent": 95,
+  "required_platforms": ["linux-x86_64/5.5.0", "macos-arm64/5.5.0"],
+  "required_reviews": ["security-review", "api-review"],
+  "required_extended_evidence": ["reference-differential", "proxy-observers", "stable-performance", "soak", "contract-coverage"]
+}

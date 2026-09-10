@@ -8,7 +8,7 @@ from dune_env import ROOT, MANIFEST, configuration, require_lock, command
 
 version = sys.argv[1] if len(sys.argv) == 2 else '5.5.0'
 if version not in MANIFEST['compilers'] or len(sys.argv) > 2:
-    sys.exit('usage: bootstrap.py [5.2.1|5.5.0]')
+    sys.exit('usage: bootstrap.py [5.5.0]')
 # Resolve through mise, never an unrelated opam or Dune on the caller's PATH.
 opam = subprocess.check_output(['mise', 'which', 'opam'], cwd=ROOT, text=True).strip()
 env = dict(os.environ, OPAMROOT=str(ROOT / '.toolchain/opam'),

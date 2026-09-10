@@ -11,8 +11,8 @@ MANIFEST = json.loads((ROOT / 'toolchain/manifest.json').read_text())
 def configuration(version=None):
     version = version or os.environ.get('HARNESS_COMPILER', '5.5.0')
     if version not in MANIFEST['compilers']:
-        raise ValueError('HARNESS_COMPILER must be 5.2.1 or 5.5.0')
-    lock = 'dune.lock' if version == '5.5.0' else 'dune.5.2.lock'
+        raise ValueError('HARNESS_COMPILER must be 5.5.0')
+    lock = 'dune.lock'
     local_bin = str(ROOT / '.toolchain/bin')
     path = [part for part in os.environ.get('PATH', '').split(os.pathsep) if part != local_bin]
     env = dict(os.environ, HARNESS_COMPILER=version,
@@ -40,7 +40,11 @@ def command(dune, env, args):
     # Use CLI flags: workspace/build-dir environment variables can leak into
     # nested Dune invocations while building third-party packages.
     version = env['HARNESS_COMPILER']
-    workspace = 'dune-workspace' if version == '5.5.0' else 'dune-workspace.5.2'
+    # pkg lock defaults to dune.lock even when the workspace's build context
+    # uses another lock. Always select the intended lock for a bare refresh.
+    if args == ['pkg', 'lock']:
+        args = [*args, 'dune.lock']
+    workspace = 'dune-workspace'
     flags = ['--workspace=' + str(ROOT / workspace)]
     if '--build-dir' not in args and not any(a.startswith('--build-dir=') for a in args):
         flags += ['--build-dir=_build-pkg-' + version]

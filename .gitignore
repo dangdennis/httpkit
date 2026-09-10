@@ -5,3 +5,5 @@ _artifacts/
 *.merlin
 .DS_Store
 __pycache__/
+
+!dune-workspace.coverage

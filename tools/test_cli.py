@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-cli-') as tmp:
     compiler = os.environ.get('HARNESS_COMPILER', '5.5.0')
     assert failed['provenance']['compiler'] == compiler
     packages = json.loads(failed['provenance']['packages'])
-    assert packages['lock_directory'] == ('dune.lock' if compiler == '5.5.0' else 'dune.5.2.lock')
+    assert packages['lock_directory'] == 'dune.lock'
     assert 'yojson.3.0.0.pkg' in packages['packages']
     run('replay', fixture)  # Same case with the correct subject is positive control.
     original = fixture.read_bytes()

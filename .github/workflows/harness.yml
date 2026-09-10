@@ -9,8 +9,6 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            compiler: 5.2.1
-          - os: ubuntu-24.04
             compiler: 5.5.0
           - os: macos-14
             compiler: 5.5.0
@@ -32,7 +30,6 @@ jobs:
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
       - run: python3 tools/performance.py
-        if: matrix.compiler == '5.5.0'
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
