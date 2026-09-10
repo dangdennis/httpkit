@@ -2,4 +2,4 @@
  (name main)
  (public_name http-kit-test)
  (package http-kit-harness)
- (libraries harness harness_runtime self_cases core_cases http1_cases unix))
+ (libraries harness harness_runtime self_cases core_cases http1_cases engine_cases unix))

@@ -1,6 +1,6 @@
 # http-kit test harness: security, performance, and API ergonomics
 
-Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M1 harness, M2 core values, and M3 codecs are implemented; source-matched local readiness commands report validation. M4–M7 remain planned. Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
+Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M1 harness, M2 core values, M3 codecs, and M4 engines are implemented; source-matched local readiness commands report validation. M5–M7 remain planned. Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
 
 Navigation: [architecture and tools](#3-harness-components-and-dependencies) · [replay](#6-deterministic-scenarios-replay-and-shrinking) · [security matrix](#9-http1-adversarial-matrix) · [runtime adapters](#12-eio-and-lwt-adapter-conformance) · [performance](#15-performance-harness) · [API ergonomics](#16-api-ergonomics-as-executable-acceptance-criteria) · [CI tiers](#18-ci-tiers-reproducibility-and-budgets) · [implementation milestones](#20-implementation-sequence-and-concrete-gates).
 
@@ -636,3 +636,7 @@ Each ID maps to at least one positive control and one counterexample or delibera
 ## M3 implementation update
 
 `http-kit-http1` supplies incremental head/body decoding and encoding with strict framing, target/Host checks, bounded work and metadata, chunk extensions, trailers, and EOF handling. The public suite, installed consumer, initial independent Python stdlib reference, fragmentation fuzz targets, and geometric head benchmarks run in compiler validation. See [HTTP/1 policy](http1.md). Engine sequencing, adapter behavior, broad interop, long fuzz campaigns and independent security review remain later gates.
+
+## M4 implementation update
+
+The standalone engine implements both roles with one-event input backpressure, bounded output reservations, exactly-once accepted commands, serial pipeline admission, early-response close/discard, informational/Expect handling, cancellation, shutdown and negotiated handoff. Generated output-prefix/client models, multi-domain isolation, installed consumers and native AFL targets exercise it. [Engine details](engine.md). Runtime cleanup and clock behavior remain M5 work.

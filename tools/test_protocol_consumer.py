@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
         shutil.copytree(path,deps/path.name)
     clean['OCAMLPATH']=str(deps)
     stage=root/'source';stage.mkdir()
-    for package in ['core','http1']:
+    for package in ['core','http1','engine']:
         shutil.copytree(ROOT/'lib'/package,stage/package)
         shutil.copy2(ROOT/f'http-kit-{package}.opam',stage/f'http-kit-{package}.opam')
     (stage/'dune-project').write_text('(lang dune 3.24)\n(name protocol-install)\n')
@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
         assert result.returncode==0,(args,result.stdout,result.stderr)
         return result.stdout
     run(stage,['build','@install'])
-    run(stage,['install','--prefix',str(prefix),'http-kit-core','http-kit-http1'])
+    run(stage,['install','--prefix',str(prefix),'http-kit-core','http-kit-http1','http-kit-engine'])
     clean['OCAMLPATH']=str(prefix/'lib')+os.pathsep+str(deps)
     consumer=root/'consumer';consumer.mkdir()
     (consumer/'dune-project').write_text('(lang dune 3.24)\n(name consumer)\n')
@@ -51,7 +51,15 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
     response.begin()
     assert response.status==200 and response.read()==b'abc'
     assert [v for n,v in response.getheaders() if n.lower()=='set-cookie']==['a=1','b=2']
+    # A second consumer links the engine directly, with no runtime adapters.
+    shutil.copy2(ROOT/'test/api/engine/consumer.ml',consumer/'consumer.ml')
+    (consumer/'dune').write_text('(executable (name consumer) (modes byte exe) (libraries http-kit-core http-kit-engine))\n')
+    run(consumer,['build','consumer.exe','consumer.bc'])
+    engine_wire=subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)
+    assert engine_wire == b'HTTP/1.1 200 \r\ncontent-length: 3\r\n\r\nabc'
+    assert subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==engine_wire
+    (consumer/'dune').write_text('(executable (name consumer) (libraries http-kit-core http-kit-http1))\n')
     (consumer/'consumer.ml').write_text('let forge (m:Http_kit_http1.metadata) = {m with persistent=true}\n')
     result=subprocess.run([dune,'build','consumer.exe'],cwd=consumer,env=clean,capture_output=True,text=True,timeout=30)
     assert result.returncode!=0 and 'private' in result.stderr, result.stderr
-print('PASS: installed HTTP/1 bytecode/native consumer, private metadata, Python stdlib response reference')
+print('PASS: installed HTTP/1 and engine bytecode/native consumers, private metadata, Python stdlib response reference')

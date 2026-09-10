@@ -37,15 +37,17 @@ def check(milestone='M0'):
         try:
             data = json.loads((OUT / name).read_text())
             ok = data.get('source_sha256') == expected and data.get('status') == 'PASS'
-            if milestone in ['M2', 'M3']:
+            if milestone in ['M2', 'M3', 'M4']:
                 if name.startswith('compiler-'):
                     ok = ok and data.get('core_consumer') is True and data.get('odoc') == '3.2.1'
                     benchmark = json.loads((OUT / ('core-bench-' + data['compiler'] + '.json')).read_text())
                     ok = ok and benchmark.get('source_sha256') == expected
                 else:
                     ok = ok and int(data.get('core_execs', 0)) >= 10
-            if milestone == 'M3':
+            if milestone in ['M3', 'M4']:
                 ok = ok and (data.get('http1_consumer') is True if name.startswith('compiler-') else int(data.get('http1_execs', 0)) >= 10)
+            if milestone == 'M4':
+                ok = ok and (data.get('engine_consumer') is True if name.startswith('compiler-') else int(data.get('engine_execs', 0)) >= 10)
             results[name] = 'PASS' if ok else 'STALE_OR_FAILED'
         except (OSError, ValueError):
             results[name] = 'MISSING'
@@ -97,7 +99,7 @@ def validate(version):
         raise RuntimeError('compiler mismatch or sources changed during validation')
     record('compiler-' + version + '.json', {'status': 'PASS', 'compiler': actual,
            'dependency_manager': 'dune', 'lock_directory': lock.name,
-           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'odoc': '3.2.1'})
+           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'engine_consumer': True, 'odoc': '3.2.1'})
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['packages']:
@@ -110,7 +112,7 @@ if __name__ == '__main__':
         sys.exit(0)
     if sys.argv[1:] == ['check']:
         sys.exit(check())
-    if len(sys.argv)==3 and sys.argv[1]=='check' and sys.argv[2] in ['M2','M3']:
+    if len(sys.argv)==3 and sys.argv[1]=='check' and sys.argv[2] in ['M2','M3','M4']:
         sys.exit(check(sys.argv[2]))
     if len(sys.argv) == 3 and sys.argv[1] == 'validate' and sys.argv[2] in ['5.2.1', '5.5.0']:
         validate(sys.argv[2])

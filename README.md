@@ -2,7 +2,7 @@
 
 An OCaml HTTP toolkit being built from independently usable primitives, with native Eio and Lwt adapters planned above a sans-I/O engine.
 
-**Current scope: M0–M1 harness, M2 core values, and M3 HTTP/1 codecs.** `http-kit-core` has no runtime dependencies beyond OCaml's standard library. `http-kit-http1` adds incremental head/body decoding, strict framing validation, and encoding. Client/server engines and Eio/Lwt adapters are next.
+**Current scope: M0–M1 harness, M2 core values, M3 HTTP/1 codecs, and M4 engines.** `http-kit-core` has no runtime dependencies beyond OCaml's standard library. `http-kit-http1` adds incremental head/body decoding, strict framing validation, and encoding. `http-kit-engine` adds bounded sans-I/O client/server connections. Native Eio/Lwt adapters are next.
 
 The [package design](docs/design.md) records current APIs and ownership decisions. The [full test plan](docs/test-harness-plan.md) describes security and release gates; the [harness contract](docs/harness-contract.md) distinguishes synthetic models from real core tests.
 
@@ -130,4 +130,6 @@ The CI workflow checks Linux on both compilers and macOS on 5.5, with a separate
 
 ## Next boundary
 
-M4 composes these codecs into client/server sans-I/O engines: bounded events/output, exactly-once commands, partial acknowledgements, persistence, cancellation, early responses, and handoff. Native Eio and Lwt adapters follow. The [design](docs/design.md#next-implementation-boundary) records the sequence.
+M4’s [engine contract](docs/engine.md) covers: bounded events/output, exactly-once commands, partial acknowledgements, persistence, cancellation, early responses, and handoff. Native Eio and Lwt adapters follow. The [design](docs/design.md#next-implementation-boundary) records the sequence.
+
+Run `tools/harness run --suite engine` and `tools/harness readiness --milestone M4` for engine tests and source-matched readiness.

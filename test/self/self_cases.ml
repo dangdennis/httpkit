@@ -361,14 +361,20 @@ let cases =
       ( "registry/no-fake-http",
         fun () ->
           check
-            (List.length Registry.pending_capabilities >= 9)
+            (List.length Registry.pending_capabilities >= 2)
             "HTTP capabilities disappeared";
           check
             (List.for_all
                (fun r ->
                  (not r.Registry.implemented)
                  || List.mem r.layer
-                      [ "harness-self"; "core-values"; "core-install"; "http1" ])
+                      [
+                        "harness-self";
+                        "core-values";
+                        "core-install";
+                        "http1";
+                        "engine";
+                      ])
                Registry.requirements)
             "fake HTTP coverage" );
     ]

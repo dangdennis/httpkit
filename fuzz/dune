@@ -15,3 +15,5 @@
  (modules http1_fuzz)
  (libraries http-kit-core http-kit-http1 crowbar)
  (modes exe))
+
+(executable (name engine_fuzz) (modules engine_fuzz) (libraries engine_scenarios crowbar) (modes exe))

@@ -42,6 +42,9 @@ val limits :
 
 val default_limits : limits
 
+val step_limit : limits -> int
+(** Maximum input bytes and emitted data bytes per codec operation. *)
+
 type framing = Empty | Fixed of int64 | Chunked | Close_delimited | Tunnel
 type head = Request_head of unit Request.t | Response_head of unit Response.t
 

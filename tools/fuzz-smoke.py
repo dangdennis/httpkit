@@ -45,8 +45,8 @@ prefix = [dune]
 build = '_build-fuzz-pkg-' + version
 run(prefix + ['pkg', 'validate-lockdir', lock.name])
 run(prefix + ['build', '--profile', 'fuzz', '--build-dir', build, '-j', '4',
-              'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe', 'fuzz/http1_fuzz.exe'])
-run(prefix + ['build', 'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe', 'fuzz/http1_fuzz.exe'])
+              'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe', 'fuzz/http1_fuzz.exe', 'fuzz/engine_fuzz.exe'])
+run(prefix + ['build', 'fuzz/instrumentation.exe', 'fuzz/scenario_fuzz.exe', 'fuzz/core_fuzz.exe', 'fuzz/http1_fuzz.exe', 'fuzz/engine_fuzz.exe'])
 binary = ROOT / build / 'default/fuzz/instrumentation.exe'
 plain = ROOT / ('_build-pkg-' + version) / 'default/fuzz/instrumentation.exe'
 target = ROOT / build / 'default/fuzz/scenario_fuzz.exe'
@@ -151,6 +151,27 @@ with tempfile.TemporaryDirectory(prefix='run-', dir=out) as temp:
     for case in corpus:
         run([plain_codec, case])
     codec_replays = len(corpus)
+    engine_target = ROOT / build / 'default/fuzz/engine_fuzz.exe'
+    plain_engine = ROOT / ('_build-pkg-' + version) / 'default/fuzz/engine_fuzz.exe'
+    run([afl / 'afl-fuzz', '-V', '10', '-m', '512', '-t', '2000', '-i', seeds,
+         '-o', temp / 'engine', '--', engine_target, '@@'], logfile=out / 'engine.log')
+    findings = [p for p in (temp / 'engine').rglob('id:*') if p.parent.name in ('crashes', 'hangs')]
+    if findings:
+        for i, path in enumerate(findings):
+            (out / f'engine-finding-{i}.input').write_bytes(path.read_bytes())
+        raise RuntimeError('engine fuzzing found crashes/hangs; reproducers preserved')
+    engine_stats_files = list((temp / 'engine').rglob('fuzzer_stats'))
+    if len(engine_stats_files) != 1:
+        raise RuntimeError('missing engine fuzzer statistics')
+    engine_text = engine_stats_files[0].read_text()
+    engine_stats = {k.strip(): v.strip() for k, v in
+                    (line.split(':', 1) for line in engine_text.splitlines() if ':' in line)}
+    if int(engine_stats.get('execs_done', '0')) < 10:
+        raise RuntimeError('insufficient engine fuzz execution')
+    (out / 'engine-stats.txt').write_text(engine_text)
+    engine_corpus = sorted(p for p in (temp / 'engine').rglob('id:*') if p.parent.name == 'queue')[:32]
+    for case in engine_corpus:
+        run([plain_engine, case])
 if source_hash() != digest:
     raise RuntimeError('sources changed during fuzz validation')
 data = {'status': 'PASS', 'source_sha256': digest, 'afl_revision': actual,
@@ -158,7 +179,8 @@ data = {'status': 'PASS', 'source_sha256': digest, 'afl_revision': actual,
         'uninstrumented_replay_failed_as_expected': True, 'crowbar_execs': stats['execs_done'],
         'crowbar_assertion_discovered_and_replayed': True,
         'core_execs': core_stats['execs_done'],
+        'engine_execs': engine_stats['execs_done'], 'engine_uninstrumented_replays': len(engine_corpus),
         'http1_execs': codec_stats['execs_done'], 'http1_uninstrumented_replays': codec_replays,
-        'scope': 'M0 instrumentation, M1 synthetic harness, M2 core values and M3 HTTP/1 codecs; smoke budgets only'}
+        'scope': 'M0 instrumentation, M1 synthetic harness, M2 core values M3 codecs and M4 engines; smoke budgets only'}
 evidence.write_text(json.dumps(data, indent=2) + '\n')
 print(json.dumps(data, indent=2))

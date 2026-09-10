@@ -136,18 +136,62 @@ let requirements =
           [ "http1/head/serialization"; "http1/body/serialization" ] );
       ]
 
-let pending_capabilities =
-  [
-    "persistence";
-    "pipelined-input";
-    "informational";
-    "expect";
-    "eof-early-response";
-    "engine-cancellation";
-    "upgrade-connect-handoff";
-    "eio-adapter";
-    "lwt-adapter";
-  ]
+let requirements =
+  requirements
+  @ List.map
+      (fun (id, rule, cases) ->
+        {
+          id;
+          rule;
+          source = "project-policy";
+          cases;
+          layer = "engine";
+          implemented = true;
+        })
+      [
+        ( "ENGINE.ORDER",
+          "Serial admission and exact partial output",
+          [ "engine/server/pipeline"; "engine/output/backpressure" ] );
+        ( "ENGINE.BODY",
+          "Body demand, early response and safe discard",
+          [
+            "engine/input/backpressure";
+            "engine/server/early-final";
+            "engine/server/discard";
+            "engine/client/early-final";
+          ] );
+        ( "ENGINE.CANCEL",
+          "Terminal cancellation, EOF and shutdown",
+          [
+            "engine/abort/once";
+            "engine/eof/fixed";
+            "engine/eof/half-close";
+            "engine/shutdown";
+          ] );
+        ( "ENGINE.INFO",
+          "Bounded informational responses and Expect",
+          [
+            "engine/server/informational";
+            "engine/client/info-bound";
+            "engine/client/expect";
+            "engine/client/expect-override";
+          ] );
+        ( "ENGINE.HANDOFF",
+          "Negotiated handoff after output acknowledgement",
+          [
+            "engine/handoff/connect";
+            "engine/handoff/upgrade";
+            "engine/handoff/client-connect";
+            "engine/handoff/unsolicited";
+          ] );
+        ( "ENGINE.OWNERSHIP",
+          "Connection-local identity and independent domains",
+          [
+            "engine/ids/ownership"; "engine/model/domains"; "engine/ack/invalid";
+          ] );
+      ]
+
+let pending_capabilities = [ "eio-adapter"; "lwt-adapter" ]
 
 let to_json () =
   `Assoc

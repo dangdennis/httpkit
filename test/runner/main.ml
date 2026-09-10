@@ -179,7 +179,10 @@ let main () =
       and suite = option args "--suite" "all" in
       if tier <> "fast" then
         die "NOT_IMPLEMENTED" ("tier not implemented: " ^ tier);
-      if not (List.mem suite [ "all"; "self"; "property"; "core"; "http1" ])
+      if
+        not
+          (List.mem suite
+             [ "all"; "self"; "property"; "core"; "http1"; "engine" ])
       then die "NOT_IMPLEMENTED" ("suite not implemented: " ^ suite);
       let count = positive "count" (option args "--count" "200") in
       let seed =
@@ -204,11 +207,19 @@ let main () =
           Http1_cases.cases @ Http1_cases.properties ~seed ~count
         else []
       in
+      let cases =
+        cases
+        @
+        if suite = "all" || suite = "engine" then
+          Engine_cases.cases @ Engine_cases.properties ~seed ~count
+        else []
+      in
       let scope =
-        if suite = "http1" then "M3 HTTP/1 codecs"
+        if suite = "engine" then "M4 sans-I/O engines"
+        else if suite = "http1" then "M3 HTTP/1 codecs"
         else if suite = "core" then "M2 core values"
         else if suite = "all" then
-          "M1 synthetic harness, M2 core values and M3 HTTP/1 codecs"
+          "M1 synthetic harness, M2 core values M3 HTTP/1 codecs and M4 engines"
         else "M1 synthetic harness only"
       in
       let json, results, ok = run_cases ~scope ~count ~seed cases in

@@ -1,0 +1,3 @@
+(library (name engine_scenarios) (modules engine_scenarios) (libraries http-kit-core http-kit-http1 http-kit-engine))
+(library (name engine_cases) (modules engine_cases) (libraries http-kit-core http-kit-http1 http-kit-engine engine_scenarios qcheck-core))
+(test (name engine_test) (modules engine_test) (libraries engine_cases harness alcotest))

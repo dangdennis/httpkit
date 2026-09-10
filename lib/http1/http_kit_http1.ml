@@ -69,6 +69,7 @@ let limits ?(line = 8192) ?(headers = 32768) ?(fields = 100) ?(trailers = 16384)
       }
 
 let default_limits = Result.get_ok (limits ())
+let step_limit limits = limits.step
 
 let slice s off len =
   off >= 0 && len >= 0 && off <= String.length s && len <= String.length s - off
