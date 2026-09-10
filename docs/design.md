@@ -76,3 +76,8 @@ M5 implements [native adapter ownership and deadlines](adapters.md), independent
 runtime installation, shared pure-handler examples, bounded admission and bounded
 body collection. M6 interop/performance evidence is the next boundary. Routing and
 TLS remain caller-supplied; no common promise abstraction enters production.
+
+M6 adds [real intermediary lanes and streaming measurements](interop-performance.md).
+The next boundary is M7 release reporting: source-matched evidence must distinguish
+implemented capabilities from independent review, sustained campaigns and stable
+performance infrastructure that have actually completed.

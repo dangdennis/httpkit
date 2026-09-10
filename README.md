@@ -154,3 +154,10 @@ The caller owns routing, listener/backlog configuration, and TLS.
 
 The installed-consumer matrix executes native and bytecode examples with the
 opposite runtime unavailable. See [adapter contracts](docs/adapters.md).
+
+## Interop and performance
+
+`mise run setup:nginx` builds a checksum-pinned local reference. `mise run interop`
+checks both adapters directly and through Nginx with buffering on/off. `mise run
+performance` checks streaming queue bounds and records advisory timing, allocation
+and mixed-load RSS. See [scope and limitations](docs/interop-performance.md).

@@ -20,3 +20,15 @@ run = "tools/dune-pkg build @doc"
 [tasks.bench]
 description = "Measure core time and allocations (no performance threshold)"
 run = "tools/dune-pkg exec ./bench/core_bench.exe"
+
+[tasks."setup:nginx"]
+description = "Build the pinned local Nginx interop reference"
+run = "tools/setup-nginx.sh"
+
+[tasks.interop]
+description = "Run direct and real Nginx HTTP/1 interoperability lanes"
+run = "python3 tools/interop.py"
+
+[tasks.performance]
+description = "Measure streaming bounds and advisory native mixed workloads"
+run = "python3 tools/performance.py"

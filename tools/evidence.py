@@ -32,27 +32,33 @@ def record(name, extra):
 
 def check(milestone='M0'):
     expected = source_hash()
+    rank = int(milestone[1:])
+    names = ['compiler-5.2.1.json', 'compiler-5.5.0.json', 'afl/evidence.json']
+    if rank >= 6:
+        names += ['interop-5.2.1.json', 'interop-5.5.0.json', 'performance-5.5.0.json']
     results = {}
-    for name in ['compiler-5.2.1.json', 'compiler-5.5.0.json', 'afl/evidence.json']:
+    for name in names:
         try:
             data = json.loads((OUT / name).read_text())
             ok = data.get('source_sha256') == expected and data.get('status') == 'PASS'
-            if milestone in ['M2', 'M3', 'M4', 'M5']:
-                if name.startswith('compiler-'):
+            if name.startswith('compiler-'):
+                if rank >= 2:
                     ok = ok and data.get('core_consumer') is True and data.get('odoc') == '3.2.1'
                     benchmark = json.loads((OUT / ('core-bench-' + data['compiler'] + '.json')).read_text())
                     ok = ok and benchmark.get('source_sha256') == expected
-                else:
-                    ok = ok and int(data.get('core_execs', 0)) >= 10
-            if milestone in ['M3', 'M4', 'M5']:
-                ok = ok and (data.get('http1_consumer') is True if name.startswith('compiler-') else int(data.get('http1_execs', 0)) >= 10)
-            if milestone in ['M4', 'M5']:
-                ok = ok and (data.get('engine_consumer') is True if name.startswith('compiler-') else int(data.get('engine_execs', 0)) >= 10)
-            if milestone == 'M5' and name.startswith('compiler-'):
-                ok = ok and data.get('adapter_consumer') is True
+                if rank >= 3: ok = ok and data.get('http1_consumer') is True
+                if rank >= 4: ok = ok and data.get('engine_consumer') is True
+                if rank >= 5: ok = ok and data.get('adapter_consumer') is True
+            elif name == 'afl/evidence.json':
+                for minimum, field in [(2, 'core_execs'), (3, 'http1_execs'), (4, 'engine_execs')]:
+                    if rank >= minimum: ok = ok and int(data.get(field, 0)) >= 10
+            elif name.startswith('interop-'):
+                ok = ok and len(data.get('results', [])) == 6
+            elif name.startswith('performance-'):
+                ok = ok and data.get('hard_queue_bound') == 32768 and len(data.get('mixed_loads', [])) == 2
             results[name] = 'PASS' if ok else 'STALE_OR_FAILED'
-        except (OSError, ValueError):
-            results[name] = 'MISSING'
+        except (OSError, ValueError, KeyError, TypeError):
+            results[name] = 'MISSING_OR_INVALID'
     ok = all(v == 'PASS' for v in results.values())
     print(json.dumps({'milestone': milestone, 'status': 'PASS' if ok else 'INFRA_ERROR',
                       'source_sha256': expected, 'evidence': results}, indent=2))
@@ -115,7 +121,7 @@ if __name__ == '__main__':
         sys.exit(0)
     if sys.argv[1:] == ['check']:
         sys.exit(check())
-    if len(sys.argv)==3 and sys.argv[1]=='check' and sys.argv[2] in ['M2','M3','M4','M5']:
+    if len(sys.argv)==3 and sys.argv[1]=='check' and sys.argv[2] in ['M2','M3','M4','M5','M6']:
         sys.exit(check(sys.argv[2]))
     if len(sys.argv) == 3 and sys.argv[1] == 'validate' and sys.argv[2] in ['5.2.1', '5.5.0']:
         validate(sys.argv[2])

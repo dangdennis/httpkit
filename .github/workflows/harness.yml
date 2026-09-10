@@ -1,4 +1,4 @@
-name: Harness and core
+name: HTTP toolkit validation
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -15,7 +15,7 @@ jobs:
           - os: macos-14
             compiler: 5.5.0
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -27,6 +27,14 @@ jobs:
       # mise installs opam; opam bootstraps Dune; Dune locks supply the test compiler.
       - run: python3 tools/bootstrap.py ${{ matrix.compiler }}
       - run: python3 tools/evidence.py validate ${{ matrix.compiler }}
+      - run: mise run setup:nginx
+      - run: python3 tools/interop.py
+        env:
+          HARNESS_COMPILER: ${{ matrix.compiler }}
+      - run: python3 tools/performance.py
+        if: matrix.compiler == '5.5.0'
+        env:
+          HARNESS_COMPILER: ${{ matrix.compiler }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -34,7 +42,7 @@ jobs:
           path: _artifacts/
   instrumentation:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
