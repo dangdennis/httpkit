@@ -1,0 +1,5 @@
+(library
+ (name http_kit_middleware)
+ (public_name http-kit-middleware)
+ (libraries http-kit-core)
+ (instrumentation (backend bisect_ppx)))

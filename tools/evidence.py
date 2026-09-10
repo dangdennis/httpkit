@@ -92,6 +92,7 @@ def validate(version):
     run([sys.executable, str(ROOT / 'tools/test_core_consumer.py')])
     run([sys.executable, str(ROOT / 'tools/test_protocol_consumer.py')])
     run([sys.executable, str(ROOT / 'tools/test_adapter_consumer.py')])
+    run([sys.executable, str(ROOT / 'tools/test_middleware_consumer.py')])
     benchmark = json.loads(subprocess.check_output(command(dune, env,
         ['exec', './bench/core_bench.exe']), cwd=ROOT, env=env, text=True))
     if len(benchmark['results']) != 15 or any(r['ns_per_op'] <= 0 or
@@ -109,7 +110,7 @@ def validate(version):
         raise RuntimeError('compiler mismatch or sources changed during validation')
     record('compiler-' + version + '.json', {'status': 'PASS', 'compiler': actual,
            'dependency_manager': 'dune', 'lock_directory': lock.name,
-           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'engine_consumer': True, 'adapter_consumer': True, 'odoc': '3.2.1'})
+           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'engine_consumer': True, 'adapter_consumer': True, 'middleware_consumer': True, 'odoc': '3.2.1'})
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['packages']:

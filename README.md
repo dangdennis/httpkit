@@ -180,3 +180,9 @@ production builds require no coverage runtime. `tools/dune-pkg pkg lock` refresh
 Start with the [in-memory streaming and native adapter examples](docs/examples.md).
 The pure example demonstrates incremental transfer, exact acknowledgements, owned
 body chunks, and retrying backpressured commands without a runtime adapter.
+
+## Middleware composition
+
+`http-kit-middleware` offers [three context-safety styles](docs/middleware.md):
+basic wrappers, a shared typed context, and indexed context transitions. It
+depends only on core and preserves native runtime return types.

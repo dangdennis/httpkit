@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory() as directory:
         p.write_text(json.dumps(dict(status='PASS',source_sha256='current',**fields)))
     assert check()['status']=='NOT_READY'
     for version in ['5.5.0']:
-        put('compiler-'+version,compiler=version,core_consumer=True,http1_consumer=True,engine_consumer=True,adapter_consumer=True,odoc='3.2.1')
+        put('compiler-'+version,compiler=version,core_consumer=True,http1_consumer=True,engine_consumer=True,adapter_consumer=True,middleware_consumer=True,odoc='3.2.1')
         put('interop-'+version,results=[{}]*6)
     put('afl/evidence',coverage_maps_differ=True,crowbar_assertion_discovered_and_replayed=True)
     put('mutations-5.5.0',results=[{'compiled':True,'status':'KILLED'}]*3)

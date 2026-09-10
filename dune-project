@@ -24,6 +24,10 @@
  (synopsis "Native Lwt adapter for HTTP primitives")
  (depends http-kit-core http-kit-engine lwt mtime (ocaml (= 5.5.0))))
 (package
+ (name http-kit-middleware)
+ (synopsis "Runtime-independent middleware with typed context transitions")
+ (depends http-kit-core (ocaml (= 5.5.0))))
+(package
  (name http-kit-harness)
  (synopsis "Development-only contract harness for http-kit")
  (depopts bisect_ppx)
@@ -33,6 +37,7 @@
   http-kit-engine
   http-kit-eio
   http-kit-lwt
+  http-kit-middleware
   eio_main
   (ocaml (= 5.5.0))
   (yojson (= 3.0.0))

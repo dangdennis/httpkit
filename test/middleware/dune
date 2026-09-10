@@ -1,0 +1,2 @@
+(test (name middleware_test) (modules middleware_test)
+ (libraries http-kit-core http-kit-middleware alcotest))

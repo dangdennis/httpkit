@@ -1,0 +1,4 @@
+(executable (name styles) (modules styles) (modes byte exe)
+ (libraries http-kit-core http-kit-middleware))
+(rule (alias runtest) (action (run ./styles.exe)))
+(rule (alias runtest) (action (run ./styles.bc)))

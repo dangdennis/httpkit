@@ -15,7 +15,7 @@ run_dir=Path(tempfile.mkdtemp(prefix='run-',dir=out));env['BISECT_FILE']=str(run
 flags=['--workspace='+str(ROOT/'dune-workspace.coverage'),'--build-dir=_build-coverage']
 def run(args):
     return subprocess.check_output([dune,args[0],*flags,*args[1:]],cwd=ROOT,env=env,text=True,stderr=subprocess.STDOUT,timeout=1800)
-log=run(['runtest','--instrument-with','bisect_ppx','--force','test/core','test/http1','test/engine','test/adapter'])
+log=run(['runtest','--instrument-with','bisect_ppx','--force','test/core','test/http1','test/engine','test/adapter','test/middleware'])
 (run_dir/'tests.log').write_text(log)
 for name in ['http1_fuzz','engine_fuzz','release_fuzz','adapter_fuzz']:
     log=run(['exec','--instrument-with','bisect_ppx','./fuzz/'+name+'.exe','--','-r','10000','-s','42'])

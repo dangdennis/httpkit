@@ -10,12 +10,12 @@ Updated 2026-09-10. This document records implemented core contracts and the nex
 | `http-kit-harness` | Development runners, synthetic model, conformance evidence, docs tooling | Implemented for M0–M2 |
 | `http-kit-http1` | Independently usable incremental HTTP/1 decoding and encoding | Implemented in `lib/http1` |
 | `http-kit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Implemented in `lib/engine` |
-| `http-kit-eio` | Native Eio transport, cancellation, clocks, and body streams | Planned |
-| `http-kit-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Planned |
+| `http-kit-eio` | Native Eio transport, cancellation, clocks, and body streams | Implemented |
+| `http-kit-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Implemented |
 
 Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Future codecs may depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. Eio and Lwt will have their own native APIs, without a shared monadic runtime abstraction.
 
-Only the four implemented packages have build definitions. Future names in this table are design boundaries, not empty libraries or passing capability stubs.
+`http-kit-middleware` adds three public composition styles: basic wrappers, typed contexts, and indexed context transitions. It depends only on core; see [middleware contracts](middleware.md).
 
 ## Core contracts
 

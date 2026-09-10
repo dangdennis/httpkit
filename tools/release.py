@@ -18,7 +18,7 @@ def assess(directory, expected, policy, target_names, license_present):
         except (OSError,ValueError):return None
     for version in ['5.5.0']:
         data=evidence('compiler-'+version)
-        add('compiler/'+version,bool(data and data.get('compiler')==version and all(data.get(k) is True for k in ['core_consumer','http1_consumer','engine_consumer','adapter_consumer']) and data.get('odoc')=='3.2.1'),'Source-matched tests, docs and installed consumers.')
+        add('compiler/'+version,bool(data and data.get('compiler')==version and all(data.get(k) is True for k in ['core_consumer','http1_consumer','engine_consumer','adapter_consumer','middleware_consumer']) and data.get('odoc')=='3.2.1'),'Source-matched tests, docs and installed consumers.')
         data=evidence('interop-'+version)
         add('interop/'+version,bool(data and len(data.get('results',[]))==6),'Six direct/Nginx smoke lanes; extended reference evidence is separate.')
     data=evidence('afl/evidence')
