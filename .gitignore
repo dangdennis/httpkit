@@ -1,0 +1,7 @@
+_build*/
+.toolchain/
+_artifacts/
+*.coverage
+*.merlin
+.DS_Store
+__pycache__/

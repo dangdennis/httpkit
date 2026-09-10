@@ -1,0 +1,16 @@
+(lang dune 3.24)
+(name http-kit-harness)
+(generate_opam_files true)
+(maintainers "http-kit maintainers")
+(authors "http-kit maintainers")
+(package
+ (name http-kit-harness)
+ (synopsis "Development-only contract harness for http-kit")
+ (depends
+  (ocaml (and (>= 5.2) (< 5.6)))
+  (yojson (= 3.0.0))
+  (base64 (= 3.5.2))
+  (mtime (= 2.1.0))
+  (qcheck-core (= 0.91))
+  (alcotest (= 1.9.1))
+  (crowbar (= 0.2.2))))

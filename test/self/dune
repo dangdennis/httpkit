@@ -1,0 +1,9 @@
+(library
+ (name self_cases)
+ (modules self_cases)
+ (libraries harness harness_runtime qcheck-core))
+
+(test
+ (name self_test)
+ (modules self_test)
+ (libraries self_cases alcotest))

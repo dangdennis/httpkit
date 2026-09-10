@@ -1,0 +1,54 @@
+name: Harness M0-M1
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  correctness:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            compiler: 5.2.1
+          - os: ubuntu-24.04
+            compiler: 5.5.0
+          - os: macos-14
+            compiler: 5.5.0
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: ocaml/setup-ocaml@e89b2ded52a6e13f50162220cf5fe47290162032
+        with:
+          ocaml-compiler: 5.5.0
+          dune-cache: false
+      # opam bootstraps Dune only; Dune locks supply the compiler under test.
+      - run: opam install dune.3.24.1 -y
+      - run: python3 tools/bootstrap.py ${{ matrix.compiler }}
+      - run: python3 tools/evidence.py validate ${{ matrix.compiler }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: harness-${{ matrix.os }}-${{ matrix.compiler }}
+          path: _artifacts/
+  instrumentation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: ocaml/setup-ocaml@e89b2ded52a6e13f50162220cf5fe47290162032
+        with:
+          ocaml-compiler: 5.5.0
+          dune-cache: false
+      - run: opam install dune.3.24.1 -y
+      - run: python3 tools/bootstrap.py 5.5.0
+      - run: python3 tools/fuzz-smoke.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: harness-afl
+          path: _artifacts/afl/

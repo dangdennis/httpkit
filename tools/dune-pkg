@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Run the pinned Dune with the selected committed dependency solution."""
+import os
+import sys
+from dune_env import ROOT, configuration, require_lock, command
+
+try:
+    dune, env, lock = configuration()
+    if sys.argv[1:3] != ['pkg', 'lock']:
+        require_lock(lock)
+    os.chdir(ROOT)
+    os.execve(dune, command(dune, env, sys.argv[1:]), env)
+except (RuntimeError, ValueError) as error:
+    sys.exit(str(error))

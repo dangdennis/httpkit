@@ -1,0 +1,4 @@
+(executables
+ (names instrumentation scenario_fuzz)
+ (libraries harness crowbar)
+ (modes exe))
