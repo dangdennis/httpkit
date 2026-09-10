@@ -13,7 +13,9 @@ dune,env,_=configuration();version=env['HARNESS_COMPILER'];digest=source_hash()
 compiler=Path(subprocess.check_output(command(dune,env,['exec','--','sh','-c','command -v ocamlc']),cwd=ROOT,env=env,text=True).strip()).resolve()
 clean={k:v for k,v in env.items() if not k.startswith(('OCAML','CAML','DUNE'))}
 clean['PATH']=str(compiler.parent)+os.pathsep+clean['PATH']
-selected=subprocess.check_output(command(dune,env,['exec','--','ocamlfind','query','-recursive','-format','%d','alcotest','qcheck-core','yojson','mtime.clock.os','eio_main','lwt.unix','crowbar','ipaddr']),cwd=ROOT,env=env,text=True).splitlines()
+# Include direct test dependencies even if another platform happens to pull
+# them in transitively (e.g. base64 through the macOS Eio dependency closure).
+selected=subprocess.check_output(command(dune,env,['exec','--','ocamlfind','query','-recursive','-format','%d','alcotest','qcheck-core','yojson','base64','mtime.clock.os','eio_main','lwt.unix','crowbar','ipaddr']),cwd=ROOT,env=env,text=True).splitlines()
 roots={next(parent for parent in [Path(p),*Path(p).parents] if parent.name=='lib' and parent.parent.name=='target') for p in selected}
 clean['OCAMLPATH']=os.pathsep.join(str(p) for p in sorted(roots))
 out=ROOT/'_artifacts/mutations';out.mkdir(parents=True,exist_ok=True)

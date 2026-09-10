@@ -52,11 +52,19 @@ jobs:
       - run: mise run setup:afl
       - run: python3 tools/fuzz-smoke.py
       - run: python3 tools/campaign.py --seconds 30
+      # AFL corpus names contain colons, which upload-artifact rejects. Archive
+      # the complete evidence tree without renaming seeds or losing findings.
+      - name: Archive fuzz evidence
+        if: always()
+        run: |
+          mkdir -p _artifacts
+          tar -czf "$RUNNER_TEMP/harness-afl.tar.gz" _artifacts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: harness-afl
-          path: _artifacts/
+          path: ${{ runner.temp }}/harness-afl.tar.gz
+          if-no-files-found: error
   release-tooling:
     runs-on: ubuntu-24.04
     timeout-minutes: 45

@@ -122,6 +122,9 @@ not a passing artifact for work that was never performed.
 
 - Confirm the candidate's GitHub workflow succeeds on both declared platforms.
   Download the run artifacts with `gh run download RUN_ID --dir /path/to/archive`.
+  The `harness-afl` artifact contains `harness-afl.tar.gz`; extract it with
+  `tar -xzf harness-afl.tar.gz` inside the archive directory to recover `_artifacts/`
+  with original corpus filenames.
   Check compiler values, source hashes, required job conclusions, and report
   contents. Preserve the run URL, full commit, job/platform mapping, and artifacts.
 - Obtain an independent security review of framing, ownership, limits, cancellation,
