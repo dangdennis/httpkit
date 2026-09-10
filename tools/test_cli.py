@@ -36,7 +36,12 @@ with tempfile.TemporaryDirectory(prefix='http-kit-cli-') as tmp:
     run('run', '--tier', 'nightly', code=3)
     run('run', '--count', code=2)
     release = run('readiness', '--release', code=3)
-    assert release['registry']['pending_release_capabilities']
+    assert release['status'] == 'NOT_READY'
+    assert release['gates'] and any(g['status'] == 'NOT_READY' for g in release['gates'])
+    assert run('readiness', '--milestone', 'M7', code=3) == release
+    direct = subprocess.run(['python3', str(ROOT / 'tools/release.py')], cwd=ROOT,
+                            capture_output=True, text=True, timeout=30)
+    assert direct.returncode == 3 and json.loads(direct.stdout) == release
     fixture.write_text('{bad')
     run('replay', fixture, code=2)
     report = run('run', '--suite', 'property', '--count', '5', '--report', tmp / 'report.json',

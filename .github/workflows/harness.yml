@@ -51,8 +51,29 @@ jobs:
       - run: python3 tools/bootstrap.py 5.5.0
       - run: mise run setup:afl
       - run: python3 tools/fuzz-smoke.py
+      - run: python3 tools/campaign.py --seconds 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: harness-afl
-          path: _artifacts/afl/
+          path: _artifacts/
+  release-tooling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.6.10"
+          install_args: opam
+      - run: python3 tools/bootstrap.py 5.5.0
+      - run: python3 tools/test_release.py
+      - run: python3 tools/coverage.py
+      - run: python3 tools/mutations.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: harness-release-tooling
+          path: _artifacts/

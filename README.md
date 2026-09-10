@@ -100,7 +100,7 @@ tools/harness readiness --milestone M1
 tools/harness readiness --release
 ```
 
-Release readiness deliberately returns `NOT_IMPLEMENTED` and exit code 3. Unknown suites/tier names cannot silently select an empty passing test run. Exit codes: 0 success, 1 test failure, 2 infrastructure/invalid invocation, 3 required work unimplemented.
+Release readiness returns `NOT_READY` and exit code 3 while required source-matched evidence is incomplete. Unknown suites/tier names cannot silently select an empty passing test run. Exit codes: 0 success, 1 test failure, 2 infrastructure/invalid invocation, 3 required work unimplemented.
 
 ## Compiler and instrumentation evidence
 
@@ -162,7 +162,7 @@ and mixed-load RSS. See [scope and limitations](docs/interop-performance.md).
 
 All five production packages are implemented. Release approval remains gated by
 source-matched evidence. See [release tooling and remaining gates](docs/release.md)
-and [private vulnerability reporting](SECURITY.md).
+and [private vulnerability reporting](SECURITY.md). The [manual M7 checklist](docs/m7-manual-checklist.md) separates long-running experiments and owner reviews from implementation work.
 
 ```sh
 python3 tools/coverage.py

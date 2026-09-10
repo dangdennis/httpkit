@@ -1,6 +1,6 @@
 # http-kit test harness: security, performance, and API ergonomics
 
-Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M1 harness, M2 core values, M3 codecs, and M4 engines are implemented; source-matched local readiness commands report validation. M5–M7 remain planned. Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
+Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M6 implementation is complete: harness, core values, codecs, engines, adapters, and initial interoperability/performance lanes. M7 release tooling is implemented; full campaigns, extended experiments, and independent approval remain pending. See the [manual M7 checklist](m7-manual-checklist.md). Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
 
 Navigation: [architecture and tools](#3-harness-components-and-dependencies) · [replay](#6-deterministic-scenarios-replay-and-shrinking) · [security matrix](#9-http1-adversarial-matrix) · [runtime adapters](#12-eio-and-lwt-adapter-conformance) · [performance](#15-performance-harness) · [API ergonomics](#16-api-ergonomics-as-executable-acceptance-criteria) · [CI tiers](#18-ci-tiers-reproducibility-and-budgets) · [implementation milestones](#20-implementation-sequence-and-concrete-gates).
 
@@ -559,7 +559,7 @@ Implement in this order. Each milestone adds real evidence and is independently 
 
 For every feature PR, require: the contract entry; smallest deterministic regression/positive case; appropriate property/model coverage; resource-limit behavior; public usage example if API changes; and benchmark coverage only when the change affects a measured hot path or retention. Avoid writing shallow tests that merely restate a trivial implementation.
 
-The first implementation task completed the M0–M1 harness. The current M2 slice adds the standalone `http-kit-core` library, 14 deterministic core cases, four constructor properties, installed bytecode/native consumers and compile-fail fixtures, executable odoc examples, a native core fuzz target, and initial allocation/time microbenchmarks. `tools/harness readiness --milestone M2` requires matching evidence from both supported compilers and AFL smoke. This slice validates lexical construction, not wire serialization; the M3 codec will validate message combinations before serialization. No parser, listener, engine, or runtime adapter is present yet.
+The first implementation task completed the M0–M1 harness. The current M2 slice adds the standalone `http-kit-core` library, 14 deterministic core cases, four constructor properties, installed bytecode/native consumers and compile-fail fixtures, executable odoc examples, a native core fuzz target, and initial allocation/time microbenchmarks. `tools/harness readiness --milestone M2` requires matching evidence from OCaml 5.5.0 and AFL smoke. This slice validates lexical construction, not wire serialization; the M3 codec will validate message combinations before serialization. No parser, listener, engine, or runtime adapter is present yet.
 
 ## 21. Release acceptance and honest limits
 

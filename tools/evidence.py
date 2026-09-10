@@ -16,9 +16,10 @@ OUT = ROOT / '_artifacts'
 def source_hash():
     digest = hashlib.sha256()
     paths = [ROOT / 'mise.toml', ROOT / 'http-kit-core.opam', ROOT / 'dune', ROOT / 'dune-project', ROOT / 'http-kit-harness.opam',
-             ROOT / 'dune-workspace', ROOT / 'dune-workspace.coverage']
+             ROOT / 'dune-workspace', ROOT / 'dune-workspace.coverage',
+             ROOT / 'README.md', ROOT / 'SECURITY.md', ROOT / 'LICENSE']
     paths += list(ROOT.glob('*.opam'))
-    for directory in ['examples', 'lib', 'bench', 'test', 'fuzz', 'tools', 'toolchain', '.github', 'dune.lock', 'coverage.lock']:
+    for directory in ['docs', 'examples', 'lib', 'bench', 'test', 'fuzz', 'tools', 'toolchain', '.github', 'dune.lock', 'coverage.lock']:
         paths += [p for p in (ROOT / directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts]
     for path in sorted(paths):
         if path.exists():

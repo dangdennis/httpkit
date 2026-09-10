@@ -291,14 +291,18 @@ let main () =
       in
       Scenario.save path s;
       output (`Assoc [ ("status", `String "WRITTEN"); ("path", `String path) ])
-  | [ "readiness"; "--release" ] ->
-      output
-        (`Assoc
-           [
-             ("status", `String "NOT_IMPLEMENTED");
-             ("registry", Registry.to_json ());
-           ]);
-      exit 3
+  | [ "readiness"; "--release" ] | [ "readiness"; "--milestone"; "M7" ] -> (
+      (* Release assessment checks retained evidence; it never starts campaigns
+         or invents missing reviews. Preserve its incomplete-scope exit code. *)
+      let pid =
+        Unix.create_process "python3"
+          [| "python3"; "tools/release.py" |]
+          Unix.stdin Unix.stdout Unix.stderr
+      in
+      let _, status = Unix.waitpid [] pid in
+      match status with
+      | Unix.WEXITED ((0 | 3) as code) -> exit code
+      | _ -> exit 2)
   | [ "readiness"; "--milestone"; "M1" ] ->
       let json, _, ok =
         run_cases ~count:200 ~seed:42

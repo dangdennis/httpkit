@@ -14,7 +14,7 @@ python3 tools/release.py --output _artifacts/release.json
 
 The standalone release command returns exit 3 and `NOT_READY` whenever a required gate is missing, stale, below budget, or failed. Exit 0 means the checked evidence is complete. An artifact's `status: PASS` describes its own scope; it does not imply release readiness. `toolchain/release-policy.json` records the actual thresholds and required evidence families.
 
-The older `tools/harness readiness --release` command still returns its registry-based `NOT_IMPLEMENTED` status; it is not yet wired to the detailed assessment above.
+Both `tools/harness readiness --release` and `tools/harness readiness --milestone M7` run the same detailed assessment and preserve exit 3 for incomplete evidence. See the [manual M7 completion checklist](m7-manual-checklist.md) for ownership, commands, and required review artifacts.
 
 Nine separately selected fuzz targets cover core values; request, response and chunked codecs; server and client lifecycles; partial writes; native adapter schedules; and connection isolation. `toolchain/fuzz-targets.json` records their executable and selector. Each target receives an AFL time budget, retains its corpus and logs, and replays every retained queue entry without instrumentation. The native adapter target checks partial I/O and cancellation with both runtimes. It sends no network traffic.
 
