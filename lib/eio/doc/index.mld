@@ -1,0 +1,15 @@
+{0 Native Eio HTTP connections}
+
+{!Http_kit_eio} drives the pure {!Http_kit_engine} using scoped Eio fibers.
+Wrap an owned flow with {!Http_kit_eio.of_flow}, then enter
+{!Http_kit_eio.with_connection}. Accepted output is flushed on normal return;
+errors and cancellation close the transport after children stop.
+
+One domain owns a connection. One fiber consumes incoming events. Senders wait
+for bounded output capacity; body collection has a separate explicit cap.
+{!Http_kit_eio.serve_connections} bounds admitted transports using native workers.
+The caller owns listener creation, TLS, backlog, and application routing.
+
+See examples/runtime/eio_example.ml for a complete socket-pair exchange with a
+pure handler also used by the Lwt example. The installed-package matrix executes
+both examples in bytecode and native mode without the other runtime available.

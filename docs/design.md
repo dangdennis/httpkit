@@ -71,3 +71,8 @@ Each step needs positive controls, adversarial cases, public consumers, explicit
 M3 now implements the codec steps above; see [the HTTP/1 policy](http1.md) for exact contracts and evidence. M4 is the next active boundary.
 
 M4 implements the [engine ownership contract](engine.md); M5 native adapters are now the next boundary.
+
+M5 implements [native adapter ownership and deadlines](adapters.md), independent
+runtime installation, shared pure-handler examples, bounded admission and bounded
+body collection. M6 interop/performance evidence is the next boundary. Routing and
+TLS remain caller-supplied; no common promise abstraction enters production.

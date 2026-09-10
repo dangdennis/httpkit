@@ -361,8 +361,8 @@ let cases =
       ( "registry/no-fake-http",
         fun () ->
           check
-            (List.length Registry.pending_capabilities >= 2)
-            "HTTP capabilities disappeared";
+            (List.mem "release-evidence" Registry.pending_capabilities)
+            "release evidence gate disappeared";
           check
             (List.for_all
                (fun r ->
@@ -374,6 +374,7 @@ let cases =
                         "core-install";
                         "http1";
                         "engine";
+                        "adapter";
                       ])
                Registry.requirements)
             "fake HTTP coverage" );

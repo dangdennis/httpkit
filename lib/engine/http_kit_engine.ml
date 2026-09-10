@@ -1,4 +1,5 @@
 open Http_kit_core
+module Timeout = Timeout
 module Codec = Http_kit_http1
 
 (* A per-instance identity avoids global mutable counters and rejects IDs from

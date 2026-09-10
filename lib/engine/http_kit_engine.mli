@@ -1,4 +1,6 @@
 open Http_kit_core
+
+module Timeout = Timeout
 (** Single-owner sans-I/O HTTP/1 client/server connections. No callbacks or I/O.
     Admission is serial; pipelined bytes remain with the caller until the active
     exchange retires. An engine is not safe for simultaneous domain mutation. *)

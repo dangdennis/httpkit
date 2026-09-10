@@ -306,7 +306,9 @@ let main () =
       in
       output json;
       if not ok then exit 1
-  | [ "readiness"; "--milestone"; (("M0" | "M2") as milestone) ] ->
+  | [
+   "readiness"; "--milestone"; (("M0" | "M2" | "M3" | "M4" | "M5") as milestone);
+  ] ->
       let args =
         if milestone = "M0" then [| "python3"; "tools/evidence.py"; "check" |]
         else [| "python3"; "tools/evidence.py"; "check"; milestone |]

@@ -640,3 +640,11 @@ Each ID maps to at least one positive control and one counterexample or delibera
 ## M4 implementation update
 
 The standalone engine implements both roles with one-event input backpressure, bounded output reservations, exactly-once accepted commands, serial pipeline admission, early-response close/discard, informational/Expect handling, cancellation, shutdown and negotiated handoff. Generated output-prefix/client models, multi-domain isolation, installed consumers and native AFL targets exercise it. [Engine details](engine.md). Runtime cleanup and clock behavior remain M5 work.
+
+## M5 implementation update
+
+Both native adapters, pure deadline policy, bounded admission/collection, mock
+lifecycle schedules, real socket streaming and separate installed-consumer tests
+are implemented. See [adapter contracts and measured test scope](adapters.md).
+Milestone evidence requires both compilers, docs, installed runtime isolation and
+source-matched fuzz smoke. Broader release campaigns remain separate gates.

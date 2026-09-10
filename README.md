@@ -1,8 +1,8 @@
 # http-kit
 
-An OCaml HTTP toolkit being built from independently usable primitives, with native Eio and Lwt adapters planned above a sans-I/O engine.
+An OCaml HTTP toolkit being built from independently usable primitives, with native Eio and Lwt adapters above a sans-I/O engine.
 
-**Current scope: M0–M1 harness, M2 core values, M3 HTTP/1 codecs, and M4 engines.** `http-kit-core` has no runtime dependencies beyond OCaml's standard library. `http-kit-http1` adds incremental head/body decoding, strict framing validation, and encoding. `http-kit-engine` adds bounded sans-I/O client/server connections. Native Eio/Lwt adapters are next.
+**Current scope: M0–M1 harness, M2 core values, M3 HTTP/1 codecs, M4 engines, and M5 native adapters.** `http-kit-core` has no runtime dependencies beyond OCaml's standard library. `http-kit-http1` adds incremental head/body decoding, strict framing validation, and encoding. `http-kit-engine` adds bounded sans-I/O client/server connections. `http-kit-eio` and `http-kit-lwt` provide scoped native drivers, deadlines, bounded admission and body collection. Release evidence remains a separate gate.
 
 The [package design](docs/design.md) records current APIs and ownership decisions. The [full test plan](docs/test-harness-plan.md) describes security and release gates; the [harness contract](docs/harness-contract.md) distinguishes synthetic models from real core tests.
 
@@ -22,7 +22,7 @@ let request path =
 
 `Method`, `Header.Name`, `Header.Value`, `Target`, and `Status` have opaque types and checked constructors. `Headers` preserves duplicate fields and order, with count and byte budgets. Requests and responses are polymorphic in their body; `map_body` can change its type without changing metadata. Errors contain a category and optional byte offset, never untrusted input.
 
-Targets retain raw bytes and escapes. This is lexical validation: the upcoming codec must still check target forms, Host, framing conflicts, and status/method-specific body rules. See [the precise limits and contracts](docs/design.md#core-contracts).
+Targets retain raw bytes and escapes. This is lexical validation: the HTTP/1 codec additionally checks target forms, Host, framing conflicts, and status/method-specific body rules. See [the precise limits and contracts](docs/design.md#core-contracts).
 
 ## Setup
 
@@ -37,7 +37,7 @@ tools/harness doctor
 mise run test
 ```
 
-Use `HARNESS_COMPILER=5.2.1 tools/harness ...` for the minimum compiler; the default is 5.5.0. Dependencies are declared in `dune-project`; both `.opam` files are generated. `dune.lock/` and `dune.5.2.lock/` record the complete compiler/dependency solutions, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep both directories in version control. `http-kit-harness` owns test and documentation dependencies; `http-kit-core` has a separate production dependency closure.
+Use `HARNESS_COMPILER=5.2.1 tools/harness ...` for the minimum compiler; the default is 5.5.0. Dependencies are declared in `dune-project`; the `.opam` files are generated. `dune.lock/` and `dune.5.2.lock/` record the complete compiler/dependency solutions, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep both directories in version control. `http-kit-harness` owns test and documentation dependencies; `http-kit-core` has a separate production dependency closure.
 
 `mise trust` approves this repository's tool/task configuration. The opam switch's OCaml compiler exists only to build Dune; the two Dune locks still select the compilers used to test http-kit. CI follows the same mise → opam → Dune setup.
 
@@ -130,6 +130,27 @@ The CI workflow checks Linux on both compilers and macOS on 5.5, with a separate
 
 ## Next boundary
 
-M4’s [engine contract](docs/engine.md) covers: bounded events/output, exactly-once commands, partial acknowledgements, persistence, cancellation, early responses, and handoff. Native Eio and Lwt adapters follow. The [design](docs/design.md#next-implementation-boundary) records the sequence.
+M4’s [engine contract](docs/engine.md) covers: bounded events/output, exactly-once commands, partial acknowledgements, persistence, cancellation, early responses, and handoff. Native Eio and Lwt adapters now implement these contracts; see [adapter ownership and policy](docs/adapters.md). The [design](docs/design.md#next-implementation-boundary) records the sequence.
 
 Run `tools/harness run --suite engine` and `tools/harness readiness --milestone M4` for engine tests and source-matched readiness.
+
+## Native adapters
+
+Run the complete socket-pair examples:
+
+```sh
+tools/dune-pkg exec examples/runtime/eio_example.exe
+tools/dune-pkg exec examples/runtime/lwt_example.exe
+tools/dune-pkg runtest test/adapter
+python3 tools/test_adapter_consumer.py
+tools/harness readiness --milestone M5
+```
+
+Both examples link the exact same [pure handler](examples/runtime/transform.ml).
+Use `with_connection` for transport ownership, `next_event` for streaming,
+`send`/`finish` for bounded output, and `collect_body ~limit` for explicitly bounded
+collection. `serve_connections ~max_connections` limits admitted transports.
+The caller owns routing, listener/backlog configuration, and TLS.
+
+The installed-consumer matrix executes native and bytecode examples with the
+opposite runtime unavailable. See [adapter contracts](docs/adapters.md).

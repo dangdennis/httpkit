@@ -191,7 +191,27 @@ let requirements =
           ] );
       ]
 
-let pending_capabilities = [ "eio-adapter"; "lwt-adapter" ]
+let requirements =
+  requirements
+  @ List.map
+      (fun runtime ->
+        {
+          id = "ADAPTER." ^ String.uppercase_ascii runtime;
+          rule =
+            "Native deadlines, bounded admission, cancellation cleanup, \
+             partial I/O and handoff";
+          layer = "adapter";
+          source = "project-policy";
+          implemented = true;
+          cases =
+            [
+              "test/adapter/" ^ runtime ^ "_test.ml";
+              "tools/test_adapter_consumer.py";
+            ];
+        })
+      [ "eio"; "lwt" ]
+
+let pending_capabilities = [ "release-evidence" ]
 
 let to_json () =
   `Assoc

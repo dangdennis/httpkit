@@ -1,0 +1,4 @@
+(library (name adapter_fixtures) (modules adapter_fixtures) (libraries http-kit-core http-kit-engine))
+(test (name timeout_test) (modules timeout_test) (libraries http-kit-engine alcotest))
+(test (name eio_test) (modules eio_test) (libraries adapter_fixtures http-kit-eio eio.mock eio_main alcotest harness_runtime))
+(test (name lwt_test) (modules lwt_test) (libraries adapter_fixtures http-kit-lwt lwt.unix alcotest harness_runtime))

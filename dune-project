@@ -16,12 +16,23 @@
  (synopsis "Bounded sans-I/O HTTP client and server engines")
  (depends http-kit-core http-kit-http1 (ocaml (>= 5.2))))
 (package
+ (name http-kit-eio)
+ (synopsis "Native Eio adapter for HTTP primitives")
+ (depends http-kit-core http-kit-engine eio cstruct mtime (ocaml (>= 5.2))))
+(package
+ (name http-kit-lwt)
+ (synopsis "Native Lwt adapter for HTTP primitives")
+ (depends http-kit-core http-kit-engine lwt mtime (ocaml (>= 5.2))))
+(package
  (name http-kit-harness)
  (synopsis "Development-only contract harness for http-kit")
  (depends
   http-kit-core
   http-kit-http1
   http-kit-engine
+  http-kit-eio
+  http-kit-lwt
+  eio_main
   (ocaml (and (>= 5.2) (< 5.6)))
   (yojson (= 3.0.0))
   (base64 (= 3.5.2))
