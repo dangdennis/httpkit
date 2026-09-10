@@ -1,0 +1,12 @@
+{0 Routing primitives}
+
+{!Http_kit_router} matches methods and raw origin-form paths against a bounded,
+declaration-ordered table. Patterns support literals, named parameters and a
+final wildcard. The table stores application data without invoking handlers.
+
+Query strings do not affect matching. Percent escapes, case, dot segments and
+repeated slashes retain their exact spelling. Captures remain encoded bytes.
+A caller must choose decoding, authorization and filesystem policies explicitly.
+
+A method mismatch returns the distinct matching methods, allowing an application
+to choose its 405 response and Allow header. HEAD and OPTIONS are not synthesized.

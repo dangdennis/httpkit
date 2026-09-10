@@ -1,7 +1,7 @@
 # M7 manual completion checklist
 
 M7 is the release-evidence milestone, not another implementation package. It is
-complete only when every required gate passes for one frozen candidate. The five
+complete only when every required gate passes for one frozen candidate. The seven
 packages exist; CI smoke success alone does not establish release readiness.
 
 ## Ownership and candidate isolation

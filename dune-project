@@ -28,6 +28,10 @@
  (synopsis "Runtime-independent middleware with typed context transitions")
  (depends http-kit-core (ocaml (= 5.5.0))))
 (package
+ (name http-kit-router)
+ (synopsis "Bounded pure routing over raw HTTP paths")
+ (depends http-kit-core (ocaml (= 5.5.0))))
+(package
  (name http-kit-harness)
  (synopsis "Development-only contract harness for http-kit")
  (depopts bisect_ppx)
@@ -38,6 +42,7 @@
   http-kit-eio
   http-kit-lwt
   http-kit-middleware
+  http-kit-router
   eio_main
   (ocaml (= 5.5.0))
   (yojson (= 3.0.0))

@@ -6,3 +6,6 @@
 (executable (name http1_bench) (modules http1_bench) (libraries http-kit-core http-kit-http1 mtime.clock.os))
 
 (executable (name stream_bench) (modules stream_bench) (libraries http-kit-core http-kit-engine mtime.clock.os))
+
+(executable (name router_bench) (modules router_bench)
+ (libraries http-kit-core http-kit-router mtime.clock.os))

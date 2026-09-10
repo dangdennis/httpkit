@@ -1,0 +1,6 @@
+(library (name application) (modules application)
+ (libraries http-kit-core http-kit-router http-kit-middleware))
+(executable (name eio_server) (modules eio_server)
+ (libraries application http-kit-eio eio_main))
+(executable (name lwt_server) (modules lwt_server)
+ (libraries application http-kit-lwt lwt.unix))

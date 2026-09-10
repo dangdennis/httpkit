@@ -1,6 +1,6 @@
 # Release evidence and remaining gates
 
-The code now contains five independently usable production packages: core values, HTTP/1 codecs, a sans-I/O engine, and native Eio/Lwt drivers. M7 makes release assessment executable. It does not manufacture independent approval or replace long campaigns with smoke runs.
+The code now contains seven independently usable production packages: core values, HTTP/1 codecs, a sans-I/O engine, native Eio/Lwt drivers, middleware, and routing. M7 makes release assessment executable. It does not manufacture independent approval or replace long campaigns with smoke runs.
 
 ## Commands
 

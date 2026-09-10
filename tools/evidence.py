@@ -93,6 +93,8 @@ def validate(version):
     run([sys.executable, str(ROOT / 'tools/test_protocol_consumer.py')])
     run([sys.executable, str(ROOT / 'tools/test_adapter_consumer.py')])
     run([sys.executable, str(ROOT / 'tools/test_middleware_consumer.py')])
+    run([sys.executable, str(ROOT / 'tools/test_router_consumer.py')])
+    run([sys.executable, str(ROOT / 'tools/test_routing_examples.py')])
     benchmark = json.loads(subprocess.check_output(command(dune, env,
         ['exec', './bench/core_bench.exe']), cwd=ROOT, env=env, text=True))
     if len(benchmark['results']) != 15 or any(r['ns_per_op'] <= 0 or
@@ -103,6 +105,13 @@ def validate(version):
     if len(http1_benchmark['results']) != 6:
         raise RuntimeError('incomplete HTTP/1 benchmark')
     record('http1-bench-' + version + '.json', http1_benchmark)
+    router_benchmark = json.loads(subprocess.check_output(command(dune, env,
+        ['exec', './bench/router_bench.exe']), cwd=ROOT, env=env, text=True))
+    if len(router_benchmark['results']) != 12 or any(
+            r['ns_per_lookup'] <= 0 or r['allocated_bytes_per_lookup'] < 0
+            for r in router_benchmark['results']):
+        raise RuntimeError('incomplete or invalid router benchmark')
+    record('router-bench-' + version + '.json', router_benchmark)
     doctor = json.loads(subprocess.check_output([str(ROOT / 'tools/harness'), 'doctor'],
                                                cwd=ROOT, env=env, text=True))
     actual = doctor['ocaml']
@@ -110,7 +119,7 @@ def validate(version):
         raise RuntimeError('compiler mismatch or sources changed during validation')
     record('compiler-' + version + '.json', {'status': 'PASS', 'compiler': actual,
            'dependency_manager': 'dune', 'lock_directory': lock.name,
-           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'engine_consumer': True, 'adapter_consumer': True, 'middleware_consumer': True, 'odoc': '3.2.1'})
+           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'engine_consumer': True, 'adapter_consumer': True, 'middleware_consumer': True, 'router_consumer': True, 'routing_examples': True, 'odoc': '3.2.1'})
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['packages']:

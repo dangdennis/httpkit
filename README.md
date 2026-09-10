@@ -160,7 +160,7 @@ and mixed-load RSS. See [scope and limitations](docs/interop-performance.md).
 
 ## Release status
 
-All five production packages are implemented. Release approval remains gated by
+The five protocol/runtime packages plus middleware and routing are implemented. Release approval remains gated by
 source-matched evidence. See [release tooling and remaining gates](docs/release.md)
 and [private vulnerability reporting](SECURITY.md). The [manual M7 checklist](docs/m7-manual-checklist.md) separates long-running experiments and owner reviews from implementation work.
 
@@ -186,3 +186,10 @@ body chunks, and retrying backpressured commands without a runtime adapter.
 `http-kit-middleware` offers [three context-safety styles](docs/middleware.md):
 basic wrappers, a shared typed context, and indexed context transitions. It
 depends only on core and preserves native runtime return types.
+
+## Pure routing
+
+`http-kit-router` provides [bounded, declaration-ordered matching](docs/routing.md)
+for literals, parameters and trailing wildcards. It preserves raw encoded paths
+and returns matches or explicit 404/405 outcomes without invoking handlers. The
+shared routing/middleware example runs unchanged through native Eio and Lwt servers.
