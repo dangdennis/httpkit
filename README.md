@@ -174,3 +174,9 @@ python3 tools/release.py
 Coverage uses its own development dependency lock, also on OCaml 5.5.0. Normal
 production builds require no coverage runtime. `tools/dune-pkg pkg lock` refreshes
 `dune.lock`; the coverage workspace explicitly selects `coverage.lock`.
+
+## Executable examples
+
+Start with the [in-memory streaming and native adapter examples](docs/examples.md).
+The pure example demonstrates incremental transfer, exact acknowledgements, owned
+body chunks, and retrying backpressured commands without a runtime adapter.

@@ -1,0 +1,13 @@
+(executable
+ (name in_memory)
+ (modules in_memory)
+ (modes byte exe)
+ (libraries http-kit-core http-kit-engine))
+
+(rule
+ (alias runtest)
+ (action (run ./in_memory.exe)))
+
+(rule
+ (alias runtest)
+ (action (run ./in_memory.bc)))

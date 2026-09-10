@@ -58,8 +58,14 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
     engine_wire=subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)
     assert engine_wire == b'HTTP/1.1 200 \r\ncontent-length: 3\r\n\r\nabc'
     assert subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==engine_wire
+    # The documented pure streaming recipe must also work with only installed
+    # protocol packages; workspace-private modules and adapters are unavailable.
+    shutil.copy2(ROOT/'examples/pure/in_memory.ml',consumer/'consumer.ml')
+    run(consumer,['build','consumer.exe','consumer.bc'])
+    assert subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)==b'Hello /stream\n'
+    assert subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==b'Hello /stream\n'
     (consumer/'dune').write_text('(executable (name consumer) (libraries http-kit-core http-kit-http1))\n')
     (consumer/'consumer.ml').write_text('let forge (m:Http_kit_http1.metadata) = {m with persistent=true}\n')
     result=subprocess.run([dune,'build','consumer.exe'],cwd=consumer,env=clean,capture_output=True,text=True,timeout=30)
     assert result.returncode!=0 and 'private' in result.stderr, result.stderr
-print('PASS: installed HTTP/1 and engine bytecode/native consumers, private metadata, Python stdlib response reference')
+print('PASS: installed HTTP/1 and engine bytecode/native consumers, installed streaming recipe, private metadata, Python stdlib response reference')
