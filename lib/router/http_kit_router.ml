@@ -103,23 +103,24 @@ type 'a outcome =
   | Not_found
   | Method_not_allowed of Method.t list
 
-let matches ~capture pattern parts =
-  let bind name value acc = if capture then (name, value) :: acc else acc in
-  let rec loop acc pattern parts =
-    match (pattern, parts) with
-    | [], [] -> Some (List.rev acc)
-    | [ Wildcard name ], parts ->
-        (* Only materialize wildcard bytes for the selected method. A 405 lookup
-         must not allocate the same potentially large suffix for every route. *)
-        let value = if capture then String.concat "/" parts else "" in
-        Some (List.rev (bind name value acc))
-    | Literal expected :: rest, actual :: tail when expected = actual ->
-        loop acc rest tail
-    | Parameter name :: rest, actual :: tail when actual <> "" ->
-        loop (bind name actual acc) rest tail
-    | _ -> None
-  in
-  loop [] pattern parts
+(* Keep recursion at module scope: a table miss must not allocate a pair of
+   helper closures for every route that it scans. Capture/result allocation
+   remains explicit in the successful branches below. *)
+let rec matches ~capture acc pattern parts =
+  match (pattern, parts) with
+  | [], [] -> Some (List.rev acc)
+  | [ Wildcard name ], parts ->
+      (* Materialize wildcard bytes only for the selected method. *)
+      let acc =
+        if capture then (name, String.concat "/" parts) :: acc else acc
+      in
+      Some (List.rev acc)
+  | Literal expected :: rest, actual :: tail when expected = actual ->
+      matches ~capture acc rest tail
+  | Parameter name :: rest, actual :: tail when actual <> "" ->
+      let acc = if capture then (name, actual) :: acc else acc in
+      matches ~capture acc rest tail
+  | _ -> None
 
 let lookup table ~meth ~target =
   let text = Target.to_string target in
@@ -143,7 +144,7 @@ let lookup table ~meth ~target =
         else
           let route = table.routes.(index) in
           let same_method = Method.equal meth route.meth in
-          match matches ~capture:same_method route.pattern parts with
+          match matches ~capture:same_method [] route.pattern parts with
           | Some params when same_method ->
               Ok (Matched { value = route.value; params })
           | Some _ ->
