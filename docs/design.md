@@ -83,3 +83,15 @@ M6 adds [real intermediary lanes and streaming measurements](interop-performance
 The next boundary is M7 release reporting: source-matched evidence must distinguish
 implemented capabilities from independent review, sustained campaigns and stable
 performance infrastructure that have actually completed.
+
+## Consolidation decisions
+
+Receive and send progress are independent private engine states. Completion,
+input abort and transfer are explicit; output acknowledgements still control
+retirement. No public runtime dependency was added. Adapter admission helpers
+accept immutable engine limits and create fresh engines per connection.
+
+Benchmark fixture configuration uses named variants and records. Shared helpers
+cover wire construction and input-prefix accounting, while runtime/library
+ownership remains visible in each driver. Pipeline correctness includes ordered
+request/response identity. See [the consolidation plan](code-quality-plan.md).

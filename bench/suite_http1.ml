@@ -28,7 +28,8 @@ let body_work ~step metadata wire expected_bytes expected_trailers eof () =
   and ended = ref false in
   while not !ended do
     if !offset = String.length wire && eof then (
-      require (ok (H.eof_body decoder) = Some H.End);
+      require
+        (ok ~error_to_string:H.error_to_string (H.eof_body decoder) = Some H.End);
       ended := true)
     else
       let n, event =
@@ -167,12 +168,15 @@ let jobs () =
   let encode =
     [
       job "http1" "encode/request-head" 3000 (fun () ->
-          let wire, _ = ok (H.encode_request request) in
+          let wire, _ =
+            ok ~error_to_string:H.error_to_string (H.encode_request request)
+          in
           require
             (wire = "POST / HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\n\r\n"));
       job "http1" "encode/response-head" 3000 (fun () ->
           let wire, _ =
-            ok (H.encode_response ~request_method:Method.get response)
+            ok ~error_to_string:H.error_to_string
+              (H.encode_response ~request_method:Method.get response)
           in
           require (wire = "HTTP/1.1 200 \r\ncontent-length: 0\r\n\r\n"));
     ]
@@ -193,7 +197,8 @@ let jobs () =
                 ()
             in
             let _, metadata =
-              ok (H.encode_response ~request_method:Method.get response)
+              ok ~error_to_string:H.error_to_string
+                (H.encode_response ~request_method:Method.get response)
             in
             let expected =
               if chunked then Printf.sprintf "%x\r\n%s\r\n" size body else body
@@ -205,11 +210,32 @@ let jobs () =
               1000
               (fun () ->
                 let encoder = H.body_encoder metadata in
-                require (ok (H.encode_data encoder body) = expected);
                 require
-                  (ok (H.finish_body encoder)
+                  (ok ~error_to_string:H.error_to_string
+                     (H.encode_data encoder body)
+                  = expected);
+                require
+                  (ok ~error_to_string:H.error_to_string (H.finish_body encoder)
                   = if chunked then "0\r\n\r\n" else "")))
           [ false; true ])
       [ 64; 4096; 16384 ]
   in
-  heads @ bodies @ reject @ [ eof ] @ encode @ encode_bodies
+  let token_membership =
+    List.map
+      (fun count ->
+        let tokens name = String.concat "," (List.init count (fun _ -> name)) in
+        let wire =
+          "POST / HTTP/1.1\r\n\
+           Host: x\r\n\
+           Transfer-Encoding: chunked\r\n\
+           Connection: " ^ tokens "x" ^ "\r\nTrailer: " ^ tokens "y"
+          ^ "\r\n\r\n"
+        in
+        job ~bytes:(String.length wire) "http1"
+          (Printf.sprintf "head/token-membership/%d" count) 100 (fun () ->
+            let metadata = decode_head ~step:16384 H.Request wire in
+            require ~message:"token fixture framing changed"
+              (metadata.framing = H.Chunked)))
+      [ 10; 100; 1000; 3000 ]
+  in
+  heads @ bodies @ reject @ [ eof ] @ encode @ encode_bodies @ token_membership

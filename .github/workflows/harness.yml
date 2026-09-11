@@ -85,6 +85,7 @@ jobs:
           version: "2026.6.10"
           install_args: opam
       - run: python3 tools/bootstrap.py 5.5.0
+      - run: python3 tools/test_checks.py
       - run: python3 tools/test_release.py
       - run: python3 tools/coverage.py
       - run: python3 tools/mutations.py

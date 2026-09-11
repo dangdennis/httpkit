@@ -20,7 +20,7 @@ let req id rule cases =
 let core id rule source cases =
   { id; rule; source; cases; layer = "core-values"; implemented = true }
 
-let requirements =
+let harness_core_requirements =
   [
     req "SELF.INPUT.PREFIX" "Detect input overconsumption"
       [ "fault/overconsume" ];
@@ -99,117 +99,115 @@ let requirements =
     };
   ]
 
-let requirements =
-  requirements
-  @ List.map
-      (fun (id, rule, source, cases) ->
-        { id; rule; source; cases; layer = "http1"; implemented = true })
-      [
-        ( "H1.HEAD",
-          "Strict head syntax and authority before dispatch",
-          "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+let http1_requirements =
+  List.map
+    (fun (id, rule, source, cases) ->
+      { id; rule; source; cases; layer = "http1"; implemented = true })
+    [
+      ( "H1.HEAD",
+        "Strict head syntax and authority before dispatch",
+        "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+        [
+          "http1/head/origin";
+          "http1/head/absolute";
+          "http1/reject/authority-conflict";
+          "http1/reject/bare-lf";
+        ] );
+      ( "H1.BODY",
+        "Exact fixed/chunked boundaries and truncation",
+        "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+        [
+          "http1/body/fragments"; "http1/body/truncated"; "http1/close-and-eof";
+        ] );
+      ( "H1.CHUNK",
+        "Chunk grammar and declared safe trailers",
+        "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
+        [ "http1/body/chunk-reject"; "http1/body/serialization" ] );
+      ( "H1.LIMITS",
+        "Bounded metadata, per-call work and optional body quota",
+        "project-policy",
+        [ "http1/limits"; "http1/slices" ] );
+      ( "H1.OUTPUT",
+        "Validate before encoding and enforce outbound length",
+        "project-policy",
+        [ "http1/head/serialization"; "http1/body/serialization" ] );
+    ]
+
+let engine_requirements =
+  List.map
+    (fun (id, rule, cases) ->
+      {
+        id;
+        rule;
+        source = "project-policy";
+        cases;
+        layer = "engine";
+        implemented = true;
+      })
+    [
+      ( "ENGINE.ORDER",
+        "Serial admission and exact partial output",
+        [ "engine/server/pipeline"; "engine/output/backpressure" ] );
+      ( "ENGINE.BODY",
+        "Body demand, early response and safe discard",
+        [
+          "engine/input/backpressure";
+          "engine/server/early-final";
+          "engine/server/discard";
+          "engine/client/early-final";
+        ] );
+      ( "ENGINE.CANCEL",
+        "Terminal cancellation, EOF and shutdown",
+        [
+          "engine/abort/once";
+          "engine/eof/fixed";
+          "engine/eof/half-close";
+          "engine/shutdown";
+        ] );
+      ( "ENGINE.INFO",
+        "Bounded informational responses and Expect",
+        [
+          "engine/server/informational";
+          "engine/client/info-bound";
+          "engine/client/expect";
+          "engine/client/expect-override";
+        ] );
+      ( "ENGINE.HANDOFF",
+        "Negotiated handoff after output acknowledgement",
+        [
+          "engine/handoff/connect";
+          "engine/handoff/upgrade";
+          "engine/handoff/client-connect";
+          "engine/handoff/unsolicited";
+        ] );
+      ( "ENGINE.OWNERSHIP",
+        "Connection-local identity and independent domains",
+        [ "engine/ids/ownership"; "engine/model/domains"; "engine/ack/invalid" ]
+      );
+    ]
+
+let adapter_requirements =
+  List.map
+    (fun runtime ->
+      {
+        id = "ADAPTER." ^ String.uppercase_ascii runtime;
+        rule =
+          "Native deadlines, bounded admission, cancellation cleanup, partial \
+           I/O and handoff";
+        layer = "adapter";
+        source = "project-policy";
+        implemented = true;
+        cases =
           [
-            "http1/head/origin";
-            "http1/head/absolute";
-            "http1/reject/authority-conflict";
-            "http1/reject/bare-lf";
-          ] );
-        ( "H1.BODY",
-          "Exact fixed/chunked boundaries and truncation",
-          "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-          [
-            "http1/body/fragments";
-            "http1/body/truncated";
-            "http1/close-and-eof";
-          ] );
-        ( "H1.CHUNK",
-          "Chunk grammar and declared safe trailers",
-          "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
-          [ "http1/body/chunk-reject"; "http1/body/serialization" ] );
-        ( "H1.LIMITS",
-          "Bounded metadata, per-call work and optional body quota",
-          "project-policy",
-          [ "http1/limits"; "http1/slices" ] );
-        ( "H1.OUTPUT",
-          "Validate before encoding and enforce outbound length",
-          "project-policy",
-          [ "http1/head/serialization"; "http1/body/serialization" ] );
-      ]
+            "test/adapter/" ^ runtime ^ "_test.ml";
+            "tools/test_adapter_consumer.py";
+          ];
+      })
+    [ "eio"; "lwt" ]
 
 let requirements =
-  requirements
-  @ List.map
-      (fun (id, rule, cases) ->
-        {
-          id;
-          rule;
-          source = "project-policy";
-          cases;
-          layer = "engine";
-          implemented = true;
-        })
-      [
-        ( "ENGINE.ORDER",
-          "Serial admission and exact partial output",
-          [ "engine/server/pipeline"; "engine/output/backpressure" ] );
-        ( "ENGINE.BODY",
-          "Body demand, early response and safe discard",
-          [
-            "engine/input/backpressure";
-            "engine/server/early-final";
-            "engine/server/discard";
-            "engine/client/early-final";
-          ] );
-        ( "ENGINE.CANCEL",
-          "Terminal cancellation, EOF and shutdown",
-          [
-            "engine/abort/once";
-            "engine/eof/fixed";
-            "engine/eof/half-close";
-            "engine/shutdown";
-          ] );
-        ( "ENGINE.INFO",
-          "Bounded informational responses and Expect",
-          [
-            "engine/server/informational";
-            "engine/client/info-bound";
-            "engine/client/expect";
-            "engine/client/expect-override";
-          ] );
-        ( "ENGINE.HANDOFF",
-          "Negotiated handoff after output acknowledgement",
-          [
-            "engine/handoff/connect";
-            "engine/handoff/upgrade";
-            "engine/handoff/client-connect";
-            "engine/handoff/unsolicited";
-          ] );
-        ( "ENGINE.OWNERSHIP",
-          "Connection-local identity and independent domains",
-          [
-            "engine/ids/ownership"; "engine/model/domains"; "engine/ack/invalid";
-          ] );
-      ]
-
-let requirements =
-  requirements
-  @ List.map
-      (fun runtime ->
-        {
-          id = "ADAPTER." ^ String.uppercase_ascii runtime;
-          rule =
-            "Native deadlines, bounded admission, cancellation cleanup, \
-             partial I/O and handoff";
-          layer = "adapter";
-          source = "project-policy";
-          implemented = true;
-          cases =
-            [
-              "test/adapter/" ^ runtime ^ "_test.ml";
-              "tools/test_adapter_consumer.py";
-            ];
-        })
-      [ "eio"; "lwt" ]
+  harness_core_requirements @ http1_requirements @ engine_requirements
+  @ adapter_requirements
 
 let pending_capabilities = [ "release-evidence" ]
 

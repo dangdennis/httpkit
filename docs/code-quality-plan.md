@@ -1,6 +1,6 @@
 # Code quality consolidation plan
 
-Status: planned; implementation has not started. Created 2026-09-11 from the
+Status: implemented; validation is tracked by source-matched local evidence. Created 2026-09-11 from the
 three-agent code review and focused reproduction probes.
 
 The objective is to make http-kit easier to read, compose and audit while fixing
@@ -13,6 +13,41 @@ This plan complements the [benchmark backlog](benchmark-todos.md) and
 [test harness plan](test-harness-plan.md). Completing it does not close the
 independent review, long campaign, soak or platform gates in the
 [M7 checklist](m7-manual-checklist.md).
+
+## Execution record
+
+C1–C12 code and documentation changes are implemented. The checklist below
+retains the original review criteria; use `_artifacts/` reports for actual
+validation outcomes, source hashes and remaining release gates.
+
+- Operational requirements are explicit, including optimized-Python negative
+  controls and named release inventories. Dense release/mutation/campaign code
+  is formatted and central release predicates have names.
+- Expect finalization and both native upload examples are corrected. Trailer
+  membership uses a balanced set with honest complexity documentation.
+- Adapter tests assert exception propagation, cleanup precedence and precise
+  read failures. Both convenience APIs expose immutable engine settings and
+  structured failure text. Native/bytecode consumer fixtures exercise the API.
+- Pipeline identity uses ordinal targets and matching response headers. This
+  intentionally works even for empty-body lanes; payload sizes continue to vary
+  across the existing matrix instead of changing within each pipeline.
+- Body/exchange configurations and input windows are shared and named. Their
+  large payloads are lazy; listing does not execute protocol preflight. Other
+  small family catalogs can still construct their pure tables during listing.
+  Full lazy construction of every small table was not needed to fix the
+  expensive body/exchange behavior or preflight leakage.
+- Sample budgets account for selected cases and calibration. Workload hashing
+  includes extracted benchmark modules. Raw retained comparisons and exclusions
+  are recomputed/checked before reports are accepted.
+- Engine RX/TX states are explicit, and test/requirement catalogs have named
+  groups. Production router behavior and Transition signatures are unchanged.
+- The optional single-character chunk predicate optimization is deferred: it
+  is separate from the confirmed trailer complexity fix and needs its own
+  measured justification. No API was added solely for this micro-optimization.
+
+The geometric token-membership fixtures are now available in the parser
+benchmark family. Benchmark timings remain advisory; new pipeline workloads
+cannot be ranked against historical identical-message pipeline reports.
 
 ## Constraints and working rules
 

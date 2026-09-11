@@ -265,13 +265,21 @@ let lifecycle () =
     ]
 
 let trailer_membership () =
-  List.iter (fun count ->
-    let repeated token = String.concat "," (List.init count (fun _ -> token)) in
-    let wire trailer = "POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\nConnection: "
-      ^ repeated "x" ^ "\r\nTrailer: " ^ trailer ^ "\r\n\r\n" in
-    ignore (ok (parse C.Request (wire (repeated "y"))));
-    assert (parse C.Request (wire (repeated "y" ^ ",x")) = Error C.Invalid_trailer))
-    [1; 10; 100; 1000; 3000]
+  List.iter
+    (fun count ->
+      let repeated token =
+        String.concat "," (List.init count (fun _ -> token))
+      in
+      let wire trailer =
+        "POST / HTTP/1.1\r\n\
+         Host: x\r\n\
+         Transfer-Encoding: chunked\r\n\
+         Connection: " ^ repeated "x" ^ "\r\nTrailer: " ^ trailer ^ "\r\n\r\n"
+      in
+      ignore (ok (parse C.Request (wire (repeated "y"))));
+      assert (
+        parse C.Request (wire (repeated "y" ^ ",x")) = Error C.Invalid_trailer))
+    [ 1; 10; 100; 1000; 3000 ]
 
 let () =
   Alcotest.run "HTTP boundary regressions"

@@ -68,7 +68,7 @@ let reply t id =
   ignore (accepted (ok (send_data t id "abc")));
   ignore (accepted (ok (finish t id)))
 
-let cases =
+let protocol_cases =
   [
     ( "engine/server/pipeline",
       fun () ->
@@ -386,7 +386,7 @@ let cases =
           "unsolicited upgrade accepted" );
   ]
 
-let properties ~seed ~count =
+let output_properties ~seed ~count =
   let open QCheck2 in
   [
     ( "engine/property-partial-writes",
@@ -414,17 +414,16 @@ let properties ~seed ~count =
                && queued_output_bytes t = 0)) );
   ]
 
-let cases =
-  cases
-  @ [
-      ( "engine/model/fair",
-        fun () -> Engine_scenarios.run (String.make 200 (Char.chr 0)) );
-      ( "engine/model/client",
-        fun () -> Engine_scenarios.client_fragments "fragment schedule" );
-    ]
+let model_cases =
+  [
+    ( "engine/model/fair",
+      fun () -> Engine_scenarios.run (String.make 200 (Char.chr 0)) );
+    ( "engine/model/client",
+      fun () -> Engine_scenarios.client_fragments "fragment schedule" );
+  ]
 
 let properties ~seed ~count =
-  properties ~seed ~count
+  output_properties ~seed ~count
   @ List.map
       (fun (name, run) ->
         ( name,
@@ -441,65 +440,66 @@ let properties ~seed ~count =
         ("engine/property-client", Engine_scenarios.client_fragments);
       ]
 
-let cases =
-  cases
-  @ [
-      ( "engine/readiness",
-        fun () ->
-          let t = ok (server ()) in
-          check (input_state t = `Idle) "new server state";
-          ignore (feed t "PO");
-          check (input_state t = `Head) "partial header readiness";
-          ignore (feed t (String.sub post 2 (String.length post - 2)));
-          check (input_state t = `Blocked) "read-ahead while head queued";
-          let id = request_id t in
-          check (input_state t = `Body) "body readiness";
-          ignore (feed t "abc");
-          check (input_state t = `Blocked) "read-ahead while data queued";
-          ignore (poll_event t);
-          complete t id;
-          reply t id;
-          ignore (drain t);
-          check (input_state t = `Idle) "persistence readiness";
-          check (max_send_size t = 16384) "send chunk budget" );
-    ]
+let readiness_cases =
+  [
+    ( "engine/readiness",
+      fun () ->
+        let t = ok (server ()) in
+        check (input_state t = `Idle) "new server state";
+        ignore (feed t "PO");
+        check (input_state t = `Head) "partial header readiness";
+        ignore (feed t (String.sub post 2 (String.length post - 2)));
+        check (input_state t = `Blocked) "read-ahead while head queued";
+        let id = request_id t in
+        check (input_state t = `Body) "body readiness";
+        ignore (feed t "abc");
+        check (input_state t = `Blocked) "read-ahead while data queued";
+        ignore (poll_event t);
+        complete t id;
+        reply t id;
+        ignore (drain t);
+        check (input_state t = `Idle) "persistence readiness";
+        check (max_send_size t = 16384) "send chunk budget" );
+  ]
+
+let handoff_domain_cases =
+  [
+    ( "engine/handoff/client-connect",
+      fun () ->
+        let t = ok (client ()) in
+        let id =
+          accepted
+            (ok
+               (submit_request t
+                  (request ~meth:Method.connect ~target:"x:443"
+                     [ ("host", "x:443") ])))
+        in
+        ignore (accepted (ok (finish t id)));
+        ignore (drain t);
+        let wire = "HTTP/1.1 200 OK\r\n\r\n" in
+        check
+          (feed t (wire ^ "TLS") = String.length wire)
+          "client tunnel suffix consumed";
+        (match poll_event t with
+        | Some (Response (id', _)) ->
+            check (equal_id id id') "handoff response id"
+        | _ -> failwith "missing response");
+        check (poll_event t = Some (Handoff id)) "client handoff missing" );
+    ( "engine/model/domains",
+      fun () ->
+        List.iter
+          (fun count ->
+            let domains =
+              List.init count (fun _ ->
+                  Domain.spawn (fun () ->
+                      for _ = 1 to 100 do
+                        Engine_scenarios.run "\000\001\002\003";
+                        Engine_scenarios.client_fragments "domains"
+                      done))
+            in
+            List.iter Domain.join domains)
+          [ 1; 2; 4 ] );
+  ]
 
 let cases =
-  cases
-  @ [
-      ( "engine/handoff/client-connect",
-        fun () ->
-          let t = ok (client ()) in
-          let id =
-            accepted
-              (ok
-                 (submit_request t
-                    (request ~meth:Method.connect ~target:"x:443"
-                       [ ("host", "x:443") ])))
-          in
-          ignore (accepted (ok (finish t id)));
-          ignore (drain t);
-          let wire = "HTTP/1.1 200 OK\r\n\r\n" in
-          check
-            (feed t (wire ^ "TLS") = String.length wire)
-            "client tunnel suffix consumed";
-          (match poll_event t with
-          | Some (Response (id', _)) ->
-              check (equal_id id id') "handoff response id"
-          | _ -> failwith "missing response");
-          check (poll_event t = Some (Handoff id)) "client handoff missing" );
-      ( "engine/model/domains",
-        fun () ->
-          List.iter
-            (fun count ->
-              let domains =
-                List.init count (fun _ ->
-                    Domain.spawn (fun () ->
-                        for _ = 1 to 100 do
-                          Engine_scenarios.run "\000\001\002\003";
-                          Engine_scenarios.client_fragments "domains"
-                        done))
-              in
-              List.iter Domain.join domains)
-            [ 1; 2; 4 ] );
-    ]
+  protocol_cases @ model_cases @ readiness_cases @ handoff_domain_cases

@@ -184,10 +184,15 @@ let expect_finalization () =
       List.iter
         (fun override ->
           let e = ok (E.client ()) in
-          let req = Request.create ~meth:Method.post
+          let req =
+            Request.create ~meth:Method.post
               ~target:(ok (Target.of_string "/"))
-              ~headers:(ok (Headers.of_list
-                (("host", "x") :: ("expect", "100-continue") :: fields))) () in
+              ~headers:
+                (ok
+                   (Headers.of_list
+                      (("host", "x") :: ("expect", "100-continue") :: fields)))
+              ()
+          in
           let id = accept (E.submit_request e req) in
           drain e;
           assert (E.send_data e id "" = Ok E.Backpressured);
@@ -203,8 +208,8 @@ let expect_finalization () =
           ignore (accept (E.finish e id));
           reject (E.finish e id);
           drain e)
-        [false; true])
-    [[("content-length", "0")]; [("transfer-encoding", "chunked")]]
+        [ false; true ])
+    [ [ ("content-length", "0") ]; [ ("transfer-encoding", "chunked") ] ]
 
 let () =
   Alcotest.run "Engine boundary regressions"
