@@ -349,6 +349,9 @@ let respond t id response =
               settle t;
               Ok (Accepted ()))
 
+(* Both data and final framing belong to the upload permission boundary. *)
+let awaiting_continue t a = not t.server && not a.continue_allowed
+
 let send_data t id bytes =
   let* a = active t id in
   if a.tx_done then Error Invalid_command
@@ -356,7 +359,7 @@ let send_data t id bytes =
     match a.writer with
     | None -> Error Invalid_command
     | Some writer -> (
-        if (not t.server) && not a.continue_allowed then Ok Backpressured
+        if awaiting_continue t a then Ok Backpressured
         else
           let overhead = 32 in
           if String.length bytes > max_int - overhead then Error Resource_limit
@@ -378,7 +381,8 @@ let finish ?(trailers = Headers.empty) t id =
     match a.writer with
     | None -> Error Invalid_command
     | Some writer -> (
-        if Headers.wire_bytes trailers > max_int - 5 then Error Resource_limit
+        if awaiting_continue t a then Ok Backpressured
+        else if Headers.wire_bytes trailers > max_int - 5 then Error Resource_limit
         else
           let* room = reserve t (Headers.wire_bytes trailers + 5) in
           match room with

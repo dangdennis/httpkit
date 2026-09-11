@@ -65,7 +65,8 @@ val send_data : t -> id -> string -> (unit submission, error) result
 val finish : ?trailers:Headers.t -> t -> id -> (unit submission, error) result
 (** Backpressured commands have no effect and may be retried. Accepted commands
     must not be retried. Body/frame failures abort an already committed
-    exchange. *)
+    exchange. Client body commands, including empty-body finalization, wait for
+    100 Continue or [continue_request] when Expect is pending. *)
 
 val continue_request : t -> id -> (unit, error) result
 (** Explicit client policy override for an Expect wait (e.g. an adapter

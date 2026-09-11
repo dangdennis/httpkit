@@ -37,3 +37,6 @@ CONNECT and 101 responses require matching request context. Upgrade selection mu
 The suite tests both roles, pipeline suffixes, input/output backpressure, stale/foreign IDs, early responses, discard, informational/Expect behavior, abort/EOF/shutdown, invalid acknowledgement, body mismatch, readiness, and handoff. An independent model checks acknowledged bytes against a literal expected prefix under generated command schedules. A client model checks fragmented response identity/order. Independent connections are tested on 1, 2, and 4 domains.
 
 Native AFL targets reuse these models; the runner preserves findings and replays queue entries without instrumentation. The installed engine consumer runs in bytecode/native modes without runtime adapters. M5 will establish native transport, deadline, cancellation and cleanup behavior; pure engine tests do not establish those properties.
+
+Expect gates both payload writes and final framing, including empty-body
+finalization. Backpressure leaves the writer and output queue unchanged.

@@ -178,6 +178,34 @@ let finish_capacity () =
   ignore (E.poll_event e);
   reject (E.respond e id (response 200 []))
 
+let expect_finalization () =
+  List.iter
+    (fun fields ->
+      List.iter
+        (fun override ->
+          let e = ok (E.client ()) in
+          let req = Request.create ~meth:Method.post
+              ~target:(ok (Target.of_string "/"))
+              ~headers:(ok (Headers.of_list
+                (("host", "x") :: ("expect", "100-continue") :: fields))) () in
+          let id = accept (E.submit_request e req) in
+          drain e;
+          assert (E.send_data e id "" = Ok E.Backpressured);
+          assert (E.finish e id = Ok E.Backpressured);
+          assert (E.output e = None);
+          if override then ignore (ok (E.continue_request e id))
+          else (
+            ignore (offer e "HTTP/1.1 103 Early Hints\r\n\r\n");
+            ignore (E.poll_event e);
+            assert (E.finish e id = Ok E.Backpressured);
+            ignore (offer e "HTTP/1.1 100 Continue\r\n\r\n");
+            ignore (E.poll_event e));
+          ignore (accept (E.finish e id));
+          reject (E.finish e id);
+          drain e)
+        [false; true])
+    [[("content-length", "0")]; [("transfer-encoding", "chunked")]]
+
 let () =
   Alcotest.run "Engine boundary regressions"
     [
@@ -190,5 +218,6 @@ let () =
             ("EOF and discard", eof);
             ("upgrade negotiation", upgrade);
             ("trailer capacity", finish_capacity);
+            ("Expect finalization permission", expect_finalization);
           ] );
     ]
