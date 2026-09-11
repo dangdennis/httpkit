@@ -12,5 +12,5 @@
 
 (executable
  (name suite_bench)
- (modules suite_bench suite_support suite_core suite_router suite_http1 suite_middleware suite_engine)
- (libraries http-kit-core http-kit-http1 http-kit-engine http-kit-router http-kit-middleware mtime.clock.os yojson))
+ (modules suite_bench suite_support suite_core suite_router suite_http1 suite_middleware suite_engine suite_external_router suite_external_http1)
+ (libraries http-kit-core http-kit-http1 http-kit-engine http-kit-router http-kit-middleware mtime.clock.os yojson routes httpaf httpun angstrom))

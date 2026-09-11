@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import statistics
 import subprocess
 import tempfile
@@ -17,6 +18,7 @@ from evidence import source_hash
 
 FAMILIES = ('all', 'core', 'router', 'http1', 'middleware', 'engine')
 SCHEMA = 1
+EXTERNAL_IMPLEMENTATIONS = {'router': {'http-kit', 'routes'}, 'http1': {'http-kit', 'httpaf', 'httpun'}}
 
 
 def need(condition, message):
@@ -39,7 +41,52 @@ def inventory(rows):
         need(type(row['iterations']) is int and row['iterations'] > 0, 'invalid iterations')
         need(type(row['bytes_per_op']) is int and row['bytes_per_op'] >= 0, 'invalid byte count')
         catalog[case] = {key: row[key] for key in ('id', 'family', 'iterations', 'bytes_per_op')}
+        if 'comparison' in row or 'implementation' in row:
+            need(row.get('implementation') in EXTERNAL_IMPLEMENTATIONS.get(row['family'], set())
+                 and isinstance(row.get('comparison'), str) and row['comparison'], 'invalid comparison labels')
+            need(case == f"{row['family']}/external/{row['comparison']}/{row['implementation']}", 'comparison id differs')
+            catalog[case].update(comparison=row['comparison'], implementation=row['implementation'])
     return catalog
+
+
+def library_comparisons(results, samples):
+    groups = {}
+    for row in results:
+        if 'comparison' not in row:
+            continue
+        group = groups.setdefault((row['family'], row['comparison']), {})
+        need(row['implementation'] not in group, 'duplicate comparison implementation')
+        group[row['implementation']] = row
+    comparisons = []
+    indexed = [{r['id']: r for r in sample['results']} for sample in samples]
+    for (family, workload), implementations in sorted(groups.items()):
+        need(set(implementations) == EXTERNAL_IMPLEMENTATIONS[family], 'incomplete library comparison')
+        ours = implementations['http-kit']
+        for implementation, other in sorted(implementations.items()):
+            need((ours['iterations'], ours['bytes_per_op']) == (other['iterations'], other['bytes_per_op']),
+                 'comparison workload sizes differ')
+            if implementation == 'http-kit':
+                continue
+            # Each process contains every implementation. Pair within that
+            # process before summarizing ratios; do not pool unrelated cases.
+            ratios = [s[other['id']]['ns_per_op'] / s[ours['id']]['ns_per_op'] for s in indexed]
+            comparisons.append(dict(family=family, workload=workload, implementation=implementation,
+                                    http_kit_ns_per_op=ours['median_ns_per_op'],
+                                    other_ns_per_op=other['median_ns_per_op'],
+                                    median_other_over_http_kit_time_ratio=statistics.median(ratios),
+                                    sample_time_ratios=ratios,
+                                    http_kit_allocated_bytes_per_op=ours['median_allocated_bytes_per_op'],
+                                    other_allocated_bytes_per_op=other['median_allocated_bytes_per_op']))
+    return comparisons
+
+
+def locked_comparison_versions(lock):
+    versions = {}
+    for name in ('routes', 'httpaf', 'httpun', 'httpun-types', 'angstrom', 'bigstringaf', 'faraday'):
+        matches = list(lock.glob(name + '.*.pkg'))
+        need(len(matches) == 1, f'missing or ambiguous locked library: {name}')
+        versions[name] = re.search(r'\(version ([^)]+)\)', matches[0].read_text())[1]
+    return versions
 
 
 def aggregate(samples, catalog, compiler, quick):
@@ -113,6 +160,20 @@ def markdown(report):
              '', 'Timing verdict: **ADVISORY**. Timed operations include result checks. Throughput uses the byte count documented for each family.',
              '', '| Case | Median ns/op | Range ns/op | CV | Alloc B/op | MiB/s |',
              '| --- | ---: | ---: | ---: | ---: | ---: |']
+    if report.get('library_comparisons'):
+        intro = ['', 'External libraries: ' + ', '.join(f'{k} {v}' for k,v in report['libraries'].items()) + '.',
+                 '', 'HTTP heads: raw upstream parsers versus the validating http-kit codec; validation work is not equivalent.',
+                 'Routing: common GET paths only; excludes method policy and conflicting route precedence.',
+                 'Times include API adaptation and result checks. No overall winner or security verdict is implied.',
+                 'Allocation is GC heap only; externally allocated Bigarray payloads are excluded.',
+                 '', '**Time ratio = other / http-kit**, paired within each process. Below 1 means the other library was faster.',
+                 '', '| Family / workload | Other | http-kit ns/op | Other ns/op | Time ratio | http-kit B/op | Other B/op |',
+                 '| --- | --- | ---: | ---: | ---: | ---: | ---: |']
+        for r in report['library_comparisons']:
+            intro.append(f"| {r['family']}/{r['workload']} | {r['implementation']} | {r['http_kit_ns_per_op']:.1f} | "
+                         f"{r['other_ns_per_op']:.1f} | {r['median_other_over_http_kit_time_ratio']:.3f} | "
+                         f"{r['http_kit_allocated_bytes_per_op']:.1f} | {r['other_allocated_bytes_per_op']:.1f} |")
+        lines[5:5] = intro + ['']
     for r in report['results']:
         throughput = '-' if r['payload_mib_per_second'] is None else f"{r['payload_mib_per_second']:.2f}"
         lines.append(f"| {r['id']} | {r['median_ns_per_op']:.1f} | {r['min_ns_per_op']:.1f}–{r['max_ns_per_op']:.1f} | "
@@ -132,11 +193,14 @@ def main():
     parser.add_argument('--quick', action='store_true', help='Tenfold fewer iterations; smoke evidence only')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--baseline', type=Path, help='Compatible retained report.json to compare')
+    parser.add_argument('--external', action='store_true', help='Compare Routes/httpaf/httpun on common workloads')
     args = parser.parse_args()
     if not 2 <= args.samples <= 50:
         parser.error('--samples must be between 2 and 50')
     if not 0 <= args.seed <= 2147483647 - args.samples:
         parser.error('--seed must fit a positive signed 32-bit seed sequence')
+    if args.external and args.family not in ('all', 'router', 'http1'):
+        parser.error('--external supports all, router or http1')
     dune, env, lock = configuration()
     require_lock(lock)
     # Clear instrumentation and runtime tuning inherited from fuzz/coverage or a
@@ -154,6 +218,8 @@ def main():
                                        'bench/suite_bench.exe']), cwd=ROOT, env=env, check=True, timeout=1800)
     binary = ROOT / build_dir / 'default/bench/suite_bench.exe'
     flags = ['--family', args.family] + (['--quick'] if args.quick else [])
+    if args.external:
+        flags.append('--external')
     catalog_sample = json.loads(subprocess.check_output([str(binary), *flags, '--list'], env=env, text=True, timeout=60))
     need(catalog_sample['compiler'] == compiler, 'wrong benchmark compiler')
     catalog = catalog_sample['results']
@@ -175,19 +241,28 @@ def main():
     report = dict(schema=SCHEMA, status='PASS', timing_verdict='ADVISORY', compiler=compiler, profile='release',
                   source_sha256=digest, workload_sha256=workload, host=host, host_fingerprint=fingerprint,
                   cleared_environment=sorted(cleared), catalog=catalog, samples=samples,
-                  config=dict(family=args.family, quick=args.quick, samples=args.samples, seeds=seeds),
+                  config=dict(family=args.family, quick=args.quick, samples=args.samples, seeds=seeds, external=args.external),
                   results=aggregate(samples, catalog, compiler, args.quick),
                   limitations=['Timed operations include correctness checks and loop overhead.',
                                'Sample means are not request latency percentiles.',
                                'Host identity does not establish reserved hardware, stable power or load.',
                                'These measurements do not approve M7 performance or security gates.'])
+    if args.external:
+        report['libraries'] = locked_comparison_versions(lock)
+        report['library_comparisons'] = library_comparisons(report['results'], samples)
+        need(report['library_comparisons'], 'missing external comparisons')
+        report['limitations'] += [
+            'Upstream private head parsers do less validation than http-kit; parsing responsibilities differ.',
+            'Routing excludes method policy and ambiguous precedence; Routes wildcard slash normalization is timed.',
+            'GC allocation excludes external Bigarray payloads and does not measure total memory.',
+            'Unique header names only; the httpaf raw-parser reversed field representation is checked explicitly.']
     if args.baseline:
         report['comparison'] = compare(report, json.loads(args.baseline.read_text()))
         report['baseline'] = str(args.baseline.resolve())
     (directory / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
     (directory / 'report.md').write_text(markdown(report))
     noisy = sum(r['coefficient_of_variation'] > .1 for r in report['results'])
-    print(f'PASS: {len(report["results"])} cases; {noisy} with CV > 10%; timing ADVISORY\n{directory / "report.md"}')
+    print(f'PASS: {len(report["results"])} cases; {noisy} with CV > 10%; timing ADVISORY\n{directory / "report.md"}\n{directory / "report.json"}')
 
 
 if __name__ == '__main__':

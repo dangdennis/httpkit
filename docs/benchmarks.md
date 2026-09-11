@@ -6,10 +6,9 @@ literal segments, named parameters, final wildcards and method mismatch results.
 It is not a trie; typed capture conversion and reverse URL generation are not
 implemented. See [routing semantics](routing.md).
 
-The unified suite measures our own implementations across workloads. It does
-not yet compare other libraries. Such comparisons need the same routing order,
-raw-path/decoding policy, method behavior, parser strictness and resource limits
-before their numbers are useful.
+The default suite measures our own implementations across workloads. The
+external suite below compares a common subset against pinned OCaml libraries,
+with explicit limits on what can be inferred from differing API contracts.
 
 ## Run it
 
@@ -133,7 +132,87 @@ Security properties remain the responsibility of deterministic/property tests,
 negative compile tests, fuzzing and the [manual release gates](m7-manual-checklist.md).
 Fast rejection timing alone cannot establish parser safety.
 
-Useful follow-ons are a semantically matched external-library lane, production
-route/request distributions, concurrent routed endpoint latency, and a reserved
+Useful follow-ons are more external libraries and public connection/body APIs,
+production route/request distributions, concurrent routed endpoint latency, and a reserved
 runner with paired baselines. Add workloads when new primitives land, keeping
 fixture preparation separate and an explicit result oracle in every timed case.
+
+## External-library comparisons
+
+```sh
+mise run bench:compare
+python3 tools/benchmarks.py --external --family router
+python3 tools/benchmarks.py --external --family http1
+python3 tools/benchmarks.py --external --quick --samples 3
+```
+
+`--external` selects a separate catalog; it does not append to or reuse the
+default suite's measurements. All implementations run in each process, with the
+same iteration count and byte count per comparable workload and shuffled case
+order. Five process samples are the default. Linux/macOS CI runs the short form.
+
+| Lane | Libraries | Common workloads | Cases |
+| --- | --- | --- | ---: |
+| Routing | http-kit, Routes 2.0.0 | Table construction plus one checked lookup; first/middle/last/missing lookup at 10/100/1000 routes; literal, parameter, wildcard, empty wildcard, raw encoded capture with query | 40 |
+| HTTP heads | http-kit, http/af 0.7.1, httpun 0.2.0 | Request/response heads with 0/10/90 extra fields, fragmented at 1/64/16384 bytes | 54 |
+
+These **94 cases form 56 pairwise comparisons**. Names, versions and source
+checksums are locked by Dune in both existing locks. Only `http-kit-harness`
+depends on these libraries; production package dependencies are unchanged.
+Reports retain versions of the comparison libraries and Angstrom, Bigstringaf
+and Faraday as well as the full lock/workload hash. Benchmark and dependency
+changes require fresh baselines.
+
+Routing uses the published [Routes 2.0.0 API](https://github.com/anuragsoni/routes/blob/2.0.0/src/routes.mli).
+Its trie and our array scan are exercised through their own APIs. Route pattern
+construction and target validation are outside lookup timing. Table construction
+starts with prepared route definitions and includes one identical checked lookup.
+Both lookup adapters produce an endpoint number and string capture; adapting
+those results and checking them is timed. Routes wildcard strings include a leading
+slash; the adapter removes it to produce the common capture representation, and
+that extra copy is timed. Routes provides typed captures and URL
+generation beyond this measured subset; our API includes HTTP method dispatch
+and explicit resource limits. Those features are not interchangeable.
+
+All compared routing paths are valid, unambiguous GET paths. There is no added
+method shim around Routes. HTTP method mismatch/Allow, overlapping-route
+precedence, trailing-slash redirects, integer capture conversion and invalid or
+over-limit targets are excluded. Raw `%2F` captures and query exclusion are
+checked for both implementations. Keep their broader behavior in the dedicated
+correctness tests rather than treating timing as conformance evidence.
+
+Head parsing uses the version-pinned
+[http/af low-level parsers](https://github.com/inhabitedtype/httpaf/blob/0.7.1/lib/httpaf.mli)
+and [httpun low-level parsers](https://github.com/anmonteiro/httpun/blob/0.2.0/lib/httpun.mli)
+through `Angstrom.Buffered`. These exported `*_private.Parse` entry points are
+benchmark-only interfaces and may change across versions. The comparison checks
+HTTP/1.1, method/target or status, every field/value and complete input consumption.
+All inputs have `Content-Length: 0`; requests also have Host. Extra fields have
+unique names. http-kit additionally checks its returned zero-length framing.
+
+**Validation work is not equivalent.** Our codec applies authority, framing and
+resource-limit checks before returning a head. The upstream raw parsers have a
+smaller responsibility; their surrounding connection implementations add policy
+that is not timed here. A faster raw parse is not evidence that the same validated
+operation is faster, nor that a library is more or less secure. Body parsing,
+trailers, malformed input and complete server throughput are not compared in this
+first external lane.
+
+The pinned http/af raw parser exposes `Headers.to_list` in reverse wire order.
+Its expected list is prepared in that order outside timing; the other two are
+checked in wire order. Since names are unique, these workloads do not depend on
+duplicate-header ordering. This is a property of the selected low-level entry
+point, not a claim about all public server behavior.
+
+Input fragments are allocated once outside timing for all three parsers. Parser
+instance creation and API-required buffering/copying remain timed; Angstrom uses
+its default 4 KiB initial buffer. Field-result adaptation and equality checks are
+also timed. Allocated bytes describe the OCaml GC heap; they omit externally
+allocated Bigarray payloads, so they cannot establish total-memory superiority.
+
+The report begins with per-workload medians, allocation and **other/http-kit time
+ratios**, calculated within each process before taking their median. Below 1
+means the other library was faster on that workload. Raw ratios and measurements
+are retained, and incomplete comparison groups fail. There is no pooled score,
+automatic winner or security verdict. `--baseline` still compares two compatible
+runs, including external mode in its configuration checks.

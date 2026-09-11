@@ -5,23 +5,33 @@ let () =
   and quick = ref false
   and seed = ref 42
   and list_only = ref false in
+  let external_suite = ref false in
   Arg.parse
     [
       ("--family", Arg.Set_string family, "Family to run");
       ("--quick", Arg.Set quick, "Reduce iteration counts tenfold");
       ("--seed", Arg.Set_int seed, "Case order seed");
       ("--list", Arg.Set list_only, "Emit the workload catalog");
+      ( "--external",
+        Arg.Set external_suite,
+        "Compare external libraries on shared workloads" );
     ]
     (fun _ -> raise (Arg.Bad "unexpected positional argument"))
     "HTTP toolkit benchmarks";
   let families =
-    [
-      ("core", Suite_core.jobs);
-      ("router", Suite_router.jobs);
-      ("http1", Suite_http1.jobs);
-      ("middleware", Suite_middleware.jobs);
-      ("engine", Suite_engine.jobs);
-    ]
+    if !external_suite then
+      [
+        ("router", Suite_external_router.jobs);
+        ("http1", Suite_external_http1.jobs);
+      ]
+    else
+      [
+        ("core", Suite_core.jobs);
+        ("router", Suite_router.jobs);
+        ("http1", Suite_http1.jobs);
+        ("middleware", Suite_middleware.jobs);
+        ("engine", Suite_engine.jobs);
+      ]
   in
   if !family <> "all" && not (List.mem_assoc !family families) then
     failwith "unknown benchmark family";
@@ -36,15 +46,16 @@ let () =
       List.map
         (fun job ->
           `Assoc
-            [
-              ("id", `String job.id);
-              ("family", `String job.family);
-              ( "iterations",
-                `Int
-                  (if !quick then max 1 (job.iterations / 10)
-                   else job.iterations) );
-              ("bytes_per_op", `Int job.bytes);
-            ])
+            (labels job
+            @ [
+                ("id", `String job.id);
+                ("family", `String job.family);
+                ( "iterations",
+                  `Int
+                    (if !quick then max 1 (job.iterations / 10)
+                     else job.iterations) );
+                ("bytes_per_op", `Int job.bytes);
+              ]))
         jobs
     else
       let jobs = Array.of_list jobs in

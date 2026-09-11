@@ -3,7 +3,7 @@
 import copy
 import unittest
 
-from benchmarks import aggregate, compare, inventory
+from benchmarks import aggregate, compare, inventory, library_comparisons, markdown
 
 
 class Reports(unittest.TestCase):
@@ -90,6 +90,44 @@ class Reports(unittest.TestCase):
         changed['samples'][0]['seed'] = 100
         with self.assertRaisesRegex(ValueError, 'seed order'):
             compare(report, changed)
+
+
+class LibraryComparisons(unittest.TestCase):
+    def fixture(self):
+        catalog = [dict(id=f'router/external/lookup/{name}', family='router', comparison='lookup',
+                        implementation=name, iterations=10, bytes_per_op=0) for name in ('http-kit', 'routes')]
+        samples = [dict(schema=1, compiler='5.5.0', quick=False, seed=i,
+                        results=[dict(row, warmups=3, elapsed_ns=ns*10, ns_per_op=ns,
+                                      allocated_bytes_per_op=8, minor_collections=0, major_collections=0)
+                                 for row, ns in zip(catalog, times)])
+                   for i,times in enumerate(((10, 20), (20, 20), (100, 300)))]
+        return catalog, samples
+
+    def test_paired_ratios_and_report_labels(self):
+        catalog,samples = self.fixture()
+        rows = aggregate(samples, catalog, '5.5.0', False)
+        comparisons = library_comparisons(rows, samples)
+        self.assertEqual(comparisons[0]['sample_time_ratios'], [2, 1, 3])
+        self.assertEqual(comparisons[0]['median_other_over_http_kit_time_ratio'], 2)
+        report = dict(results=rows, samples=samples, compiler='5.5.0', libraries={'routes':'2.0.0'},
+                      library_comparisons=comparisons)
+        self.assertIn('Below 1 means the other library was faster', markdown(report))
+        self.assertIn('validation work is not equivalent', markdown(report))
+
+    def test_missing_competitor_or_mismatched_work(self):
+        catalog,samples = self.fixture()
+        rows = aggregate(samples, catalog, '5.5.0', False)
+        with self.assertRaisesRegex(ValueError, 'incomplete'):
+            library_comparisons(rows[:1], samples)
+        rows[1]['bytes_per_op'] = 10
+        with self.assertRaisesRegex(ValueError, 'sizes differ'):
+            library_comparisons(rows, samples)
+
+    def test_comparison_labels_cannot_drift(self):
+        catalog,samples = self.fixture()
+        samples[0]['results'][0]['implementation'] = 'routes'
+        with self.assertRaisesRegex(ValueError, 'id differs'):
+            aggregate(samples, catalog, '5.5.0', False)
 
 
 if __name__ == '__main__':

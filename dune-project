@@ -44,6 +44,10 @@
   http-kit-middleware
   http-kit-router
   eio_main
+  (routes (= 2.0.0))
+  (httpaf (= 0.7.1))
+  (httpun (= 0.2.0))
+  angstrom
   (ocaml (= 5.5.0))
   (yojson (= 3.0.0))
   (base64 (= 3.5.2))

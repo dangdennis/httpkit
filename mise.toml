@@ -36,6 +36,10 @@ run = "python3 tools/benchmarks.py --family middleware"
 [tasks."bench:engine"]
 run = "python3 tools/benchmarks.py --family engine"
 
+[tasks."bench:compare"]
+description = "Compare common workloads against Routes, http/af and httpun"
+run = "python3 tools/benchmarks.py --external"
+
 [tasks."setup:nginx"]
 description = "Build the pinned local Nginx interop reference"
 run = "tools/setup-nginx.sh"

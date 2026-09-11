@@ -30,6 +30,9 @@ jobs:
       - run: python3 tools/benchmarks.py --quick --samples 3
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
+      - run: python3 tools/benchmarks.py --external --quick --samples 3
+        env:
+          HARNESS_COMPILER: ${{ matrix.compiler }}
       - run: mise run setup:nginx
       - run: python3 tools/interop.py
         env:

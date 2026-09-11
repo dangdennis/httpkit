@@ -4,6 +4,8 @@ type job = {
   iterations : int;
   bytes : int;
   work : unit -> unit;
+  comparison : string option;
+  implementation : string option;
 }
 
 let require condition =
@@ -13,8 +15,26 @@ let ok = function
   | Ok value -> value
   | Error _ -> failwith "unexpected benchmark error"
 
-let job ?(bytes = 0) family id iterations work =
-  { id = family ^ "/" ^ id; family; iterations; bytes; work }
+let job ?(bytes = 0) ?comparison ?implementation family id iterations work =
+  {
+    id = family ^ "/" ^ id;
+    family;
+    iterations;
+    bytes;
+    work;
+    comparison;
+    implementation;
+  }
+
+let labels job =
+  match (job.comparison, job.implementation) with
+  | None, None -> []
+  | Some comparison, Some implementation ->
+      [
+        ("comparison", `String comparison);
+        ("implementation", `String implementation);
+      ]
+  | _ -> failwith "incomplete comparison metadata"
 
 let measure ~quick job =
   let iterations =
@@ -39,17 +59,18 @@ let measure ~quick job =
   let after = Gc.quick_stat () in
   require (elapsed_ns > 0. && allocated >= 0.);
   `Assoc
-    [
-      ("id", `String job.id);
-      ("family", `String job.family);
-      ("iterations", `Int iterations);
-      ("warmups", `Int warmups);
-      ("bytes_per_op", `Int job.bytes);
-      ("elapsed_ns", `Float elapsed_ns);
-      ("ns_per_op", `Float (elapsed_ns /. float iterations));
-      ("allocated_bytes_per_op", `Float (allocated /. float iterations));
-      ( "minor_collections",
-        `Int (after.minor_collections - gc.minor_collections) );
-      ( "major_collections",
-        `Int (after.major_collections - gc.major_collections) );
-    ]
+    (labels job
+    @ [
+        ("id", `String job.id);
+        ("family", `String job.family);
+        ("iterations", `Int iterations);
+        ("warmups", `Int warmups);
+        ("bytes_per_op", `Int job.bytes);
+        ("elapsed_ns", `Float elapsed_ns);
+        ("ns_per_op", `Float (elapsed_ns /. float iterations));
+        ("allocated_bytes_per_op", `Float (allocated /. float iterations));
+        ( "minor_collections",
+          `Int (after.minor_collections - gc.minor_collections) );
+        ( "major_collections",
+          `Int (after.major_collections - gc.major_collections) );
+      ])
