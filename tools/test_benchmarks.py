@@ -30,6 +30,31 @@ class Reports(unittest.TestCase):
         self.assertEqual(row['coefficient_of_variation'], .5)
         self.assertIsNone(row['payload_mib_per_second'])
 
+    def test_calibrated_counts_preserve_catalog_and_actual_denominator(self):
+        for sample in self.samples:
+            row=sample['results'][0]
+            row['base_iterations']=10
+            row['iterations']=100
+            row['elapsed_ns']=row['ns_per_op']*100
+        self.assertEqual(self.report()['results'][0]['median_ns_per_op'],20)
+        self.samples[0]['results'][0]['base_iterations']=101
+        with self.assertRaisesRegex(ValueError, 'calibrated iterations'):
+            self.report()
+
+    def test_noise_and_interval_are_process_statistics(self):
+        row=self.report()['results'][0]
+        self.assertEqual(row['timing_quality'],'noisy')
+        self.assertEqual(row['median_bootstrap_95_ns'],[10,30])
+
+    def test_short_batches_and_invalid_duration(self):
+        for sample in self.samples:
+            sample['min_ms']=50
+        self.assertEqual(self.report()['results'][0]['timing_quality'],'short-batch')
+        for invalid in (-1, float('nan'), float('inf'), 1001):
+            self.samples[0]['min_ms']=invalid
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError,'calibration duration'):
+                self.report()
+
     def test_byte_throughput(self):
         self.catalog[0]['bytes_per_op'] = 1048576
         for sample in self.samples:

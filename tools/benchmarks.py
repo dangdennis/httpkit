@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import random
 import statistics
 import subprocess
 import tempfile
@@ -16,9 +17,9 @@ import tempfile
 from dune_env import ROOT, command, configuration, require_lock
 from evidence import source_hash
 
-FAMILIES = ('all', 'core', 'router', 'http1', 'middleware', 'engine', 'body', 'router-experiment')
+FAMILIES = ('all', 'core', 'router', 'http1', 'middleware', 'engine', 'body', 'exchange', 'router-experiment')
 SCHEMA = 1
-EXTERNAL_IMPLEMENTATIONS = {'router': {'http-kit', 'routes'}, 'http1': {'http-kit', 'httpaf', 'httpun'}, 'body': {'http-kit', 'httpaf', 'httpun'}, 'router-experiment': {'http-kit', 'prefix-index'}}
+EXTERNAL_IMPLEMENTATIONS = {'router': {'http-kit', 'routes'}, 'http1': {'http-kit', 'httpaf', 'httpun'}, 'body': {'http-kit', 'httpaf', 'httpun'}, 'exchange': {'http-kit', 'httpaf', 'httpun'}, 'router-experiment': {'http-kit', 'prefix-index', 'deep-index'}}
 
 
 def need(condition, message):
@@ -41,6 +42,9 @@ def inventory(rows):
         need(type(row['iterations']) is int and row['iterations'] > 0, 'invalid iterations')
         need(type(row['bytes_per_op']) is int and row['bytes_per_op'] >= 0, 'invalid byte count')
         catalog[case] = {key: row[key] for key in ('id', 'family', 'iterations', 'bytes_per_op')}
+        if 'base_iterations' in row:
+            need(type(row['base_iterations']) is int and 0 < row['base_iterations'] <= row['iterations'] <= 10000000, 'invalid calibrated iterations')
+            catalog[case]['iterations'] = row['base_iterations']
         if 'comparison' in row or 'implementation' in row:
             need(row.get('implementation') in EXTERNAL_IMPLEMENTATIONS.get(row['family'], set())
                  and isinstance(row.get('comparison'), str) and row['comparison'], 'invalid comparison labels')
@@ -110,10 +114,20 @@ def validate_exclusions(exclusions, catalog):
             need(isinstance(observation['reason'], str) and observation['reason'], 'missing exclusion reason')
 
 
+def median_interval(times):
+    # Descriptive bootstrap interval across independent process means, never
+    # a request-latency percentile or evidence that the host was isolated.
+    rng = random.Random(7331)
+    medians = sorted(statistics.median(rng.choices(times, k=len(times))) for _ in range(2000))
+    return [medians[49], medians[1949]]
+
+
 def aggregate(samples, catalog, compiler, quick):
     expected = inventory(catalog)
     need(len(samples) >= 2, 'at least two independent samples required')
     for sample in samples:
+        need(number(sample.get('min_ms',0)) and sample.get('min_ms',0) <= 1000, 'invalid calibration duration')
+        need(not (quick and sample.get('min_ms',0)), 'quick sample cannot be calibrated')
         need(sample['schema'] == SCHEMA and sample['compiler'] == compiler
              and sample['quick'] is quick, 'incompatible sample metadata')
         need(inventory(sample['results']) == expected, 'sample workload catalog differs')
@@ -122,7 +136,7 @@ def aggregate(samples, catalog, compiler, quick):
                  and number(row['allocated_bytes_per_op']), 'invalid measurement')
             need(math.isclose(row['ns_per_op'] * row['iterations'], row['elapsed_ns'], rel_tol=1e-9),
                  'inconsistent elapsed time')
-            need(row['warmups'] == min(3, row['iterations']), 'invalid warmup count')
+            need(row['warmups'] == min(3, row.get('base_iterations', row['iterations'])), 'invalid warmup count')
             for key in ('minor_collections', 'major_collections'):
                 need(type(row[key]) is int and row[key] >= 0, 'invalid GC count')
     indexed = [{r['id']: r for r in s['results']} for s in samples]
@@ -131,7 +145,10 @@ def aggregate(samples, catalog, compiler, quick):
         rows = [s[case] for s in indexed]
         times = [r['ns_per_op'] for r in rows]
         median = statistics.median(times)
-        results.append(dict(entry, median_ns_per_op=median, min_ns_per_op=min(times), max_ns_per_op=max(times),
+        duration_met = all(r['elapsed_ns'] >= s.get('min_ms', 0)*1e6 for r,s in zip(rows,samples))
+        results.append(dict(entry, median_ns_per_op=median,
+                            median_bootstrap_95_ns=median_interval(times),
+                            timing_quality=("short-batch" if not duration_met else "noisy" if statistics.stdev(times) / statistics.mean(times) > .1 else "low-observed-variation"), min_ns_per_op=min(times), max_ns_per_op=max(times),
                             coefficient_of_variation=statistics.stdev(times) / statistics.mean(times),
                             median_allocated_bytes_per_op=statistics.median(r['allocated_bytes_per_op'] for r in rows),
                             operations_per_second=1e9 / median,
@@ -150,6 +167,7 @@ def compare(current, baseline):
         rebuilt = aggregate(report['samples'], report['catalog'], report['compiler'], report['config']['quick'])
         need(report['results'] == rebuilt, 'report summary does not match retained samples')
         need(len(report['samples']) == report['config']['samples'], 'report sample count differs')
+        need(all(s.get('min_ms',0) == report['config'].get('min_ms',0) for s in report['samples']), 'report calibration differs')
         need([s['seed'] for s in report['samples']] == report['config']['seeds'], 'report seed order differs')
     need(current.get('exclusions', []) == baseline.get('exclusions', []), 'incompatible baseline: exclusions')
     need(inventory(current['catalog']) == inventory(baseline['catalog']), 'incompatible baseline: catalog')
@@ -187,8 +205,9 @@ def markdown(report):
         intro = ['', 'External libraries: ' + ', '.join(f'{k} {v}' for k,v in report['libraries'].items()) + '.',
                  '', 'HTTP heads: raw upstream parsers versus the validating http-kit codec; validation work is not equivalent.',
                  'Routes lane: common GET paths only; excludes method policy and conflicting route precedence.',
-                 'Body lane: public incoming-message APIs, owned copies, exact framing/EOF checks; includes setup and cleanup.',
-                 'Router experiment: benchmark-only prefix index compared with the reference matcher; not a shipped optimization.',
+                 'Body lanes: owned scan/collection and borrowed scan are distinct; kit Data is always owned. Includes setup and cleanup.',
+                 'Exchange lane: public server body writers plus receive/send and persistent pipelines; exact payload/framing oracle.',
+                 'Router experiments: first-prefix and deep-prefix indexes compared with the reference matcher; neither is shipped.',
                  'Times include API adaptation and result checks. No overall winner or security verdict is implied.',
                  'Allocation is GC heap only; externally allocated Bigarray payloads are excluded.',
                  '', '**Time ratio = other / http-kit**, paired within each process. Below 1 means the other library was faster.',
@@ -203,6 +222,13 @@ def markdown(report):
         throughput = '-' if r['payload_mib_per_second'] is None else f"{r['payload_mib_per_second']:.2f}"
         lines.append(f"| {r['id']} | {r['median_ns_per_op']:.1f} | {r['min_ns_per_op']:.1f}–{r['max_ns_per_op']:.1f} | "
                      f"{r['coefficient_of_variation']:.1%} | {r['median_allocated_bytes_per_op']:.1f} | {throughput} |")
+    lines += ['', '## Measurement quality', '',
+              'Intervals below are descriptive 95% bootstrap intervals of the process-mean median. They are not request latency percentiles.',
+              'Do not rank noisy (>10% CV) or short-batch cases. Low observed variation does not establish reserved hardware.', '',
+              '| Case | Quality | Median interval ns/op |', '| --- | --- | ---: |']
+    for row in report['results']:
+        lo,hi = row['median_bootstrap_95_ns']
+        lines.append(f"| {row['id']} | {row['timing_quality']} | {lo:.1f}–{hi:.1f} |")
     if report.get('exclusions'):
         lines += ['', '## Excluded workloads', '',
                   'These full comparison groups failed the common framing boundary preflight and have no timing ratio.', '',
@@ -222,19 +248,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--family', choices=FAMILIES, default='all')
     parser.add_argument('--samples', type=int, default=5)
+    parser.add_argument('--min-ms', type=float, default=0, help='Calibrate each batch to this minimum duration (0-1000 ms)')
+    parser.add_argument('--case', default='', help='Case id substring; external selection must retain complete comparison groups')
     parser.add_argument('--quick', action='store_true', help='Tenfold fewer iterations; smoke evidence only')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--baseline', type=Path, help='Compatible retained report.json to compare')
     parser.add_argument('--external', action='store_true', help='Compare Routes/httpaf/httpun on common workloads')
     args = parser.parse_args()
+    if not math.isfinite(args.min_ms) or not 0 <= args.min_ms <= 1000:
+        parser.error('--min-ms must be finite and between 0 and 1000')
+    if args.quick and args.min_ms:
+        parser.error('--quick cannot be combined with calibrated measurements')
     if not 2 <= args.samples <= 50:
         parser.error('--samples must be between 2 and 50')
     if not 0 <= args.seed <= 2147483647 - args.samples:
         parser.error('--seed must fit a positive signed 32-bit seed sequence')
-    if args.external and args.family not in ('all', 'router', 'http1', 'body', 'router-experiment'):
-        parser.error('--external supports all, router, http1, body or router-experiment')
-    if not args.external and args.family in ('body', 'router-experiment'):
-        parser.error('body and router-experiment require --external')
+    if args.external and args.family not in ('all', 'router', 'http1', 'body', 'exchange', 'router-experiment'):
+        parser.error('--external supports all, router, http1, body, exchange or router-experiment')
+    if not args.external and args.family in ('body', 'exchange', 'router-experiment'):
+        parser.error('body, exchange and router-experiment require --external')
     dune, env, lock = configuration()
     require_lock(lock)
     # Clear instrumentation and runtime tuning inherited from fuzz/coverage or a
@@ -251,23 +283,33 @@ def main():
     subprocess.run(command(dune, env, ['build', '--profile=release', '--build-dir=' + build_dir,
                                        'bench/suite_bench.exe']), cwd=ROOT, env=env, check=True, timeout=1800)
     binary = ROOT / build_dir / 'default/bench/suite_bench.exe'
-    flags = ['--family', args.family] + (['--quick'] if args.quick else [])
+    flags = ['--family', args.family, '--min-ms', str(args.min_ms), '--case', args.case] + (['--quick'] if args.quick else [])
     if args.external:
         flags.append('--external')
     catalog_sample = json.loads(subprocess.check_output([str(binary), *flags, '--list'], env=env, text=True, timeout=60))
     need(catalog_sample['compiler'] == compiler, 'wrong benchmark compiler')
     catalog = catalog_sample['results']
     inventory(catalog)
+    if args.external:
+        groups = {}
+        for row in catalog:
+            groups.setdefault((row['family'], row['comparison']), set()).add(row['implementation'])
+        need(all(implementations == EXTERNAL_IMPLEMENTATIONS[family]
+                 for (family, _), implementations in groups.items()), 'case selection must retain complete comparison groups')
     validate_exclusions(catalog_sample.get('exclusions', []), catalog)
     parent = ROOT / '_artifacts/benchmarks'
     parent.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-'), dir=parent))
     samples = []
     seeds = list(range(args.seed, args.seed + args.samples))
+    load_observations=[]
     for index, seed in enumerate(seeds):
+        load_before=os.getloadavg() if hasattr(os, 'getloadavg') else None
         raw = subprocess.check_output([str(binary), *flags, '--seed', str(seed)], env=env, text=True, timeout=600)
+        load_observations.append(dict(seed=seed, before=load_before, after=os.getloadavg() if hasattr(os, 'getloadavg') else None))
         (directory / f'sample-{index + 1}.json').write_text(raw)
         samples.append(json.loads(raw))
+        need(samples[-1].get('min_ms', 0) == args.min_ms, 'calibration settings differ')
         need(samples[-1].get('exclusions', []) == catalog_sample.get('exclusions', []), 'preflight exclusions differ across samples')
         print(f'Sample {index + 1}/{args.samples}: {len(samples[-1]["results"])} cases', flush=True)
     need(source_hash() == digest, 'sources changed during benchmark run')
@@ -277,8 +319,8 @@ def main():
     report = dict(schema=SCHEMA, status='PASS', timing_verdict='ADVISORY', compiler=compiler, profile='release',
                   source_sha256=digest, workload_sha256=workload, host=host, host_fingerprint=fingerprint,
                   exclusions=catalog_sample.get('exclusions', []),
-                  cleared_environment=sorted(cleared), catalog=catalog, samples=samples,
-                  config=dict(family=args.family, quick=args.quick, samples=args.samples, seeds=seeds, external=args.external),
+                  cleared_environment=sorted(cleared), load_observations=load_observations, catalog=catalog, samples=samples,
+                  config=dict(family=args.family, quick=args.quick, samples=args.samples, seeds=seeds, external=args.external, min_ms=args.min_ms, case=args.case),
                   results=aggregate(samples, catalog, compiler, args.quick),
                   limitations=['Timed operations include correctness checks and loop overhead.',
                                'Sample means are not request latency percentiles.',

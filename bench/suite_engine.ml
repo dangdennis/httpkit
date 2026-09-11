@@ -23,6 +23,83 @@ let drain engine ~ack expected offset =
   in
   loop ()
 
+(* These policy cases are deliberately kit-only: automatic Expect/early-final
+   behavior is not equivalent across public upstream APIs. *)
+let protocol_jobs () =
+  List.concat_map
+    (fun size ->
+      let body = String.make size 'a' in
+      let request =
+        Request.create ~meth:Method.post
+          ~target:(ok (Target.of_string "/body"))
+          ~headers:
+            (ok
+               (Headers.of_list
+                  [
+                    ("host", "x");
+                    ("content-length", string_of_int size);
+                    ("expect", "100-continue");
+                  ]))
+          ()
+      in
+      let head, _ = ok (Http_kit_http1.encode_request request) in
+      List.map
+        (fun early ->
+          job
+            ~bytes:(if early then 0 else size)
+            "engine"
+            (Printf.sprintf "policy/%s/bytes-%d"
+               (if early then "early-final" else "100-continue")
+               size)
+            20
+            (fun () ->
+              let conn = ok (E.client ()) in
+              let id = accepted (E.submit_request conn request) in
+              let sent = ref 0 in
+              drain conn ~ack:997 head sent;
+              require (!sent = String.length head);
+              require
+                (ok (E.send_data conn id body) = E.Backpressured
+                && E.output conn = None);
+              if not early then (
+                let wire = "HTTP/1.1 100 Continue\r\n\r\n" in
+                require
+                  (ok (E.offer conn wire ~off:0 ~len:(String.length wire))
+                  = String.length wire);
+                (match E.poll_event conn with
+                | Some (E.Informational (other, r)) ->
+                    require
+                      (E.equal_id id other
+                      && Status.to_int (Response.status r) = 100)
+                | _ -> failwith "missing continue");
+                accepted (E.send_data conn id body);
+                accepted (E.finish conn id);
+                let sent = ref 0 in
+                drain conn ~ack:997 body sent;
+                require (!sent = size));
+              let wire =
+                if early then
+                  "HTTP/1.1 413 Too Large\r\nContent-Length: 0\r\n\r\n"
+                else "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+              in
+              require
+                (ok (E.offer conn wire ~off:0 ~len:(String.length wire))
+                = String.length wire);
+              (match E.poll_event conn with
+              | Some (E.Response (other, r)) ->
+                  require
+                    (E.equal_id id other
+                    && Status.to_int (Response.status r)
+                       = if early then 413 else 200)
+              | _ -> failwith "missing final");
+              require
+                (E.poll_event conn = Some (E.Complete id)
+                && E.output conn = None);
+              if early then require (E.poll_event conn = Some (E.Closed None));
+              E.abort conn E.Cancelled))
+        [ false; true ])
+    [ 4096; 16384 ]
+
 let jobs () =
   let input = "GET / HTTP/1.1\r\nHost: x\r\n\r\n" in
   let server =
@@ -133,4 +210,4 @@ let jobs () =
             require (!heads = 1 && !total = size && !offset = String.length wire)))
       [ 1; 64; 16384 ]
   in
-  server @ client
+  server @ client @ protocol_jobs ()

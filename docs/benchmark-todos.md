@@ -24,24 +24,38 @@ performance or security approval. Commands and comparison boundaries live in
 - [x] Measure index construction, candidate duplication, lookup scaling, shared prefixes and fallback-heavy tables before considering production adoption.
 - [x] Retain full measurements, interpret limitations, and make the CI smoke cover the new matrices.
 
-The public-body matrix attempts 128 groups (384 cases); 16 groups are retained
-as exclusions, leaving 336 timed cases. The prefix-index prototype has 108 cases
-and 12,024 preflight differential queries. It remains benchmark-only. First full
-body samples showed substantial host/process timing variation; keep conclusions
-advisory and inspect retained samples. No long campaign or soak was run here.
+The body matrix now has 390 timed cases plus the original 16 excluded workload
+groups. There are 108 writer/exchange cases and 252 three-implementation router
+experiment cases. Both indexes run 12,024 differential queries each. Four
+kit-only engine cases cover Expect and early final responses. These are local
+experiments, not release readiness.
+
+## Follow-up execution (the five proposed priorities plus persisted findings)
+
+- [x] Profile the 64 KiB/17-byte-chunk case with payload/read counters, separate OS stack samples and allocation/heap/RSS diagnostics.
+- [x] Add public response writers, complete server exchanges, eight-message pipelines, partial acknowledgements and exact output oracles.
+- [x] Add upstream borrowed scans alongside owned scans/collection; document that kit Data stays owned.
+- [x] Refine the index to store each route once under a deep literal prefix; add application-shaped mixed-method and hot-route workloads.
+- [x] Add calibrated batch duration, independent-process median intervals, short/noisy case labels and load observations. A reserved host and reviewed budgets remain outstanding.
+- [x] Persist commands, interpretation and remaining gaps in this plan and [the results document](benchmark-results-2026-09-11.md).
 
 ## P0: make the comparisons more representative
 
-- [ ] Add body serialization through public writer APIs: fixed/chunked, finalization, empty writes, partial output acknowledgements and stable-buffer lifetime.
-- [ ] Compare complete request/response exchanges with outgoing bytes drained, persistent connection reuse, bounded pipeline input, 100 Continue and early final responses.
+- [x] Add response-body serialization through public writer APIs: fixed/chunked, finalization, empty writes, partial output acknowledgements and stable-buffer lifetime.
+- [ ] Extend the writer comparison to outgoing client uploads and zero-copy scheduled buffers.
+- [x] Compare complete server request/response exchanges with outgoing bytes drained, persistent reuse and bounded pipeline input.
+- [x] Measure kit-only 100 Continue and early-final upload policy cases.
+- [ ] Align cross-library Expect/early-final policies and drive complete client/server pairs.
 - [ ] Separate body setup/head cost from steady-state transfer cost, and sweep body-buffer sizes on each public API.
-- [ ] Add equivalent borrowed-buffer scan and owned collection lanes; measure retained heap, Bigarray payloads and process RSS independently of cumulative GC allocation.
+- [x] Add borrowed-buffer scan and owned collection lanes; separate post-cleanup live heap, fixture Bigarray storage and process peak RSS from cumulative allocation.
+- [ ] Measure peak application-retained bodies and steady-state per-connection memory; kit has no borrowed Data API.
 - [ ] Profile whole-head parsing: identify byte scanning, validated constructors, repeated field scans, buffering, result adaptation and allocation costs. Do not attribute the entire timing gap to validation.
 - [ ] Compare whole-message public connection workloads with comparable validation policies; retain a behavior matrix when policies cannot match.
 - [ ] Sweep header name/value lengths, case normalization, OWS, field count and target lengths at ordinary and limit-adjacent sizes.
 - [ ] Add realistic route distributions: application-shaped shared prefixes, hot-route skew, misses, mixed methods, overlapping literals/parameters/wildcards and long/deep paths.
 - [ ] Compare any production router change against the frozen array matcher with randomized differential tests; preserve declaration order and ordered/deduplicated Allow results.
-- [ ] Check that route-index construction cannot create unacceptable memory/time growth with many general fallback routes.
+- [x] Assert one stored slot per route and a prefix-segment node bound in the deep-index prototype; measure fallback-heavy construction.
+- [ ] Establish reviewed production construction budgets and avoid repeated parsing of fallback candidates.
 
 ## P1: body protocol boundaries and failure costs
 
@@ -67,9 +81,11 @@ advisory and inspect retained samples. No long campaign or soak was run here.
 ## P2: measurement quality and release evidence
 
 - [ ] Reserved Linux ARM64/x86-64 hosts, CPU/power/frequency metadata and alternating old/new runs; keep shared CI advisory.
-- [ ] Calibrate minimum measurement duration, longer warmup/steady-state runs, confidence intervals and clear noise rejection rules.
+- [x] Calibrate batch duration, retain independent-process median intervals and mark short/noisy measurements unsuitable for ranking.
+- [ ] Establish longer application steady-state and reserved-host warmup policy.
 - [ ] Separate independent process variation from individual-operation/request latency; never report sample means as p99 latency.
-- [ ] Hardware-counter/flamegraph profiling where available, with separately identified instrumented builds.
+- [x] Capture separately identified macOS stack sampling for the small-chunk body workload.
+- [ ] Add Linux hardware-counter/flamegraph capture on reserved hosts.
 - [ ] Establish reviewed workload-specific regression budgets for time, total memory and latency after stable baselines exist.
 - [ ] Retain machine-readable catalogs, raw evidence and readable result summaries in CI; exercise missing/duplicate/incompatible measurement rejection.
 - [ ] Run the user-owned long soak/campaign and independent review gates from M7; short benchmark success cannot close those gates.

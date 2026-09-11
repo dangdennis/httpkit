@@ -44,9 +44,9 @@ runs inside OCaml, without Python or socket overhead.
 | Router | 27 | Literal/parameter/wildcard pattern construction; table compilation and first/middle/last/missing/method lookup at 10/100/1000 routes; six path/capture shapes |
 | HTTP/1 | 56 | Request/response heads at 0/10/90 extra fields; fixed/chunked-with-trailers/close-delimited bodies at 64/4096/65536 bytes; 1/64/16384-byte input fragments; invalid version/field and truncated EOF; request/response head and fixed/chunked body encoding |
 | Middleware | 14 | Basic, Context and Transition at depth 0/1/5/20; Transition guard acceptance and rejection |
-| Engine | 12 | Server lifecycle at 0/4096/65536 body bytes with 1/997/16384-byte acknowledgements; client lifecycle receiving 4096 bytes in 1/64/16384-byte fragments |
+| Engine | 16 | Server lifecycle at 0/4096/65536 body bytes with 1/997/16384-byte acknowledgements; client lifecycle receiving 4096 bytes in 1/64/16384-byte fragments; Expect/early-final policy at 4096/16384 bytes |
 
-Total: **124 cases**. The executable exposes its catalog through `--list`; the
+Total: **128 cases**. The executable exposes its catalog through `--list`; the
 runner requires that exact catalog, iteration counts and byte counts in every
 sample. Unknown families, invalid measurements, duplicate/missing cases and wrong
 compiler versions fail the run. CI gates successful execution and report validity,
@@ -225,7 +225,7 @@ mise run bench:bodies
 python3 tools/benchmarks.py --external --family body --quick --samples 3
 ```
 
-The body lane generates 128 common workloads, each attempted against http-kit,
+The initial owned-body lane generates 128 common workloads, each attempted against http-kit,
 httpaf and httpun: 384 potential timed cases. Preflight currently excludes 16
 whole workload groups because httpaf can report body EOF before consuming the
 last framing bytes and then pause reads in this driver. The remaining 112 groups
@@ -301,7 +301,7 @@ raw captures, queries, root/repeated slashes, unsupported targets and byte/segme
 limits. These checks are evidence for this prototype, not proof of a production
 replacement.
 
-There are **108 cases**: two implementations, three table sizes (10/100/1000),
+The initial prefix experiment had **108 cases**: two implementations, three table sizes (10/100/1000),
 three shapes (distinct first segments, one shared `/api` prefix, 10% general
 fallback routes), and construction plus early/middle/last/missing/method lookup.
 All lookups check the complete outcome against the reference. Early lookup targets
@@ -323,3 +323,91 @@ full tradeoff before selecting a production data structure.
 
 The persistent [benchmark TODO plan](benchmark-todos.md) tracks remaining parser
 profiling, body writers, full exchanges, runtime workloads and measurement gates.
+
+## Follow-up experiments: ownership, exchanges, deeper indexing
+
+The external catalog now includes 390 body cases (the original 336 plus 54
+borrowed-consumption cases), 108 writer/exchange cases, 252 router experiment
+cases, and the original 94 head/Routes cases: **844 external cases**. The internal
+suite adds four kit-only Expect/early-final policy cases, for **128 cases**.
+
+```sh
+mise run bench:exchanges
+mise run bench:profile-bodies
+python3 tools/profile_bodies.py --stack  # macOS, separate instrumented processes
+python3 tools/benchmarks.py --external --family body \
+  --case bytes-65536/step-16384/immediate --min-ms 50 --samples 5
+python3 tools/benchmarks.py --external --family router-experiment \
+  --case /1000 --min-ms 50 --samples 5
+```
+
+The borrowed-scan lane checks upstream Bigarray slices inside their callback
+without retaining them. Http-kit still supplies owned immutable Data: this lane
+compares the APIs' available ownership models, not equivalent zero-copy
+implementations. Owned-scan and collect retain their original copy semantics.
+All modes count payload events; the small counter overhead is included.
+
+The `exchange` family drives public server readers and streaming response writers.
+The writer variant uses an empty incoming request; the full exchange variant
+checks both incoming and outgoing binary payloads. Fixed/chunked framing,
+0/4096/65536-byte payloads, empty writes, writer finalization, 1/997/16384-byte
+output acknowledgements, one-byte input fragmentation, and eight pipelined
+messages are covered. Request bytes remain caller-owned until consumed; unread
+fragments are extended when the parser needs more input. An independent codec
+oracle checks every response's status, exact payload, framing, count, and absence
+of trailing bytes. Re-polling output before acknowledging checks stable exposed
+bytes. The timer includes setup, API adaptation, copies, output collection and
+oracle work; it is not isolated serialization speed. These fixtures do not force
+equal library buffer policies. Full client/server pairs, explicit backpressure
+sweeps, network latency and framework handlers remain separate work.
+
+The four internal engine policy cases verify 100 Continue upload gating and an
+early final response before sending the body, at 4096/16384 bytes. These have no
+cross-library ratios because policy differences need explicit alignment first.
+
+The original prefix index remains as a comparator. The deep index stores each
+route exactly once at its longest literal prefix, including shared `/api/v1`
+paths. Ancestor fallback routes are merged by declaration ordinal, with the
+reference matcher providing captures and ordered/deduplicated Allow semantics.
+Construction visits the declared literal prefixes and has at most one node plus
+the total number of literal segments; it no longer duplicates general routes in
+every bucket. Maps add logarithmic lookup/insertion work. Targets pass the
+reference limit checks before traversal. Singleton reference tables deliberately
+reparse candidate targets: this can hurt fallback-heavy lookups and remains a
+prototype tradeoff. Both indexes undergo 12,024 differential queries each, plus
+fixture-specific checks. Four table shapes at 10/100/1000 routes include an
+application-shaped mixed-method table and 100-lookup batches with 90% hot-route
+traffic. A hot-skew operation is one batch, not one lookup. No production router
+implementation changed.
+
+## Calibrated measurements and diagnostic memory
+
+`--min-ms` calibrates each case outside the retained timer, doubling a batch until
+it reaches the requested duration, with a ten-million-iteration cap. Warmup and
+calibration run the same correctness-checked operation. Raw samples retain actual
+iterations and catalog base iterations separately; denominator validation uses
+the actual count. This option cannot combine with `--quick`. The final measured
+batch may fall short after calibration if execution conditions change, and is
+explicitly marked `short-batch`. The setting and case selection participate in
+baseline compatibility. `--case` is a substring filter; external selections must
+retain every implementation in each comparison group.
+
+Reports include a deterministic 2,000-resample, descriptive 95% bootstrap interval
+for the median of independent process means, plus load-average observations
+before/after each process. With few samples these intervals are coarse. A batch
+below its duration target or a case above 10% CV is unsuitable for a performance
+ranking or budget. Low observed variation alone does not establish controlled
+power, thermals, scheduling or CPU isolation. This host remains unreserved;
+regression budgets stay unset until reviewed, reproducible baselines exist.
+
+`profile_bodies.py` builds one 64 KiB, 17-byte-chunk fixture per process, captures
+payload-event/read/tick counts, cumulative OCaml allocation, and live heap words
+after cleanup and full collection. Its fixture Bigarray size is explicit.
+`/usr/bin/time` retains OS peak RSS (macOS reports bytes; Linux `time -v` reports
+KiB). RSS includes the runtime, fixture and allocator retention; post-cleanup
+live words are not the peak live body or application-held body size. The owned
+and borrowed fixture representations coexist and are part of this diagnostic
+process's footprint. These quantities must not be added into a fabricated
+per-connection memory number. `--stack` uses separate macOS `sample` processes;
+their timing is excluded from ordinary measurements. Reports and raw stack/OS
+resource files are retained under `_artifacts/body-profiles/`.

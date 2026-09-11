@@ -14,10 +14,12 @@ type fixture = {
   arrivals : int array;
   deferred : bool;
   collect : bool;
+  borrowed : bool;
 }
 
 type progress = {
   mutable position : int;
+  mutable data_events : int;
   mutable heads : int;
   mutable complete : int;
   mutable chunks : string list;
@@ -32,6 +34,7 @@ type driver = {
 }
 
 let consume fixture progress data =
+  progress.data_events <- progress.data_events + 1;
   let len = String.length data in
   require (len > 0 && progress.position + len <= String.length fixture.body);
   for i = 0 to len - 1 do
@@ -40,15 +43,26 @@ let consume fixture progress data =
   progress.position <- progress.position + len;
   if fixture.collect then progress.chunks <- data :: progress.chunks
 
-(* The public upstream callback buffer is borrowed. Copy before using or
-   retaining it, matching the ownership of engine Data. One scheduled callback
+(* The public upstream callback buffer is borrowed. Owned modes copy before
+   scanning or retaining; borrowed mode scans inside the callback. Engine Data
+   remains owned in every mode. One scheduled callback
    is consumed at a time; deferred mode rearms in the outer driver loop. *)
 let attach fixture progress schedule =
   let rec arm () =
     schedule
       ~on_eof:(fun () -> progress.complete <- progress.complete + 1)
       ~on_read:(fun bs ~off ~len ->
-        consume fixture progress (Bigstringaf.substring bs ~off ~len);
+        if fixture.borrowed then (
+          progress.data_events <- progress.data_events + 1;
+          require
+            (len > 0 && progress.position + len <= String.length fixture.body);
+          for i = 0 to len - 1 do
+            require
+              (Bigstringaf.get bs (off + i)
+              = fixture.body.[progress.position + i])
+          done;
+          progress.position <- progress.position + len)
+        else consume fixture progress (Bigstringaf.substring bs ~off ~len);
         if fixture.deferred then progress.pending <- Some arm else arm ())
   in
   arm ()
@@ -226,9 +240,17 @@ let kit fixture progress =
 
 exception Body_eof_before_framing of int * int
 
-let run fixture make () =
+let run ?(observe = fun ~data_events:_ ~reads:_ ~ticks:_ -> ()) fixture make ()
+    =
   let progress =
-    { position = 0; heads = 0; complete = 0; chunks = []; pending = None }
+    {
+      position = 0;
+      data_events = 0;
+      heads = 0;
+      complete = 0;
+      chunks = [];
+      pending = None;
+    }
   in
   let conn = make fixture progress in
   let offset = ref 0
@@ -236,7 +258,8 @@ let run fixture make () =
   and available = ref 0
   and need_more = ref true
   and eof_sent = ref false
-  and ticks = ref 0 in
+  and ticks = ref 0
+  and reads = ref 0 in
   try
     Fun.protect ~finally:conn.stop (fun () ->
         while progress.complete = 0 || !offset < String.length fixture.wire do
@@ -269,6 +292,7 @@ let run fixture make () =
             (* Only close-delimited bodies receive EOF here. Fixed/chunked bodies
            must complete from framing; an empty feed never substitutes for EOF. *)
             require (not !eof_sent);
+            incr reads;
             let n = conn.read ~off:!offset ~len:(!available - !offset) ~eof in
             require (n >= 0 && n <= !available - !offset);
             offset := !offset + n;
@@ -280,7 +304,8 @@ let run fixture make () =
           && progress.position = String.length fixture.body
           && !offset = String.length fixture.wire);
         if fixture.collect then
-          require (String.concat "" (List.rev progress.chunks) = fixture.body))
+          require (String.concat "" (List.rev progress.chunks) = fixture.body);
+        observe ~data_events:progress.data_events ~reads:!reads ~ticks:!ticks)
   with
   | Body_eof_before_framing _ as exn -> raise exn
   | exn ->
@@ -345,6 +370,7 @@ let fixture request framing size transport deferred collect =
     arrivals = arrivals 0 0 [];
     deferred;
     collect;
+    borrowed = false;
   }
 
 let jobs () =
@@ -397,8 +423,13 @@ let jobs () =
       [ true; false ]
   in
   List.concat_map
-    (fun (request, framing, size, transport, deferred, collect) ->
-      let fixture = fixture request framing size transport deferred collect in
+    (fun (request, framing, size, transport, deferred, collect, borrowed) ->
+      let fixture =
+        {
+          (fixture request framing size transport deferred collect) with
+          borrowed;
+        }
+      in
       let framing_name =
         match framing with
         | Fixed -> "fixed"
@@ -415,7 +446,9 @@ let jobs () =
           (if request then "request" else "response")
           framing_name size transport_name
           (if deferred then "deferred" else "immediate")
-          (if collect then "collect" else "owned-scan")
+          (if collect then "collect"
+           else if borrowed then "borrowed-scan"
+           else "owned-scan")
       in
       let iterations =
         max 1 (min 50 (262144 / max 64 (String.length fixture.wire)))
@@ -464,4 +497,77 @@ let jobs () =
               ("external/" ^ comparison ^ "/" ^ implementation)
               iterations (run fixture make))
           implementations)
-    (basic @ fragmented @ variants)
+    (List.map
+       (fun (a, b, c, d, e, f) -> (a, b, c, d, e, f, false))
+       (basic @ fragmented @ variants)
+    @ List.concat_map
+        (fun request ->
+          List.concat_map
+            (fun framing ->
+              List.map
+                (fun size ->
+                  (request, framing, size, Pieces 16384, false, false, true))
+                [ 4096; 65536; 1048576 ])
+            [ Fixed; Chunked 17; Chunked 8192 ])
+        [ true; false ])
+
+(* Single-fixture diagnostic entrypoint: separate process, no catalog-wide
+   fixtures retained. OS stack sampling and peak RSS belong to this diagnostic
+   process, never to the ordinary timing comparison. *)
+let profile selection iterations =
+  let implementation, mode =
+    match String.split_on_char '/' selection with
+    | [ a; b ] -> (a, b)
+    | _ -> failwith "profile requires implementation/mode"
+  in
+  let make =
+    match implementation with
+    | "http-kit" -> kit
+    | "httpaf" -> httpaf
+    | "httpun" -> httpun
+    | _ -> failwith "unknown profile implementation"
+  in
+  require
+    (List.mem mode [ "owned-scan"; "borrowed-scan"; "collect" ]
+    && iterations > 0 && iterations <= 10000);
+  let fixture =
+    {
+      (fixture true (Chunked 17) 65536 (Pieces 16384) false (mode = "collect")) with
+      borrowed = mode = "borrowed-scan";
+    }
+  in
+  let events = ref 0 and reads = ref 0 and ticks = ref 0 in
+  let observe ~data_events ~reads:r ~ticks:t =
+    events := data_events;
+    reads := r;
+    ticks := t
+  in
+  run ~observe fixture make ();
+  Gc.full_major ();
+  let before = Gc.allocated_bytes () in
+  let clock = Mtime_clock.counter () in
+  for _ = 1 to iterations do
+    run fixture make ()
+  done;
+  let elapsed = Mtime.Span.to_float_ns (Mtime_clock.count clock) in
+  let allocated = Gc.allocated_bytes () -. before in
+  Gc.full_major ();
+  let heap = Gc.stat () in
+  (* Keep the fixture reachable through this snapshot, including its external
+     Bigarray. live_words is the whole OCaml heap, not body-only retention. *)
+  require (String.length (Sys.opaque_identity fixture).body = 65536);
+  `Assoc
+    [
+      ("implementation", `String implementation);
+      ("mode", `String mode);
+      ("iterations", `Int iterations);
+      ("payload_bytes", `Int 65536);
+      ("wire_bytes", `Int (String.length fixture.wire));
+      ("fixture_bigarray_bytes", `Int (Bigstringaf.length fixture.bigwire));
+      ("data_events_per_op", `Int !events);
+      ("read_calls_per_op", `Int !reads);
+      ("driver_ticks_per_op", `Int !ticks);
+      ("ns_per_op", `Float (elapsed /. float iterations));
+      ("allocated_bytes_per_op", `Float (allocated /. float iterations));
+      ("post_collection_live_words", `Int heap.live_words);
+    ]

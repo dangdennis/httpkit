@@ -36,7 +36,7 @@ let labels job =
       ]
   | _ -> failwith "incomplete comparison metadata"
 
-let measure ~quick job =
+let measure ~quick ~min_ms job =
   let iterations =
     if quick then max 1 (job.iterations / 10) else job.iterations
   in
@@ -47,6 +47,22 @@ let measure ~quick job =
   for _ = 1 to warmups do
     job.work ()
   done;
+  (* Calibrate outside the retained timer. Keep the catalog's base iteration
+     count separate from the actual count so every process can adapt without
+     silently changing the workload identity. Bound calibration and execution. *)
+  let base_iterations = iterations in
+  let rec calibrate count =
+    if min_ms = 0. then count
+    else
+      let clock = Mtime_clock.counter () in
+      for _ = 1 to count do
+        job.work ()
+      done;
+      let ns = Mtime.Span.to_float_ns (Mtime_clock.count clock) in
+      if ns >= min_ms *. 1e6 || count >= 10000000 then count
+      else calibrate (min 10000000 (count * 2))
+  in
+  let iterations = calibrate iterations in
   Gc.full_major ();
   let gc = Gc.quick_stat () in
   let before = Gc.allocated_bytes () in
@@ -64,6 +80,7 @@ let measure ~quick job =
         ("id", `String job.id);
         ("family", `String job.family);
         ("iterations", `Int iterations);
+        ("base_iterations", `Int base_iterations);
         ("warmups", `Int warmups);
         ("bytes_per_op", `Int job.bytes);
         ("elapsed_ns", `Float elapsed_ns);

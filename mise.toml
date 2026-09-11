@@ -59,3 +59,11 @@ run = "python3 tools/interop.py"
 [tasks.performance]
 description = "Measure streaming bounds and advisory native mixed workloads"
 run = "python3 tools/performance.py"
+
+[tasks."bench:exchanges"]
+description = "Compare public body writers and persistent request/response exchanges"
+run = "python3 tools/benchmarks.py --external --family exchange"
+
+[tasks."bench:profile-bodies"]
+description = "Capture single-fixture body allocation, driver counts and OS memory diagnostics"
+run = "python3 tools/profile_bodies.py"

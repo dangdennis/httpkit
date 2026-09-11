@@ -6,9 +6,21 @@ let () =
   and seed = ref 42
   and list_only = ref false in
   let external_suite = ref false in
+  let min_ms = ref 0. and case_filter = ref "" in
+  let body_profile = ref "" and profile_iterations = ref 50 in
   Arg.parse
     [
       ("--family", Arg.Set_string family, "Family to run");
+      ( "--body-profile",
+        Arg.Set_string body_profile,
+        "Single diagnostic implementation/mode" );
+      ( "--profile-iterations",
+        Arg.Set_int profile_iterations,
+        "Diagnostic repetitions" );
+      ( "--min-ms",
+        Arg.Set_float min_ms,
+        "Minimum batch duration in milliseconds" );
+      ("--case", Arg.Set_string case_filter, "Case id substring");
       ("--quick", Arg.Set quick, "Reduce iteration counts tenfold");
       ("--seed", Arg.Set_int seed, "Case order seed");
       ("--list", Arg.Set list_only, "Emit the workload catalog");
@@ -18,12 +30,18 @@ let () =
     ]
     (fun _ -> raise (Arg.Bad "unexpected positional argument"))
     "HTTP toolkit benchmarks";
+  if !body_profile <> "" then (
+    Yojson.Basic.to_channel stdout
+      (Suite_external_body.profile !body_profile !profile_iterations);
+    print_newline ();
+    exit 0);
   let families =
     if !external_suite then
       [
         ("router", Suite_external_router.jobs);
         ("http1", Suite_external_http1.jobs);
         ("body", Suite_external_body.jobs);
+        ("exchange", Suite_exchange.jobs);
         ("router-experiment", Suite_router_experiment.jobs);
       ]
     else
@@ -43,6 +61,17 @@ let () =
         if !family = "all" || !family = name then build () else [])
       families
   in
+  if (not (Float.is_finite !min_ms)) || !min_ms < 0. || !min_ms > 1000. then
+    failwith "invalid minimum duration";
+  let contains text needle =
+    let rec loop i =
+      i + String.length needle <= String.length text
+      && (String.sub text i (String.length needle) = needle || loop (i + 1))
+    in
+    loop 0
+  in
+  let jobs = List.filter (fun job -> contains job.id !case_filter) jobs in
+  if jobs = [] then failwith "empty case selection";
   let results =
     if !list_only then
       List.map
@@ -71,7 +100,7 @@ let () =
       Array.to_list
         (Array.map
            (fun job ->
-             try measure ~quick:!quick job
+             try measure ~quick:!quick ~min_ms:!min_ms job
              with exn -> failwith (job.id ^ ": " ^ Printexc.to_string exn))
            jobs)
   in
@@ -81,6 +110,7 @@ let () =
          ("schema", `Int 1);
          ("compiler", `String Sys.ocaml_version);
          ("quick", `Bool !quick);
+         ("min_ms", `Float !min_ms);
          ("seed", `Int !seed);
          ("results", `List results);
          ("exclusions", `List (List.rev !exclusions));
