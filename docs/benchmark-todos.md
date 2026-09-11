@@ -30,14 +30,16 @@ experiment cases. Both indexes run 12,024 differential queries each. Four
 kit-only engine cases cover Expect and early final responses. These are local
 experiments, not release readiness.
 
-## Follow-up execution (the five proposed priorities plus persisted findings)
+## Follow-up execution (the five proposed priorities)
 
 - [x] Profile the 64 KiB/17-byte-chunk case with payload/read counters, separate OS stack samples and allocation/heap/RSS diagnostics.
 - [x] Add public response writers, complete server exchanges, eight-message pipelines, partial acknowledgements and exact output oracles; verify paused readers do not change input fragmentation.
 - [x] Add upstream borrowed scans alongside owned scans/collection; document that kit Data stays owned.
 - [x] Refine the index to store each route once under a deep literal prefix; add application-shaped mixed-method and hot-route workloads.
 - [x] Add calibrated batch duration, independent-process median intervals, short/noisy case labels and load observations. A reserved host and reviewed budgets remain outstanding.
-- [x] Persist commands, interpretation and remaining gaps in this plan and [the results document](benchmark-results-2026-09-11.md).
+
+Commands, interpretation and remaining gaps are recorded in this plan and
+[the results document](benchmark-results-2026-09-11.md) as supporting documentation.
 
 ## P0: make the comparisons more representative
 
