@@ -67,9 +67,13 @@ let error () =
 let handler_error () =
   run (fun clock ->
       let t, closed, _ = mock get in
-      (try A.with_connection ~clock t (ok (E.server ())) (fun _ -> raise Exit)
-       with Exit -> ());
-      assert (!closed = 1))
+      List.iter (fun close_fails ->
+        let t = if close_fails then { t with close = (fun () -> t.close (); failwith "close") } else t in
+        (try
+           A.with_connection ~clock t (ok (E.server ())) (fun _ -> (raise Exit : unit));
+           Alcotest.fail "handler exception was swallowed"
+         with Exit -> ())) [false; true];
+      assert (!closed = 2))
 
 let cancel_read () =
   run (fun clock ->
@@ -291,11 +295,6 @@ let idle_deadlines () =
                (ok (E.server ()))
                (fun c ->
                  if phase = A.Timeout.Write then serve c "abc"
-                 else if phase = A.Timeout.Shutdown then (
-                   (* A live exchange is required to exercise the graceful deadline. *)
-                   let client = ok (E.client ()) in
-                   ignore client;
-                   ignore (A.next_event c))
                  else ignore (A.next_event c));
              assert false
            with A.Error (A.Timeout actual) -> assert (actual = phase));
@@ -350,8 +349,8 @@ let read_failures () =
             mock "POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 3\r\n\r\na"
           in
           let t =
-            if kind = 0 then { t with read = (fun _ _ _ -> failwith "read") }
-            else if kind = 1 then { t with read = (fun _ _ _ -> -1) }
+            if kind = `Transport_exception then { t with read = (fun _ _ _ -> failwith "read") }
+            else if kind = `Invalid_count then { t with read = (fun _ _ _ -> -1) }
             else t
           in
           (try
@@ -365,9 +364,14 @@ let read_failures () =
                  in
                  ignore (A.collect_body c id));
              assert false
-           with A.Error _ -> ());
+           with A.Error failure ->
+             match kind, failure with
+             | `Transport_exception, A.Transport (Failure message) -> assert (message = "read")
+             | `Invalid_count, A.Transport (Invalid_argument message) -> assert (message = "transport read count")
+             | `Truncated_body, A.Engine (E.Protocol Http_kit_http1.Unexpected_eof) -> ()
+             | _ -> Alcotest.fail "wrong read failure category");
           assert (!closed = 1))
-        [ 0; 1; 2 ])
+        [ `Transport_exception; `Invalid_count; `Truncated_body ])
 
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->

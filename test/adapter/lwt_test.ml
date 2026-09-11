@@ -78,15 +78,18 @@ let error () =
 
 let handler_error () =
   Lwt_main.run
-    (let t, closed, _ = mock get in
-     let* () =
-       Lwt.catch
+    (Lwt_list.iter_s (fun close_fails ->
+       let t, closed, _ = mock get in
+       let t = if close_fails then
+         { t with close = (fun () -> let* () = t.close () in Lwt.fail_with "close") }
+         else t in
+       let* () = Lwt.catch
          (fun () ->
-           A.with_connection t (ok (E.server ())) (fun _ -> Lwt.fail Exit))
-         (function Exit -> Lwt.return_unit | exn -> Lwt.fail exn)
-     in
-     assert (!closed = 1);
-     Lwt.return_unit)
+           let* () = A.with_connection t (ok (E.server ())) (fun _ -> Lwt.fail Exit) in
+           Lwt.fail_with "handler exception was swallowed")
+         (function Exit -> Lwt.return_unit | exn -> Lwt.fail exn) in
+       assert (!closed = 1);
+       Lwt.return_unit) [false; true])
 
 let cancel_read () =
   Lwt_main.run
@@ -493,9 +496,9 @@ let read_failures () =
            mock "POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 3\r\n\r\na"
          in
          let t =
-           if kind = 0 then
+           if kind = `Transport_exception then
              { t with read = (fun _ _ _ -> Lwt.fail_with "read") }
-           else if kind = 1 then
+           else if kind = `Invalid_count then
              { t with read = (fun _ _ _ -> Lwt.return (-1)) }
            else t
          in
@@ -516,11 +519,19 @@ let read_failures () =
                      Lwt.return_unit)
                in
                assert false)
-             (function A.Error _ -> Lwt.return_unit | exn -> Lwt.fail exn)
+             (function
+               | A.Error failure ->
+                   (match kind, failure with
+                    | `Transport_exception, A.Transport (Failure message) -> assert (message = "read")
+                    | `Invalid_count, A.Transport (Invalid_argument message) -> assert (message = "transport read count")
+                    | `Truncated_body, A.Engine (E.Protocol Http_kit_http1.Unexpected_eof) -> ()
+                    | _ -> Alcotest.fail "wrong read failure category");
+                   Lwt.return_unit
+               | exn -> Lwt.fail exn)
          in
          assert (!closed = 1);
          Lwt.return_unit)
-       [ 0; 1; 2 ])
+       [ `Transport_exception; `Invalid_count; `Truncated_body ])
 
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->
