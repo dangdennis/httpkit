@@ -6,6 +6,8 @@ An OCaml HTTP toolkit being built from independently usable primitives, with nat
 
 The [package design](docs/design.md) records current APIs and ownership decisions. The [full test plan](docs/test-harness-plan.md) describes security and release gates; the [harness contract](docs/harness-contract.md) distinguishes synthetic models from real core tests.
 
+The [code quality consolidation plan](docs/code-quality-plan.md) tracks the review fixes and staged improvements to readability, API ergonomics, protocol contracts and benchmark evidence.
+
 ## Use the core
 
 Link `(libraries http-kit-core)` and construct checked values:

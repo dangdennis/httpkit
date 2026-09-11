@@ -6,6 +6,10 @@ performance or security approval. Commands and comparison boundaries live in
 [benchmarks.md](benchmarks.md). Release campaigns remain governed by the
 [M7 checklist](m7-manual-checklist.md).
 
+Before expanding this matrix, complete the relevant evidence, oracle and tooling
+fixes in the [code quality consolidation plan](code-quality-plan.md), especially
+C6–C9. New benchmark lanes must build on those corrected checks.
+
 ## Existing coverage
 
 - [x] Five-family primitive suite: core, router, HTTP/1 codec, middleware and engine.
