@@ -47,6 +47,8 @@ for adapter, runtime in [('eio', 'eio_main'), ('lwt', 'lwt.unix')]:
         consumer=root/'consumer';consumer.mkdir();project(consumer)
         for name in ['transform.ml',adapter+'_example.ml']:
             shutil.copy2(ROOT/'examples/runtime'/name,consumer/name)
+        example = consumer/(adapter+'_example.ml')
+        example.write_text(example.read_text() + '\nlet configured_server ~clock ~accept ~on_error handler = Http_kit_'+adapter+'.serve_connections ~output_limit:4096 ~informational_limit:2 ~clock ~accept ~on_error handler\nlet _ = Http_kit_'+adapter+'.failure_to_string (Engine Http_kit_engine.Invalid_command)\n')
         (consumer/'dune').write_text(f'(executable (name {adapter}_example) (modes byte exe) (libraries http-kit-core http-kit-{adapter} {runtime}))\n')
         run(consumer,['build',adapter+'_example.exe',adapter+'_example.bc'])
         for executable in [[str(consumer/f'_build/default/{adapter}_example.exe')],

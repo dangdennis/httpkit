@@ -23,6 +23,10 @@ type failure =
 
 exception Error of failure
 
+val failure_to_string : failure -> string
+(** Category and diagnostic detail. Transport exception text is supplied by the
+    transport; callers control whether and where it is logged. *)
+
 type connection
 
 val with_connection :
@@ -38,6 +42,8 @@ val with_connection :
 *)
 
 val next_event : connection -> Engine.event
+(** Complete means incoming completion, not outgoing drain. *)
+
 val submit_request : connection -> 'a Request.t -> Engine.id
 val respond : connection -> Engine.id -> 'a Response.t -> unit
 
@@ -45,8 +51,16 @@ val send : connection -> Engine.id -> string -> unit
 (** Splits data into bounded chunks and waits natively for output capacity. *)
 
 val finish : ?trailers:Headers.t -> connection -> Engine.id -> unit
+(** Finalizes HTTP framing; invalid after handoff. Waits for client Expect
+    permission. *)
+
 val discard_body : connection -> Engine.id -> unit
+(** Discard still validates framing; await incoming Complete before reuse. *)
+
 val continue_request : connection -> Engine.id -> unit
+(** Explicit client override of the Expect wait; receiving 100 also grants
+    permission. *)
+
 val flush : connection -> unit
 
 val shutdown : connection -> unit
@@ -63,6 +77,9 @@ val collect_body : ?limit:int -> connection -> Engine.id -> string * Headers.t
     fiber owns event consumption; do not race this with next_event. *)
 
 val serve_connections :
+  ?limits:Engine.Codec.limits ->
+  ?output_limit:int ->
+  ?informational_limit:int ->
   ?max_connections:int ->
   ?policy:Timeout.policy ->
   clock:_ Eio.Time.Mono.t ->
@@ -70,6 +87,8 @@ val serve_connections :
   on_error:(exn -> unit) ->
   (connection -> unit) ->
   unit
-(** At most 1024 admitted connections by default. Owns connection scopes; the
-    caller owns the listener and its backlog. Connection failures call on_error
-    after cleanup. Accept/on_error failure cancels and joins all workers. *)
+(** Engine limits match [Engine.server] and are validated before accepting any
+    transport. Each admitted connection owns a fresh engine. At most 1024
+    admitted connections by default. Owns connection scopes; the caller owns the
+    listener and its backlog. Connection failures call on_error after cleanup.
+    Accept/on_error failure cancels and joins all workers. *)

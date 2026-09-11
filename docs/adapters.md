@@ -25,3 +25,12 @@ The adapter tests run under parent-process watchdogs. They cover byte-fragmented
 Installed-package tests copy only the declared runtime closure, compile and execute bytecode/native examples, and prove the opposite runtime is unavailable. The exact same `examples/runtime/transform.ml` is used by both. `@doc` builds package documentation with odoc 3.2.1 and fatal warnings.
 
 The broader plan still calls for reset/half-close permutations, fault coverage measurements, long stress campaigns, interop and independent security review. These tests establish the implemented adapter boundary; they do not certify the complete release plan.
+
+## Configuring connection admission
+
+Both `serve_connections` helpers accept `?limits`, `?output_limit` and
+`?informational_limit`, with the same defaults as `Engine.server`. Invalid
+settings fail before accepting a transport. Each accepted transport receives a
+fresh engine; settings do not share queues or request identity between clients.
+`failure_to_string` preserves the error category and transport exception detail.
+Transport-provided text should only be logged where the application intends it.

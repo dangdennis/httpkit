@@ -33,6 +33,20 @@ type failure =
 
 exception Error of failure
 
+let failure_to_string = function
+  | Engine error -> "engine: " ^ Engine.error_to_string error
+  | Transport exn -> "transport: " ^ Printexc.to_string exn
+  | Timeout phase ->
+      let name =
+        match phase with
+        | Timeout.Idle -> "idle"
+        | Head -> "head"
+        | Body -> "body"
+        | Write -> "write"
+        | Shutdown -> "shutdown"
+      in
+      name ^ " timeout"
+
 type connection = {
   engine : Engine.t;
   transport : transport;
@@ -336,9 +350,15 @@ let collect_body ?(limit = 1048576) c id =
   in
   loop Headers.empty
 
-let serve_connections ?(max_connections = 1024) ?policy ?clock ~accept ~on_error
-    handler =
+let serve_connections ?limits ?output_limit ?informational_limit
+    ?(max_connections = 1024) ?policy ?clock ~accept ~on_error handler =
   if max_connections <= 0 then invalid_arg "nonpositive connection limit";
+  let create_engine () =
+    checked (Engine.server ?limits ?output_limit ?informational_limit ())
+  in
+  (* Reject invalid immutable settings before accepting a transport. Each worker
+     still creates its own engine and therefore its own ID/queue ownership. *)
+  ignore (create_engine ());
   let stopping = ref false in
   let rec worker () =
     if !stopping then Lwt.return_unit
@@ -347,9 +367,7 @@ let serve_connections ?(max_connections = 1024) ?policy ?clock ~accept ~on_error
       let* () =
         Lwt.catch
           (fun () ->
-            with_connection ?policy ?clock transport
-              (checked (Engine.server ()))
-              handler)
+            with_connection ?policy ?clock transport (create_engine ()) handler)
           (function Lwt.Canceled as exn -> Lwt.fail exn | exn -> on_error exn)
       in
       let* () = Lwt.pause () in

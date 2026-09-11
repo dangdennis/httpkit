@@ -2,6 +2,21 @@ open Lwt.Syntax
 module A = Http_kit_lwt
 module E = Http_kit_engine
 
+let handle request =
+  if Application.is_protected request then
+    let authorize next () request =
+      let* () = Lwt.pause () in
+      match Application.authenticate request with
+      | Some user -> next user request
+      | None -> Lwt.return (Application.denied ())
+    in
+    let endpoint user request =
+      Lwt.return (Application.protected user request)
+    in
+    Http_kit_middleware.Transition.compose authorize
+      Http_kit_middleware.Transition.identity endpoint () request
+  else Lwt.return (Application.handle request)
+
 let () =
   Lwt_main.run
     (let socket = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
@@ -22,7 +37,10 @@ let () =
              let* fd, _ = Lwt_unix.accept socket in
              Lwt.return (A.of_fd fd))
            ~on_error:(fun exn ->
-             prerr_endline (Printexc.to_string exn);
+             prerr_endline
+               (match exn with
+               | A.Error failure -> A.failure_to_string failure
+               | _ -> Printexc.to_string exn);
              Lwt.return_unit)
            (fun c ->
              let rec loop () =
@@ -39,8 +57,7 @@ let () =
                            else Lwt.return_unit
                          in
                          let* body, _ = A.collect_body ~limit:65536 c id in
-                         Lwt.return (Application.handle
-                           (Http_kit_core.Request.with_body body request))
+                         handle (Http_kit_core.Request.with_body body request)
                    in
                    let* () = A.respond c id response in
                    let* () =

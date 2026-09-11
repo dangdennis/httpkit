@@ -27,6 +27,10 @@ type failure =
 
 exception Error of failure
 
+val failure_to_string : failure -> string
+(** Category and diagnostic detail. Transport exception text is supplied by the
+    transport; callers control whether and where it is logged. *)
+
 type connection
 
 val with_connection :
@@ -41,14 +45,28 @@ val with_connection :
     ownership. Clock injection supports deterministic deadline tests. *)
 
 val next_event : connection -> Engine.event Lwt.t
+(** Complete means incoming completion, not outgoing drain. *)
+
 val submit_request : connection -> 'a Request.t -> Engine.id Lwt.t
 val respond : connection -> Engine.id -> 'a Response.t -> unit Lwt.t
 val send : connection -> Engine.id -> string -> unit Lwt.t
+
 val finish : ?trailers:Headers.t -> connection -> Engine.id -> unit Lwt.t
+(** Finalizes HTTP framing; invalid after handoff. Waits for client Expect
+    permission. *)
+
 val discard_body : connection -> Engine.id -> unit Lwt.t
+(** Discard still validates framing; await incoming Complete before reuse. *)
+
 val continue_request : connection -> Engine.id -> unit Lwt.t
+(** Explicit client override of the Expect wait; receiving 100 also grants
+    permission. *)
+
 val flush : connection -> unit Lwt.t
+
 val shutdown : connection -> unit Lwt.t
+(** Wait for graceful closure under the configured deadline. The owner must
+    complete an active exchange; expiry aborts the connection. *)
 
 val take_handoff : connection -> transport * string
 (** Valid once after receiving Handoff; includes the unconsumed input suffix.
@@ -60,6 +78,9 @@ val collect_body :
     aborts before appending. One promise chain owns event consumption. *)
 
 val serve_connections :
+  ?limits:Engine.Codec.limits ->
+  ?output_limit:int ->
+  ?informational_limit:int ->
   ?max_connections:int ->
   ?policy:Timeout.policy ->
   ?clock:clock ->

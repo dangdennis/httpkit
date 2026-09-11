@@ -1,6 +1,19 @@
 module A = Http_kit_eio
 module E = Http_kit_engine
 
+let handle request =
+  if Application.is_protected request then
+    let authorize next () request =
+      (* A native asynchronous decision can supply a richer context to next. *)
+      Eio.Fiber.yield ();
+      match Application.authenticate request with
+      | Some user -> next user request
+      | None -> Application.denied ()
+    in
+    Http_kit_middleware.Transition.compose authorize
+      Http_kit_middleware.Transition.identity Application.protected () request
+  else Application.handle request
+
 let () =
   Eio_main.run (fun env ->
       Eio.Switch.run (fun sw ->
@@ -19,7 +32,11 @@ let () =
             ~accept:(fun () ->
               let flow, _ = Eio.Net.accept ~sw socket in
               A.of_flow flow)
-            ~on_error:(fun exn -> prerr_endline (Printexc.to_string exn))
+            ~on_error:(fun exn ->
+              prerr_endline
+                (match exn with
+                | A.Error failure -> A.failure_to_string failure
+                | _ -> Printexc.to_string exn))
             (fun c ->
               let rec loop () =
                 match A.next_event c with
@@ -31,8 +48,7 @@ let () =
                           if Application.expects_continue request then
                             A.respond c id Application.continue_response;
                           let body, _ = A.collect_body ~limit:65536 c id in
-                          Application.handle
-                            (Http_kit_core.Request.with_body body request)
+                          handle (Http_kit_core.Request.with_body body request)
                     in
                     A.respond c id response;
                     if

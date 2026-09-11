@@ -56,3 +56,10 @@ Routing examples decide whether to consume the upload before reading its body.
 A supported Expect upload receives 100 Continue first; unmatched routes receive
 a final response immediately. Early final responses follow the engine close
 policy and do not wait for the client to transmit a rejected upload.
+
+The `/protected` route demonstrates Transition context plumbing in both native
+runtimes. The Eio wrapper yields and the Lwt wrapper binds a promise before
+supplying an `Application.authenticated` context to the endpoint. Requests with
+`x-demo-user: demo` get the illustrative identity; missing/other values receive
+401. This is an executable composition example, not an authentication protocol.
+Public routes continue through the same shared Basic middleware application.

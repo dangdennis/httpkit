@@ -78,18 +78,32 @@ let error () =
 
 let handler_error () =
   Lwt_main.run
-    (Lwt_list.iter_s (fun close_fails ->
-       let t, closed, _ = mock get in
-       let t = if close_fails then
-         { t with close = (fun () -> let* () = t.close () in Lwt.fail_with "close") }
-         else t in
-       let* () = Lwt.catch
-         (fun () ->
-           let* () = A.with_connection t (ok (E.server ())) (fun _ -> Lwt.fail Exit) in
-           Lwt.fail_with "handler exception was swallowed")
-         (function Exit -> Lwt.return_unit | exn -> Lwt.fail exn) in
-       assert (!closed = 1);
-       Lwt.return_unit) [false; true])
+    (Lwt_list.iter_s
+       (fun close_fails ->
+         let t, closed, _ = mock get in
+         let t =
+           if close_fails then
+             {
+               t with
+               close =
+                 (fun () ->
+                   let* () = t.close () in
+                   Lwt.fail_with "close");
+             }
+           else t
+         in
+         let* () =
+           Lwt.catch
+             (fun () ->
+               let* () =
+                 A.with_connection t (ok (E.server ())) (fun _ -> Lwt.fail Exit)
+               in
+               Lwt.fail_with "handler exception was swallowed")
+             (function Exit -> Lwt.return_unit | exn -> Lwt.fail exn)
+         in
+         assert (!closed = 1);
+         Lwt.return_unit)
+       [ false; true ])
 
 let cancel_read () =
   Lwt_main.run
@@ -521,17 +535,78 @@ let read_failures () =
                assert false)
              (function
                | A.Error failure ->
-                   (match kind, failure with
-                    | `Transport_exception, A.Transport (Failure message) -> assert (message = "read")
-                    | `Invalid_count, A.Transport (Invalid_argument message) -> assert (message = "transport read count")
-                    | `Truncated_body, A.Engine (E.Protocol Http_kit_http1.Unexpected_eof) -> ()
-                    | _ -> Alcotest.fail "wrong read failure category");
+                   (match (kind, failure) with
+                   | `Transport_exception, A.Transport (Failure message) ->
+                       assert (message = "read")
+                   | `Invalid_count, A.Transport (Invalid_argument message) ->
+                       assert (message = "transport read count")
+                   | ( `Truncated_body,
+                       A.Engine (E.Protocol Http_kit_http1.Unexpected_eof) ) ->
+                       ()
+                   | _ -> Alcotest.fail "wrong read failure category");
                    Lwt.return_unit
                | exn -> Lwt.fail exn)
          in
          assert (!closed = 1);
          Lwt.return_unit)
        [ `Transport_exception; `Invalid_count; `Truncated_body ])
+
+let configured_admission () =
+  Lwt_main.run
+    (let accepted = ref 0 and failures = ref 0 and closures = ref [] in
+     let accept () =
+       if !accepted = 2 then Lwt.fail Exit
+       else (
+         incr accepted;
+         let transport, closed, _ = mock get in
+         closures := closed :: !closures;
+         Lwt.return transport)
+     in
+     let* () =
+       Lwt.catch
+         (fun () ->
+           let* () =
+             A.serve_connections ~max_connections:1 ~output_limit:16 ~accept
+               ~on_error:(function
+                 | A.Error (A.Engine E.Resource_limit) ->
+                     incr failures;
+                     Lwt.return_unit
+                 | exn -> Lwt.fail exn)
+               (fun c ->
+                 let* event = A.next_event c in
+                 let id =
+                   match event with
+                   | E.Request (id, _) -> id
+                   | _ -> assert false
+                 in
+                 A.respond c id (response 3))
+           in
+           Lwt.fail_with "accept termination swallowed")
+         (function Exit -> Lwt.return_unit | exn -> Lwt.fail exn)
+     in
+     assert (!failures = 2 && List.for_all (fun count -> !count = 1) !closures);
+     let accepted = ref false in
+     let* () =
+       Lwt.catch
+         (fun () ->
+           let* () =
+             A.serve_connections ~output_limit:0
+               ~accept:(fun () ->
+                 accepted := true;
+                 Lwt.fail Exit)
+               ~on_error:Lwt.fail
+               (fun _ -> Lwt.return_unit)
+           in
+           Lwt.fail_with "invalid configuration accepted")
+         (function
+           | A.Error (A.Engine E.Resource_limit) -> Lwt.return_unit
+           | exn -> Lwt.fail exn)
+     in
+     assert (not !accepted);
+     assert (
+       A.failure_to_string (A.Engine E.Invalid_command)
+       = "engine: invalid engine command");
+     Lwt.return_unit)
 
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->
@@ -556,6 +631,7 @@ let () =
             ("fragmented reads and partial writes", partial);
             ("write failure cannot become successful flush", error);
             ("handler cleanup", handler_error);
+            ("configured admission and diagnostics", configured_admission);
             ("cancel and join read", cancel_read);
             ("handoff residual and close ownership", handoff);
             ("real socket streaming", sockets);
