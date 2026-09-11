@@ -418,3 +418,8 @@ Retained reports are validated from raw samples before comparison. This includes
 aggregate metrics, paired library comparisons and identical per-sample exclusions.
 Missing or inconsistent derived fields are rejected; historical artifacts are
 never silently rewritten or treated as authenticated external evidence.
+
+Pipeline requests carry ordinal targets and responses carry matching `x-message`
+headers. The oracle checks ordered association, including empty bodies, and has
+reorder/duplicate/omission controls. This changes the measured workload: earlier
+pipeline timings remain historical and are not compatible performance baselines.

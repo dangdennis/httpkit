@@ -31,10 +31,11 @@ let fields chunked size =
 let kit input _bigwire response_fields receive respond =
   let conn = ok (E.server ()) in
   let current = ref None in
+  let outgoing_fields = ref [] in
   let pump () =
     match E.poll_event conn with
     | Some (E.Request (id, r)) ->
-        require (Target.to_string (Request.target r) = "/body");
+        outgoing_fields := response_fields (Target.to_string (Request.target r));
         current := Some id
     | Some (E.Data (_, s)) -> receive s
     | Some (E.Trailers (_, h)) -> require (Headers.length h = 0)
@@ -44,7 +45,7 @@ let kit input _bigwire response_fields receive respond =
           (accepted
              (E.respond conn id
                 (Response.create ~status:Status.ok
-                   ~headers:(ok (Headers.of_list response_fields))
+                   ~headers:(ok (Headers.of_list !outgoing_fields))
                    ())));
         respond
           {
@@ -77,7 +78,7 @@ let httpaf _input bigwire response_fields receive respond =
       ~error_handler:(fun ?request:_ _ _ -> failwith "httpaf exchange error")
       (fun reqd ->
         let request = Httpaf.Reqd.request reqd in
-        require (request.target = "/body");
+        let response_fields = response_fields request.target in
         let body = Httpaf.Reqd.request_body reqd in
         let rec arm () =
           Httpaf.Body.schedule_read body
@@ -129,7 +130,7 @@ let httpun _input bigwire response_fields receive respond =
     Httpun.Server_connection.create
       ~error_handler:(fun ?request:_ _ _ -> failwith "httpun exchange error")
       (fun reqd ->
-        require ((Httpun.Reqd.request reqd).target = "/body");
+        let response_fields = response_fields (Httpun.Reqd.request reqd).target in
         let body = Httpun.Reqd.request_body reqd in
         let rec arm () =
           Httpun.Body.Reader.schedule_read body
@@ -178,13 +179,14 @@ let httpun _input bigwire response_fields receive respond =
 
 let verify_responses ~chunked wire body count =
   let offset = ref 0 in
-  for _ = 1 to count do
+  for ordinal = 0 to count - 1 do
     let head = H.head_decoder (H.Response Method.post) in
     let n, metadata =
       ok
         (H.feed_head head wire ~off:!offset ~len:(String.length wire - !offset))
     in
     offset := !offset + n;
+    require (Option.is_some metadata);
     let metadata = Option.get metadata in
     require
       ((metadata.framing
@@ -193,7 +195,12 @@ let verify_responses ~chunked wire body count =
        else H.Fixed (Int64.of_int (String.length body)))
       || ((not chunked) && body = "" && metadata.framing = H.Empty));
     (match metadata.head with
-    | H.Response_head r -> require (Response.status r = Status.ok)
+    | H.Response_head r ->
+        require (Response.status r = Status.ok);
+        if count > 1 then
+          require (List.map Header.Value.to_string
+            (Headers.get_all (ok (Header.Name.of_string "x-message")) (Response.headers r))
+            = [string_of_int ordinal])
     | _ -> assert false);
     let decoder = H.body_decoder metadata in
     let ended = ref false and position = ref 0 in
@@ -233,7 +240,15 @@ let run make input bigwire request_body response_body response_fields pieces
     require (writer.push "");
     active := Some (writer, pieces)
   in
-  let conn = make input bigwire response_fields receive respond in
+  let next_request = ref 0 in
+  let identify target =
+    let ordinal = !next_request in
+    incr next_request;
+    require (target = if count = 1 then "/body" else "/body/" ^ string_of_int ordinal);
+    if count = 1 then response_fields
+    else ("x-message", string_of_int ordinal) :: response_fields
+  in
+  let conn = make input bigwire identify receive respond in
   Fun.protect ~finally:conn.stop (fun () ->
       let offset = ref 0
       and ticks = ref 0
@@ -307,7 +322,13 @@ let check_oracle () =
   reject (fun () -> verify_responses ~chunked:false good "abd" 1);
   reject (fun () -> verify_responses ~chunked:false (good ^ "suffix") "abc" 1);
   reject (fun () -> verify_responses ~chunked:true good "abc" 1);
-  reject (fun () -> verify_responses ~chunked:false (good ^ good) "abc" 1)
+  reject (fun () -> verify_responses ~chunked:false (good ^ good) "abc" 1);
+  let message ordinal = "HTTP/1.1 200 OK\r\nx-message: " ^ string_of_int ordinal
+    ^ "\r\nContent-Length: 3\r\n\r\nabc" in
+  verify_responses ~chunked:false (message 0 ^ message 1) "abc" 2;
+  List.iter (fun wire -> reject (fun () -> verify_responses ~chunked:false wire "abc" 2))
+    [message 1 ^ message 0; message 0 ^ message 0; message 0;
+     message 0 ^ message 1 ^ message 2]
 
 let check_paused_reader () =
   let fixture = B.fixture true B.Fixed 64 (B.Pieces 1) false false in
@@ -359,7 +380,14 @@ let jobs () =
               List.concat_map
                 (fun (count, step, ack) ->
                   let input =
-                    String.concat "" (List.init count (fun _ -> fixture.wire))
+                    String.concat "" (List.init count (fun ordinal ->
+                      if count = 1 then fixture.wire
+                      else
+                        let prefix = "POST /body" in
+                        require (String.starts_with ~prefix fixture.wire);
+                        prefix ^ "/" ^ string_of_int ordinal
+                        ^ String.sub fixture.wire (String.length prefix)
+                            (String.length fixture.wire - String.length prefix)))
                   in
                   let bigwire =
                     Bigstringaf.of_string ~off:0 ~len:(String.length input)
