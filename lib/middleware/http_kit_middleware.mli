@@ -41,7 +41,7 @@ module Context : sig
       style does not prove that an optional field has been populated. *)
 end
 
-module Indexed : sig
+module Transition : sig
   type ('before, 'after, 'body, 'output) t =
     ('after, 'body, 'output) Context.handler ->
     ('before, 'body, 'output) Context.handler
@@ -72,7 +72,7 @@ module Indexed : sig
     ('before, 'after, 'body, 'output) t
   (** A synchronous decision: call [next] once on [Ok], or [reject] once on
       [Error]. No exception is converted into a rejection. For asynchronous
-      decisions, write an indexed wrapper using the runtime's native bind.
+      decisions, write a transition wrapper using the runtime's native bind.
 
       The types enforce context plumbing, not the truth of authentication or
       authorization. Abstract application context types can restrict who is

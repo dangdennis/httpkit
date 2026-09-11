@@ -12,12 +12,12 @@ Updated 2026-09-10. This document records implemented core contracts and the nex
 | `http-kit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Implemented in `lib/engine` |
 | `http-kit-eio` | Native Eio transport, cancellation, clocks, and body streams | Implemented |
 | `http-kit-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Implemented |
-| `http-kit-middleware` | Basic, typed-context and indexed handler composition | Implemented |
+| `http-kit-middleware` | Basic, typed-context and transition handler composition | Implemented |
 | `http-kit-router` | Bounded raw-path matching with explicit method outcomes | Implemented |
 
 Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Future codecs may depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. Eio and Lwt will have their own native APIs, without a shared monadic runtime abstraction.
 
-`http-kit-middleware` adds three public composition styles: basic wrappers, typed contexts, and indexed context transitions. It depends only on core; see [middleware contracts](middleware.md).
+`http-kit-middleware` adds three public composition styles: basic wrappers, typed contexts, and typed context transitions. It depends only on core; see [middleware contracts](middleware.md).
 
 ## Core contracts
 

@@ -59,7 +59,7 @@ ownership and concurrency rules.
 ## Composing middleware and adapters
 
 The router stores any one payload type. A payload can be a handler already wrapped
-with `Basic`, `Context`, or `Indexed` middleware. Compose endpoint-specific indexed
+with `Basic`, `Context`, or `Transition` middleware. Compose endpoint-specific context
 transitions before inserting handlers into a table so that the resulting entry
 handlers share a common input context. The context guarantees then remain visible
 at route registration; heterogeneous context requirements are not erased by a bag

@@ -9,7 +9,7 @@ runtime promise. No body is read, closed, or copied by the combinators.
 | --- | --- | --- |
 | `Basic` | request → output | Compatible request body and output types. Context requirements are not represented. |
 | `Context` | context → request → output | Every wrapper agrees on one explicit application context type. |
-| `Indexed` | accepts context A, supplies context B to the next handler | Adjacent context transitions must agree; the endpoint receives the context type it requires. |
+| `Transition` | accepts context A, supplies context B to the next handler | Adjacent context transitions must agree; the endpoint receives the context type it requires. |
 
 ## Composition order
 
@@ -25,21 +25,21 @@ does not prove a previous wrapper populated the field.
 
 ## Context transitions
 
-An indexed pipeline might accept `anonymous`, produce `authenticated`, then
+A transition pipeline might accept `anonymous`, produce `authenticated`, then
 produce `authorized` before reaching its endpoint:
 
 ```ocaml
 let handler =
-  Indexed.compose authenticate authorize protected_endpoint
+  Transition.compose authenticate authorize protected_endpoint
 ```
 
 Each step has the shape `next -> context -> request -> output`. Compose different
 context types pairwise. A homogeneous list cannot represent an arbitrary sequence
-of distinct context transitions; `Indexed.compose` exposes that constraint instead
+of distinct context transitions; `Transition.compose` exposes that constraint instead
 of erasing it with casts or dynamic dictionaries. Reversing incompatible steps or
 skipping a required transition fails compilation.
 
-`Indexed.guard decide ~reject` is a convenience for synchronous decisions. It
+`Transition.guard decide ~reject` is a convenience for synchronous decisions. It
 calls `decide` once and then either `next` once with the new context or `reject`
 once. `map_context` derives a context; `lift` incorporates a context-preserving
 wrapper. Applications can define abstract authenticated/authorized types to limit

@@ -184,7 +184,7 @@ body chunks, and retrying backpressured commands without a runtime adapter.
 ## Middleware composition
 
 `http-kit-middleware` offers [three context-safety styles](docs/middleware.md):
-basic wrappers, a shared typed context, and indexed context transitions. It
+basic wrappers, a shared typed context, and typed context transitions. It
 depends only on core and preserves native runtime return types.
 
 ## Pure routing

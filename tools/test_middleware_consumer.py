@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-middleware-') as directory:
         exe = str(root / ('styles-' + mode))
         run = [str(compiler.with_name('ocamlrun')), exe] if mode == 'byte' else [exe]
         output = subprocess.check_output(run, cwd=root, env=clean, timeout=30)
-        assert output == b'PASS: basic, contextual and indexed middleware\n'
+        assert output == b'PASS: basic, contextual and transition middleware\n'
     for fixture in sorted((ROOT / 'test/api/middleware').glob('*.ml')):
         shutil.copy2(fixture, root / fixture.name)
         result = subprocess.run([str(compiler), *[x for path in includes for x in ['-I', path]],

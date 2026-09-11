@@ -19,7 +19,7 @@ module Context = struct
   let chain wrappers = List.fold_right compose wrappers identity
 end
 
-module Indexed = struct
+module Transition = struct
   type ('before, 'after, 'body, 'output) t =
     ('after, 'body, 'output) Context.handler ->
     ('before, 'body, 'output) Context.handler

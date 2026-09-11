@@ -45,7 +45,7 @@ let context () =
 let guards () =
   let decisions = ref 0 and endpoints = ref 0 and rejected = ref 0 in
   let guard =
-    M.Indexed.guard
+    M.Transition.guard
       (fun number r ->
         assert (r == request);
         incr decisions;
@@ -54,9 +54,9 @@ let guards () =
         incr rejected;
         Error error)
   in
-  let length = M.Indexed.map_context String.length in
+  let length = M.Transition.map_context String.length in
   let h =
-    M.Indexed.compose guard length (fun size r ->
+    M.Transition.compose guard length (fun size r ->
         assert (r == request);
         incr endpoints;
         Ok size)
@@ -71,7 +71,7 @@ exception Expected
 let exceptions () =
   let intercepted = ref false in
   let guard =
-    M.Indexed.guard
+    M.Transition.guard
       (fun () _ -> raise Expected)
       ~reject:(fun () -> intercepted := true)
   in
@@ -93,7 +93,7 @@ let native_result () =
   let layer next r = next r in
   assert (M.Basic.chain [ layer ] (fun _ -> result) request == result);
   assert (not !forced);
-  let lifted = M.Indexed.lift (fun next c r -> next (c + 1) r) in
+  let lifted = M.Transition.lift (fun next c r -> next (c + 1) r) in
   assert (lifted (fun c _ -> c) 0 request = 1)
 
 let () =

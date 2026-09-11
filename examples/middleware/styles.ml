@@ -31,18 +31,18 @@ let contextual =
 (* Style 3: each step declares which context it accepts and produces.
    The literal token below is a demonstration fixture, not authentication code. *)
 let authenticate =
-  M.Indexed.guard
+  M.Transition.guard
     (fun (context : anonymous) _ ->
       if context.token = "demo" then Ok { user = "Ada" } else Error ())
     ~reject:(fun () ->
       Response.create ~status:(Result.get_ok (Status.of_int 401)) "unauthorized")
 
 let authorize =
-  M.Indexed.map_context (fun (context : authenticated) ->
+  M.Transition.map_context (fun (context : authenticated) ->
       { account = context.user ^ "'s account" })
 
 let protected =
-  M.Indexed.compose authenticate authorize (fun (context : authorized) _ ->
+  M.Transition.compose authenticate authorize (fun (context : authorized) _ ->
       response context.account)
 
 let () =
@@ -51,4 +51,4 @@ let () =
   assert (Response.body (protected { token = "demo" } request) = "Ada's account");
   assert (
     Status.to_int (Response.status (protected { token = "bad" } request)) = 401);
-  print_endline "PASS: basic, contextual and indexed middleware"
+  print_endline "PASS: basic, contextual and transition middleware"
