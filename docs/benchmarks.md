@@ -353,7 +353,9 @@ checks both incoming and outgoing binary payloads. Fixed/chunked framing,
 0/4096/65536-byte payloads, empty writes, writer finalization, 1/997/16384-byte
 output acknowledgements, one-byte input fragmentation, and eight pipelined
 messages are covered. Request bytes remain caller-owned until consumed; unread
-fragments are extended when the parser needs more input. An independent codec
+fragments are extended when a ready parser needs more input. Paused readers do
+not expose new arrivals; an alternating-readiness regression fixture checks that
+contract. An independent codec
 oracle checks every response's status, exact payload, framing, count, and absence
 of trailing bytes. Re-polling output before acknowledging checks stable exposed
 bytes. The timer includes setup, API adaptation, copies, output collection and

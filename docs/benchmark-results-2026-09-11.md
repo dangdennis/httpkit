@@ -131,3 +131,54 @@ Decision: retain both experiments and the reference matcher; do not ship either
 index unchanged. A next prototype should parse once and merge bounded candidate
 streams while preserving declaration order and Allow ordering. It must retain
 construction bounds and prove behavior against the reference before adoption.
+
+## Persistent exchange measurements and driver correction
+
+The final exchange driver checks read readiness before exposing another transport
+arrival. A paused reader is distinct from a ready parser returning zero because
+it needs a longer prefix. An alternating-readiness preflight verifies both that
+no read occurs while paused and that one-byte fragments remain one byte when
+reading resumes. Payload correctness alone would not catch unfair batching.
+
+The initial exchange measurements in
+`_artifacts/benchmarks/20260911T074106Z-bzrrwf3m/` are **superseded**: response
+writer stalls could accumulate extra input arrivals and change the effective
+fragmentation differently across implementations. They are not a valid timing
+baseline. The earlier combined smoke established correctness but its exchange
+timings are also superseded. Raw files remain intact with an added provenance
+annotation; the workload hash changes with this correction.
+
+The corrected 108-case exchange smoke passed three processes:
+`_artifacts/benchmarks/20260911T074433Z-_qr24lj_/`. The corrected full run selected
+36 eight-message writer/exchange cases, five processes, 50 ms calibration target:
+`_artifacts/benchmarks/20260911T074444Z-iyd25gxa/`. Thirty-three exceeded 10% CV;
+quality labels were 32 noisy, one short-batch, three low-observed-variation.
+
+Representative medians for 64 KiB bodies below are **per eight-message batch**,
+not per request. A full exchange checks eight uploads plus eight responses;
+a writer case has empty uploads and eight response bodies. Incoming chunked
+bodies use 17-byte wire chunks; outgoing writes use up to 8 KiB per submission.
+
+| Workload | http-kit time | httpaf time | httpun time | http-kit allocation | httpaf allocation | httpun allocation |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fixed response writer | 12.85 ms | 11.70 ms | 11.59 ms | 1.92 MB | 2.04 MB | 1.95 MB |
+| Chunked response writer | 11.90 ms | 15.13 ms | 11.59 ms | 3.59 MB | 2.17 MB | 2.14 MB |
+| Fixed full exchange | 17.14 ms | 17.04 ms | 14.41 ms | 2.49 MB | 3.15 MB | 2.54 MB |
+| Small-chunk full exchange | 26.46 ms | 107.50 ms | 109.91 ms | 51.27 MB | 315.35 MB | 314.33 MB |
+
+Ordinary writer/fixed-exchange timings do not establish a winner. Kit's chunked
+writer allocation is higher in this setup, an optimization target distinct from
+its small-chunk reader advantage. The small-chunk full exchange retains the
+large allocation gap seen in the reader profiles, but includes output collection
+and independent decode/byte checking too. None of these numbers is network
+throughput, request latency percentiles or peak resident memory.
+
+## Hosted CI status
+
+The code milestone was pushed as `e11840c`. GitHub Actions run
+[34575520676](https://github.com/dangdennis/http-kit/actions/runs/34575520676)
+failed before starting any job steps. Its annotation states that recent account
+payments failed or the spending limit needs increasing. Hosted CI requires the
+account owner to resolve that billing condition and rerun; no workflow failure
+was exposed and no billing settings were changed. Local validation and retained
+benchmark checks are separate evidence, not a claim that hosted CI passed.

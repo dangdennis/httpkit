@@ -12,6 +12,7 @@ type view = { length : int; get : int -> char }
 
 type connection = {
   read : int -> int -> int;
+  ready : unit -> bool;
   pump : unit -> unit;
   output : unit -> view option;
   ack : int -> unit;
@@ -55,6 +56,11 @@ let kit input _bigwire response_fields receive respond =
   in
   {
     read = (fun off len -> ok (E.offer conn input ~off ~len));
+    ready =
+      (fun () ->
+        match E.input_state conn with
+        | `Idle | `Head | `Body -> true
+        | `Blocked | `Closed -> false);
     pump;
     output =
       (fun () ->
@@ -100,11 +106,9 @@ let httpaf _input bigwire response_fields receive respond =
         arm ())
   in
   {
-    read =
-      (fun off len ->
-        match Httpaf.Server_connection.next_read_operation conn with
-        | `Read -> Httpaf.Server_connection.read conn bigwire ~off ~len
-        | _ -> 0);
+    ready =
+      (fun () -> Httpaf.Server_connection.next_read_operation conn = `Read);
+    read = (fun off len -> Httpaf.Server_connection.read conn bigwire ~off ~len);
     pump = (fun () -> ());
     output =
       (fun () ->
@@ -154,11 +158,9 @@ let httpun _input bigwire response_fields receive respond =
         arm ())
   in
   {
-    read =
-      (fun off len ->
-        match Httpun.Server_connection.next_read_operation conn with
-        | `Read -> Httpun.Server_connection.read conn bigwire ~off ~len
-        | _ -> 0);
+    ready =
+      (fun () -> Httpun.Server_connection.next_read_operation conn = `Read);
+    read = (fun off len -> Httpun.Server_connection.read conn bigwire ~off ~len);
     pump = (fun () -> ());
     output =
       (fun () ->
@@ -275,7 +277,10 @@ let run make input bigwire request_body response_body response_fields pieces
         | Some (writer, s :: tail) ->
             if writer.push s then active := Some (writer, tail));
         drain ();
-        if !offset < String.length input then (
+        (* A paused reader is not a parser requesting a longer prefix. Do not
+           expose another arrival until it is ready; otherwise output stalls
+           silently change the configured input fragmentation per library. *)
+        if !offset < String.length input && conn.ready () then (
           if !need_more then
             available := min (String.length input) (!available + step);
           let n = conn.read !offset (!available - !offset) in
@@ -304,8 +309,31 @@ let check_oracle () =
   reject (fun () -> verify_responses ~chunked:true good "abc" 1);
   reject (fun () -> verify_responses ~chunked:false (good ^ good) "abc" 1)
 
+let check_paused_reader () =
+  let fixture = B.fixture true B.Fixed 64 (B.Pieces 1) false false in
+  let paused_kit input bigwire fields receive respond =
+    let conn = kit input bigwire fields receive respond in
+    let tick = ref 0 and allowed = ref false in
+    {
+      conn with
+      ready =
+        (fun () ->
+          incr tick;
+          allowed := !tick mod 3 <> 0 && conn.ready ();
+          !allowed);
+      read =
+        (fun off len ->
+          require (!allowed && len = 1);
+          allowed := false;
+          conn.read off len);
+    }
+  in
+  run paused_kit fixture.wire fixture.bigwire fixture.body "ok" (fields false 2)
+    [ "ok" ] 1 1 1 ()
+
 let jobs () =
   check_oracle ();
+  check_paused_reader ();
   List.concat_map
     (fun writer_only ->
       List.concat_map
