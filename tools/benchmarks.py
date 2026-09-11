@@ -157,18 +157,30 @@ def aggregate(samples, catalog, compiler, quick):
     return results
 
 
+def validate_report(report):
+    """Rebuild retained derived data before rendering or comparing evidence."""
+    need(report.get('schema') == SCHEMA, 'unsupported report schema')
+    validate_exclusions(report.get('exclusions', []), report['catalog'])
+    rebuilt = aggregate(report['samples'], report['catalog'], report['compiler'], report['config']['quick'])
+    need(report['results'] == rebuilt, 'report summary does not match retained samples')
+    need(len(report['samples']) == report['config']['samples'], 'report sample count differs')
+    need(all(s.get('min_ms',0) == report['config'].get('min_ms',0) for s in report['samples']), 'report calibration differs')
+    need([s['seed'] for s in report['samples']] == report['config']['seeds'], 'report seed order differs')
+    exclusions = report.get('exclusions', [])
+    need(all(sample.get('exclusions', []) == exclusions for sample in report['samples']),
+         'sample exclusions differ from report')
+    comparisons = library_comparisons(report['results'], report['samples'])
+    need(report.get('library_comparisons', []) == comparisons,
+         'library comparisons do not match retained samples')
+
+
 def compare(current, baseline):
     # Production source hashes may differ; workload, toolchain and host may not.
     # This compatibility check cannot establish thermal/load isolation.
     for key in ('schema', 'compiler', 'profile', 'workload_sha256', 'host_fingerprint', 'config'):
         need(current[key] == baseline[key], f'incompatible baseline: {key}')
     for report in (current, baseline):
-        validate_exclusions(report.get('exclusions', []), report['catalog'])
-        rebuilt = aggregate(report['samples'], report['catalog'], report['compiler'], report['config']['quick'])
-        need(report['results'] == rebuilt, 'report summary does not match retained samples')
-        need(len(report['samples']) == report['config']['samples'], 'report sample count differs')
-        need(all(s.get('min_ms',0) == report['config'].get('min_ms',0) for s in report['samples']), 'report calibration differs')
-        need([s['seed'] for s in report['samples']] == report['config']['seeds'], 'report seed order differs')
+        validate_report(report)
     need(current.get('exclusions', []) == baseline.get('exclusions', []), 'incompatible baseline: exclusions')
     need(inventory(current['catalog']) == inventory(baseline['catalog']), 'incompatible baseline: catalog')
     old = {r['id']: r for r in baseline['results']}
@@ -335,6 +347,7 @@ def main():
             'Routing excludes method policy and ambiguous precedence; Routes wildcard slash normalization is timed.',
             'GC allocation excludes external Bigarray payloads and does not measure total memory.',
             'Unique header names only; the httpaf raw-parser reversed field representation is checked explicitly.']
+    validate_report(report)
     if args.baseline:
         report['comparison'] = compare(report, json.loads(args.baseline.read_text()))
         report['baseline'] = str(args.baseline.resolve())

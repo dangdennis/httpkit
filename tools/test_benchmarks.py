@@ -3,7 +3,7 @@
 import copy
 import unittest
 
-from benchmarks import aggregate, compare, inventory, library_comparisons, markdown, validate_exclusions
+from benchmarks import aggregate, compare, inventory, library_comparisons, markdown, validate_exclusions, validate_report
 
 
 class Reports(unittest.TestCase):
@@ -143,6 +143,27 @@ class LibraryComparisons(unittest.TestCase):
                                  for row, ns in zip(catalog, times)])
                    for i,times in enumerate(((10, 20), (20, 20), (100, 300)))]
         return catalog, samples
+
+    def test_retained_comparison_integrity(self):
+        catalog, samples = self.fixture()
+        rows = aggregate(samples, catalog, '5.5.0', False)
+        report = dict(schema=1, catalog=catalog, samples=samples, results=rows,
+                      compiler='5.5.0', config=dict(quick=False, samples=3, seeds=[0,1,2]),
+                      library_comparisons=library_comparisons(rows, samples))
+        validate_report(report)
+        for field in ('median_other_over_http_kit_time_ratio', 'other_allocated_bytes_per_op'):
+            changed = copy.deepcopy(report)
+            changed['library_comparisons'][0][field] = 1000000
+            with self.assertRaisesRegex(ValueError, 'library comparisons'):
+                validate_report(changed)
+        changed = copy.deepcopy(report)
+        changed['samples'][0]['exclusions'] = ['unexpected']
+        with self.assertRaisesRegex(ValueError, 'sample exclusions'):
+            validate_report(changed)
+        changed = copy.deepcopy(report)
+        del changed['library_comparisons']
+        with self.assertRaisesRegex(ValueError, 'library comparisons'):
+            validate_report(changed)
 
     def test_paired_ratios_and_report_labels(self):
         catalog,samples = self.fixture()

@@ -413,3 +413,8 @@ process's footprint. These quantities must not be added into a fabricated
 per-connection memory number. `--stack` uses separate macOS `sample` processes;
 their timing is excluded from ordinary measurements. Reports and raw stack/OS
 resource files are retained under `_artifacts/body-profiles/`.
+
+Retained reports are validated from raw samples before comparison. This includes
+aggregate metrics, paired library comparisons and identical per-sample exclusions.
+Missing or inconsistent derived fields are rejected; historical artifacts are
+never silently rewritten or treated as authenticated external evidence.
