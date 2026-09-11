@@ -65,14 +65,14 @@ mise run bench
 
 Open `_build-pkg-5.5.0/default/_doc/_html/http-kit-core/index.html` after generating docs. The installed-consumer check builds only core in an isolated project using the locked compiler, installs it to a temporary prefix, then compiles/runs bytecode and native consumers and the actual odoc example. Negative fixtures verify opaque constructors and private-module isolation. The staging project disables package management because Dune 3.24 does not support `dune install` in package mode; ordinary project builds and dependency resolution continue to use the locks.
 
-Benchmarks report raw nanoseconds and allocated bytes per operation for target validation, header construction, append, and lookup over geometric input sizes. They are initial local measurements without a regression threshold; they do not measure network throughput.
+`mise run bench` runs the [unified benchmark suite](docs/benchmarks.md): router construction and lookup, HTTP/1 head/body parsing and encoding, core values, all three middleware styles, and client/server engine workloads. Five fresh process samples report time, allocation, GC counts and relevant byte throughput in an isolated release build. Raw JSON and a Markdown report are retained under `_artifacts/benchmarks/`. Timing and baseline comparisons remain advisory.
 
 ## HTTP/1 codec checks
 
 ```sh
 tools/harness run --suite http1 --count 1000
 python3 tools/test_protocol_consumer.py
-tools/dune-pkg exec ./bench/http1_bench.exe
+mise run bench:parsers
 tools/harness readiness --milestone M3
 ```
 

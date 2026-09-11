@@ -93,8 +93,10 @@ persistent connections: precedence, raw captures, 404/405 and Allow, HEAD body
 suppression, middleware headers and binary echo. The second installs only core
 and router, checks native/bytecode consumers, and rejects a forged pattern.
 
-`tools/dune-pkg exec ./bench/router_bench.exe` reports time and allocation for
-first/last matches, missing paths and method mismatches across 10, 100 and 1000
-routes. Every iteration checks its result. These measurements are advisory; a
-linear table intentionally trades a small API and explicit precedence for scan
-cost. They are not a stable-runner performance approval.
+`mise run bench:router` measures pattern/table construction separately from
+first/middle/last lookup, missing paths and method mismatches across 10, 100 and
+1000 routes. It also covers literal, parameter, wildcard, empty wildcard,
+encoded/query and deeper paths. Every iteration checks its result. The
+[benchmark guide](benchmarks.md) documents repeated samples, allocation reports
+and compatible baseline comparisons. A linear table trades a small API and
+explicit precedence for scan cost; these numbers are advisory.

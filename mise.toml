@@ -18,8 +18,23 @@ description = "Build API documentation with the locked odoc"
 run = "tools/dune-pkg build @doc"
 
 [tasks.bench]
-description = "Measure core time and allocations (no performance threshold)"
-run = "tools/dune-pkg exec ./bench/core_bench.exe"
+description = "Run repeated release-profile benchmarks across all primitives"
+run = "python3 tools/benchmarks.py"
+
+[tasks."bench:core"]
+run = "python3 tools/benchmarks.py --family core"
+
+[tasks."bench:router"]
+run = "python3 tools/benchmarks.py --family router"
+
+[tasks."bench:parsers"]
+run = "python3 tools/benchmarks.py --family http1"
+
+[tasks."bench:middleware"]
+run = "python3 tools/benchmarks.py --family middleware"
+
+[tasks."bench:engine"]
+run = "python3 tools/benchmarks.py --family engine"
 
 [tasks."setup:nginx"]
 description = "Build the pinned local Nginx interop reference"

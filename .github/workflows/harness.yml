@@ -25,6 +25,11 @@ jobs:
       # mise installs opam; opam bootstraps Dune; Dune locks supply the test compiler.
       - run: python3 tools/bootstrap.py ${{ matrix.compiler }}
       - run: python3 tools/evidence.py validate ${{ matrix.compiler }}
+      - run: python3 tools/test_benchmarks.py
+      # Workload correctness is gating; timing on shared CI hosts is advisory.
+      - run: python3 tools/benchmarks.py --quick --samples 3
+        env:
+          HARNESS_COMPILER: ${{ matrix.compiler }}
       - run: mise run setup:nginx
       - run: python3 tools/interop.py
         env:
