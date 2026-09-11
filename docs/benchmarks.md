@@ -156,7 +156,8 @@ order. Five process samples are the default. Linux/macOS CI runs the short form.
 | Routing | http-kit, Routes 2.0.0 | Table construction plus one checked lookup; first/middle/last/missing lookup at 10/100/1000 routes; literal, parameter, wildcard, empty wildcard, raw encoded capture with query | 40 |
 | HTTP heads | http-kit, http/af 0.7.1, httpun 0.2.0 | Request/response heads with 0/10/90 extra fields, fragmented at 1/64/16384 bytes | 54 |
 
-These **94 cases form 56 pairwise comparisons**. Names, versions and source
+This head/router subset has **94 cases forming 56 pairwise comparisons**.
+The default external command also runs the body and router-experiment lanes below. Names, versions and source
 checksums are locked by Dune in both existing locks. Only `http-kit-harness`
 depends on these libraries; production package dependencies are unchanged.
 Reports retain versions of the comparison libraries and Angstrom, Bigstringaf
@@ -194,9 +195,9 @@ unique names. http-kit additionally checks its returned zero-length framing.
 resource-limit checks before returning a head. The upstream raw parsers have a
 smaller responsibility; their surrounding connection implementations add policy
 that is not timed here. A faster raw parse is not evidence that the same validated
-operation is faster, nor that a library is more or less secure. Body parsing,
-trailers, malformed input and complete server throughput are not compared in this
-first external lane.
+operation is faster, nor that a library is more or less secure. This raw-head subset excludes bodies; the public body lane below adds them.
+Meaningful trailers, malformed input and complete server throughput still need
+separate comparisons.
 
 The pinned http/af raw parser exposes `Headers.to_list` in reverse wire order.
 Its expected list is prepared in that order outside timing; the other two are
@@ -216,3 +217,109 @@ means the other library was faster on that workload. Raw ratios and measurements
 are retained, and incomplete comparison groups fail. There is no pooled score,
 automatic winner or security verdict. `--baseline` still compares two compatible
 runs, including external mode in its configuration checks.
+
+## Public body readers
+
+```sh
+mise run bench:bodies
+python3 tools/benchmarks.py --external --family body --quick --samples 3
+```
+
+The body lane generates 128 common workloads, each attempted against http-kit,
+httpaf and httpun: 384 potential timed cases. Preflight currently excludes 16
+whole workload groups because httpaf can report body EOF before consuming the
+last framing bytes and then pause reads in this driver. The remaining 112 groups
+produce **336 timed cases**. Every group is attempted before timing, and all
+observations/exclusions are retained in the catalog and every sample. The report
+rejects exclusions that overlap timed groups or differ across processes. Unexpected
+errors, incorrect payloads and incomplete reference-engine behavior fail the run.
+
+This is a receive-side public-connection comparison, including head parsing,
+connection setup and cleanup. It is not an isolated body-parser timer or a full
+request/response round trip: servers do not send a response, and client request
+output is constructed but not drained. Public buffering and validation defaults
+still differ. Reuse, outgoing writes and complete exchanges remain in the TODO plan.
+
+| Axis | Implemented variants |
+| --- | --- |
+| Direction | Incoming POST request; incoming 200 response |
+| Framing | Content-Length; chunked with 1/17/8192-byte wire chunks; response close-delimited |
+| Body bytes | 0, 64, 4096, 65536, 1048576 |
+| Transport | 1, 64 or 16384-byte arrivals; repeating 1/7/64/3/4096/17/8192-byte irregular arrivals |
+| Data | Deterministic binary pattern including NUL and high bytes |
+| Consumer | Owned-string scan; owned chunk collection followed by exact concatenation check |
+| Scheduling | Immediate read rearming; deferred rearming/polling on every second driver tick |
+
+The matrix is deliberately selected, not a Cartesian product. The base grid uses
+64/16384-byte arrivals and 17/8192-byte wire chunks across all sizes. One-byte
+arrivals and one-byte wire chunks are restricted to 64/4096-byte bodies. Irregular
+arrivals, collection and deferred consumption use 4096/65536-byte bodies with
+fixed framing, 17-byte chunks and response close-delimiting. Deferred ticks are
+logical scheduling steps, not wall-clock delays or a socket-latency simulation.
+
+Fixtures contain both string and Bigarray representations outside timing. Input
+suffixes remain with the caller. A new arrival is exposed when the available
+window is exhausted or the parser needs more input; draining an existing window
+does not silently add a new transport fragment. Every returned prefix is checked.
+Only close-delimited bodies receive transport EOF. Fixed/chunked completion must
+come from framing. Payload order, every byte, one head, one body completion and
+complete wire consumption are required. The engine's empty trailer event is
+checked; meaningful trailer fields are a future separate lane.
+
+Upstream callbacks expose borrowed Bigarrays. The adapter copies their slices to
+owned strings before checking or collecting them, matching engine Data ownership.
+Collection retains chunks until EOF and includes final concatenation. No timing
+claim about zero-copy/borrowed consumption is made. Per-library buffer sizes,
+callback/event grouping and API glue remain part of the measured workload.
+
+The observed early-body-EOF cases are excluded for **all three implementations**
+so partial framing cannot earn a faster result. Their JSON records include the
+implementation, consumed prefix and total wire size. This is an observation about
+this receive-only driver and selected versions, not a security verdict or a claim
+that the libraries cannot finish an exchange when a response is sent. Public
+exchange/pipeline experiments should revisit that boundary.
+
+Large-body cases have fewer iterations to bound execution time (1–50 normally;
+quick mode divides by ten, minimum one). Several large cases therefore need more
+samples/longer measurements on a controlled runner before small timing differences
+are actionable. GC allocation omits Bigarray payloads, and the materialized fixture
+set is not a memory-bounded network-streaming workload.
+
+## Router candidate-index experiment
+
+```sh
+mise run bench:router-experiment
+```
+
+`bench/suite_router_experiment.ml` is benchmark-only code. No production router
+behavior or API has changed. It selects candidates by the first literal segment,
+preserves their original order (including general parameter/wildcard routes), and
+uses the existing router for final matching, methods, Allow results and limits.
+Every sample first checks 12,024 queries against the reference: deterministic
+boundary cases and seeded overlapping route tables across GET/POST/HEAD, including
+raw captures, queries, root/repeated slashes, unsupported targets and byte/segment
+limits. These checks are evidence for this prototype, not proof of a production
+replacement.
+
+There are **108 cases**: two implementations, three table sizes (10/100/1000),
+three shapes (distinct first segments, one shared `/api` prefix, 10% general
+fallback routes), and construction plus early/middle/last/missing/method lookup.
+All lookups check the complete outcome against the reference. Early lookup targets
+the first specific route after a possible general route. Pattern construction is
+outside construction timing; index construction includes a reference compile to
+retain its route-count validation.
+
+This prototype deliberately exposes a tradeoff: building buckets scans the route
+list for every distinct literal prefix. General routes are duplicated in every
+bucket. A 1,000-route fixture with 100 general routes and 900 literal prefixes has
+**91,000 candidate slots**, versus 1,000 slots for the distinct/shared fixtures.
+These are reference slots, not duplicated payload objects or measured retained
+heap bytes. A production design needs a bound or a shared fallback representation.
+
+The experiment tests a hypothesis rather than claiming a general speedup:
+distinct prefixes can reduce search; shared prefixes still scan; fallback-heavy
+tables spend additional construction work and storage. Profile and compare the
+full tradeoff before selecting a production data structure.
+
+The persistent [benchmark TODO plan](benchmark-todos.md) tracks remaining parser
+profiling, body writers, full exchanges, runtime workloads and measurement gates.

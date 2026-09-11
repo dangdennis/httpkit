@@ -3,7 +3,7 @@
 import copy
 import unittest
 
-from benchmarks import aggregate, compare, inventory, library_comparisons, markdown
+from benchmarks import aggregate, compare, inventory, library_comparisons, markdown, validate_exclusions
 
 
 class Reports(unittest.TestCase):
@@ -93,6 +93,22 @@ class Reports(unittest.TestCase):
 
 
 class LibraryComparisons(unittest.TestCase):
+    def test_exclusions_are_complete_observed_and_untimed(self):
+        group = dict(family='body', comparison='request/chunked',
+                     excluded_implementations=['http-kit','httpaf','httpun'],
+                     observations=[dict(implementation='httpaf', consumed_bytes=98, wire_bytes=100,
+                                        reason='Body EOF before framing')])
+        validate_exclusions([group], [])
+        with self.assertRaises(ValueError):
+            validate_exclusions([group], [dict(family='body', comparison='request/chunked')])
+        with self.assertRaises(ValueError):
+            validate_exclusions([group,group], [])
+        for key,value in [('implementation','http-kit'), ('consumed_bytes',100), ('reason','')]:
+            changed=copy.deepcopy(group)
+            changed['observations'][0][key]=value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_exclusions([changed], [])
+
     def fixture(self):
         catalog = [dict(id=f'router/external/lookup/{name}', family='router', comparison='lookup',
                         implementation=name, iterations=10, bytes_per_op=0) for name in ('http-kit', 'routes')]

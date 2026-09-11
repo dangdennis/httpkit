@@ -69,6 +69,8 @@ Open `_build-pkg-5.5.0/default/_doc/_html/http-kit-core/index.html` after genera
 
 `mise run bench:compare` adds a separate [external-library comparison](docs/benchmarks.md#external-library-comparisons): Routes 2.0.0 for routing, and http/af 0.7.1 plus httpun 0.2.0 for request/response head parsing. It checks common valid workloads, retains per-process ratios and pinned versions, and documents differences in routing and validation semantics. These libraries are development harness dependencies only.
 
+`mise run bench:bodies` compares public request/response body readers across framing, payload size, fragmentation and consumption variants. `mise run bench:router-experiment` checks and measures a candidate index against the reference matcher. These lanes are also included in `bench:compare`; framing mismatches are retained as explicit exclusions, without timing ratios. See the persistent [benchmark TODO plan](docs/benchmark-todos.md) for remaining coverage and adoption gates.
+
 ## HTTP/1 codec checks
 
 ```sh

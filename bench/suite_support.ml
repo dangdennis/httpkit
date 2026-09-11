@@ -74,3 +74,6 @@ let measure ~quick job =
         ( "major_collections",
           `Int (after.major_collections - gc.major_collections) );
       ])
+
+(* Preflight observations are retained in catalog and every process sample. *)
+let exclusions : Yojson.Basic.t list ref = ref []

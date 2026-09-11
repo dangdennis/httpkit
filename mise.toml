@@ -40,6 +40,14 @@ run = "python3 tools/benchmarks.py --family engine"
 description = "Compare common workloads against Routes, http/af and httpun"
 run = "python3 tools/benchmarks.py --external"
 
+[tasks."bench:bodies"]
+description = "Compare public body-reading APIs across framing and fragmentation variants"
+run = "python3 tools/benchmarks.py --external --family body"
+
+[tasks."bench:router-experiment"]
+description = "Check and measure the benchmark-only route candidate index"
+run = "python3 tools/benchmarks.py --external --family router-experiment"
+
 [tasks."setup:nginx"]
 description = "Build the pinned local Nginx interop reference"
 run = "tools/setup-nginx.sh"

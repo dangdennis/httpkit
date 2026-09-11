@@ -16,9 +16,9 @@ import tempfile
 from dune_env import ROOT, command, configuration, require_lock
 from evidence import source_hash
 
-FAMILIES = ('all', 'core', 'router', 'http1', 'middleware', 'engine')
+FAMILIES = ('all', 'core', 'router', 'http1', 'middleware', 'engine', 'body', 'router-experiment')
 SCHEMA = 1
-EXTERNAL_IMPLEMENTATIONS = {'router': {'http-kit', 'routes'}, 'http1': {'http-kit', 'httpaf', 'httpun'}}
+EXTERNAL_IMPLEMENTATIONS = {'router': {'http-kit', 'routes'}, 'http1': {'http-kit', 'httpaf', 'httpun'}, 'body': {'http-kit', 'httpaf', 'httpun'}, 'router-experiment': {'http-kit', 'prefix-index'}}
 
 
 def need(condition, message):
@@ -89,6 +89,27 @@ def locked_comparison_versions(lock):
     return versions
 
 
+def validate_exclusions(exclusions, catalog):
+    timed = {(r['family'], r.get('comparison')) for r in catalog}
+    seen = set()
+    for group in exclusions:
+        key = (group['family'], group['comparison'])
+        need(group['family'] == 'body' and isinstance(group['comparison'], str)
+             and group['comparison'] and key not in seen and key not in timed, 'invalid or timed exclusion')
+        seen.add(key)
+        need(sorted(group['excluded_implementations']) == ['http-kit', 'httpaf', 'httpun'], 'partial group exclusion')
+        observations = group['observations']
+        need(isinstance(observations, list) and observations, 'missing exclusion observation')
+        implementations = set()
+        for observation in observations:
+            impl = observation['implementation']
+            need(impl in ('httpaf', 'httpun') and impl not in implementations, 'invalid excluded observer')
+            implementations.add(impl)
+            need(type(observation['consumed_bytes']) is int and type(observation['wire_bytes']) is int
+                 and 0 <= observation['consumed_bytes'] < observation['wire_bytes'], 'invalid exclusion byte counts')
+            need(isinstance(observation['reason'], str) and observation['reason'], 'missing exclusion reason')
+
+
 def aggregate(samples, catalog, compiler, quick):
     expected = inventory(catalog)
     need(len(samples) >= 2, 'at least two independent samples required')
@@ -125,10 +146,12 @@ def compare(current, baseline):
     for key in ('schema', 'compiler', 'profile', 'workload_sha256', 'host_fingerprint', 'config'):
         need(current[key] == baseline[key], f'incompatible baseline: {key}')
     for report in (current, baseline):
+        validate_exclusions(report.get('exclusions', []), report['catalog'])
         rebuilt = aggregate(report['samples'], report['catalog'], report['compiler'], report['config']['quick'])
         need(report['results'] == rebuilt, 'report summary does not match retained samples')
         need(len(report['samples']) == report['config']['samples'], 'report sample count differs')
         need([s['seed'] for s in report['samples']] == report['config']['seeds'], 'report seed order differs')
+    need(current.get('exclusions', []) == baseline.get('exclusions', []), 'incompatible baseline: exclusions')
     need(inventory(current['catalog']) == inventory(baseline['catalog']), 'incompatible baseline: catalog')
     old = {r['id']: r for r in baseline['results']}
     deltas = []
@@ -163,7 +186,9 @@ def markdown(report):
     if report.get('library_comparisons'):
         intro = ['', 'External libraries: ' + ', '.join(f'{k} {v}' for k,v in report['libraries'].items()) + '.',
                  '', 'HTTP heads: raw upstream parsers versus the validating http-kit codec; validation work is not equivalent.',
-                 'Routing: common GET paths only; excludes method policy and conflicting route precedence.',
+                 'Routes lane: common GET paths only; excludes method policy and conflicting route precedence.',
+                 'Body lane: public incoming-message APIs, owned copies, exact framing/EOF checks; includes setup and cleanup.',
+                 'Router experiment: benchmark-only prefix index compared with the reference matcher; not a shipped optimization.',
                  'Times include API adaptation and result checks. No overall winner or security verdict is implied.',
                  'Allocation is GC heap only; externally allocated Bigarray payloads are excluded.',
                  '', '**Time ratio = other / http-kit**, paired within each process. Below 1 means the other library was faster.',
@@ -178,6 +203,13 @@ def markdown(report):
         throughput = '-' if r['payload_mib_per_second'] is None else f"{r['payload_mib_per_second']:.2f}"
         lines.append(f"| {r['id']} | {r['median_ns_per_op']:.1f} | {r['min_ns_per_op']:.1f}–{r['max_ns_per_op']:.1f} | "
                      f"{r['coefficient_of_variation']:.1%} | {r['median_allocated_bytes_per_op']:.1f} | {throughput} |")
+    if report.get('exclusions'):
+        lines += ['', '## Excluded workloads', '',
+                  'These full comparison groups failed the common framing boundary preflight and have no timing ratio.', '',
+                  '| Workload | Observed implementation | Consumed / wire bytes | Reason |', '| --- | --- | ---: | --- |']
+        for group in report['exclusions']:
+            for observation in group['observations']:
+                lines.append(f"| {group['comparison']} | {observation['implementation']} | {observation['consumed_bytes']} / {observation['wire_bytes']} | {observation['reason']} |")
     if 'comparison' in report:
         lines += ['', 'Positive changes mean slower execution or more allocation. No regression gate is applied.', '',
                   '| Case | Time change | Allocation change B/op |', '| --- | ---: | ---: |']
@@ -199,8 +231,10 @@ def main():
         parser.error('--samples must be between 2 and 50')
     if not 0 <= args.seed <= 2147483647 - args.samples:
         parser.error('--seed must fit a positive signed 32-bit seed sequence')
-    if args.external and args.family not in ('all', 'router', 'http1'):
-        parser.error('--external supports all, router or http1')
+    if args.external and args.family not in ('all', 'router', 'http1', 'body', 'router-experiment'):
+        parser.error('--external supports all, router, http1, body or router-experiment')
+    if not args.external and args.family in ('body', 'router-experiment'):
+        parser.error('body and router-experiment require --external')
     dune, env, lock = configuration()
     require_lock(lock)
     # Clear instrumentation and runtime tuning inherited from fuzz/coverage or a
@@ -224,6 +258,7 @@ def main():
     need(catalog_sample['compiler'] == compiler, 'wrong benchmark compiler')
     catalog = catalog_sample['results']
     inventory(catalog)
+    validate_exclusions(catalog_sample.get('exclusions', []), catalog)
     parent = ROOT / '_artifacts/benchmarks'
     parent.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-'), dir=parent))
@@ -233,6 +268,7 @@ def main():
         raw = subprocess.check_output([str(binary), *flags, '--seed', str(seed)], env=env, text=True, timeout=600)
         (directory / f'sample-{index + 1}.json').write_text(raw)
         samples.append(json.loads(raw))
+        need(samples[-1].get('exclusions', []) == catalog_sample.get('exclusions', []), 'preflight exclusions differ across samples')
         print(f'Sample {index + 1}/{args.samples}: {len(samples[-1]["results"])} cases', flush=True)
     need(source_hash() == digest, 'sources changed during benchmark run')
     host = dict(system=platform.system(), release=platform.release(), machine=platform.machine(),
@@ -240,6 +276,7 @@ def main():
     fingerprint = hashlib.sha256((platform.node() + json.dumps(host, sort_keys=True)).encode()).hexdigest()
     report = dict(schema=SCHEMA, status='PASS', timing_verdict='ADVISORY', compiler=compiler, profile='release',
                   source_sha256=digest, workload_sha256=workload, host=host, host_fingerprint=fingerprint,
+                  exclusions=catalog_sample.get('exclusions', []),
                   cleared_environment=sorted(cleared), catalog=catalog, samples=samples,
                   config=dict(family=args.family, quick=args.quick, samples=args.samples, seeds=seeds, external=args.external),
                   results=aggregate(samples, catalog, compiler, args.quick),

@@ -23,6 +23,8 @@ let () =
       [
         ("router", Suite_external_router.jobs);
         ("http1", Suite_external_http1.jobs);
+        ("body", Suite_external_body.jobs);
+        ("router-experiment", Suite_router_experiment.jobs);
       ]
     else
       [
@@ -81,5 +83,6 @@ let () =
          ("quick", `Bool !quick);
          ("seed", `Int !seed);
          ("results", `List results);
+         ("exclusions", `List (List.rev !exclusions));
        ]);
   print_newline ()
