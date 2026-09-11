@@ -51,3 +51,8 @@ These existing adapter examples collect small bodies. Fully worked streaming and
 cancellation recipes remain the next example tasks; the adapter contracts and
 lifecycle tests already cover those operations. See [adapter ownership and
 limits](adapters.md) before adapting a recipe to a long-lived application.
+
+Routing examples decide whether to consume the upload before reading its body.
+A supported Expect upload receives 100 Continue first; unmatched routes receive
+a final response immediately. Early final responses follow the engine close
+policy and do not wait for the client to transmit a rejected upload.

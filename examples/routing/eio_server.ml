@@ -24,10 +24,15 @@ let () =
               let rec loop () =
                 match A.next_event c with
                 | E.Request (id, request) ->
-                    let body, _ = A.collect_body ~limit:65536 c id in
                     let response =
-                      Application.handle
-                        (Http_kit_core.Request.with_body body request)
+                      match Application.upload_policy request with
+                      | `Reject response -> response
+                      | `Consume ->
+                          if Application.expects_continue request then
+                            A.respond c id Application.continue_response;
+                          let body, _ = A.collect_body ~limit:65536 c id in
+                          Application.handle
+                            (Http_kit_core.Request.with_body body request)
                     in
                     A.respond c id response;
                     if
@@ -36,6 +41,7 @@ let () =
                     then A.send c id (Http_kit_core.Response.body response);
                     A.finish c id;
                     loop ()
+                | E.Body_aborted _ | E.Complete _ -> loop ()
                 | E.Closed _ -> ()
                 | _ -> failwith "unexpected event"
               in

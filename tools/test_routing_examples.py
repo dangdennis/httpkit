@@ -3,6 +3,7 @@
 from checks import require
 import http.client
 import selectors
+import socket
 import subprocess
 import tempfile
 from pathlib import Path
@@ -47,6 +48,22 @@ for runtime in ['eio', 'lwt']:
                 require((response.status, actual) == (status, expected), (runtime, method, target, response.status, actual))
                 require(response.getheader('x-example') == 'http-kit', "test_routing_examples.py: response.getheader('x-example') == 'http-kit'")
                 require(response.getheader('allow') == allow, "test_routing_examples.py: response.getheader('allow') == allow")
+            for target, status in [('/echo', b'100'), ('/missing', b'404')]:
+                with socket.create_connection((url.hostname, url.port), timeout=5) as peer:
+                    peer.sendall((f'POST {target} HTTP/1.1\r\nHost: x\r\n'
+                                  'Expect: 100-continue\r\nContent-Length: 4\r\n\r\n').encode())
+                    stream = peer.makefile('rb')
+                    first = stream.readline()
+                    require(first.split()[1] == status, (runtime, target, first))
+                    while stream.readline() != b'\r\n':
+                        pass
+                    if status == b'100':
+                        peer.sendall(b'body')
+                        require(stream.readline().split()[1] == b'200', runtime)
+                        while stream.readline() != b'\r\n':
+                            pass
+                        require(stream.read(4) == b'body', runtime)
+                    stream.close()
             print('PASS:', runtime, 'routing/middleware over persistent HTTP, including HEAD, 404/405 and raw captures')
         finally:
             if connection is not None:

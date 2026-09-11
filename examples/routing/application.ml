@@ -51,3 +51,17 @@ let handle =
       r
   in
   M.Basic.chain [ tag ] dispatch
+
+(* Head policy runs before body collection: a waiting client needs permission,
+   while a route rejection can be sent immediately without accepting its upload. *)
+let expects_continue request =
+  Headers.get_all (Result.get_ok (Header.Name.of_string "expect"))
+    (Request.headers request) <> []
+
+let upload_policy request =
+  match R.lookup routes ~meth:(Request.meth request) ~target:(Request.target request) with
+  | Ok (R.Matched _) -> `Consume
+  | _ -> `Reject (handle (Request.with_body "" request))
+
+let continue_response = Response.create
+    ~status:(Result.get_ok (Status.of_int 100)) ()

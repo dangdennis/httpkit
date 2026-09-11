@@ -29,10 +29,18 @@ let () =
                let* event = A.next_event c in
                match event with
                | E.Request (id, request) ->
-                   let* body, _ = A.collect_body ~limit:65536 c id in
-                   let response =
-                     Application.handle
-                       (Http_kit_core.Request.with_body body request)
+                   let* response =
+                     match Application.upload_policy request with
+                     | `Reject response -> Lwt.return response
+                     | `Consume ->
+                         let* () =
+                           if Application.expects_continue request then
+                             A.respond c id Application.continue_response
+                           else Lwt.return_unit
+                         in
+                         let* body, _ = A.collect_body ~limit:65536 c id in
+                         Lwt.return (Application.handle
+                           (Http_kit_core.Request.with_body body request))
                    in
                    let* () = A.respond c id response in
                    let* () =
@@ -44,6 +52,7 @@ let () =
                    in
                    let* () = A.finish c id in
                    loop ()
+               | E.Body_aborted _ | E.Complete _ -> loop ()
                | E.Closed _ -> Lwt.return_unit
                | _ -> Lwt.fail_with "unexpected event"
              in
