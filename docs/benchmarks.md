@@ -423,3 +423,22 @@ Pipeline requests carry ordinal targets and responses carry matching `x-message`
 headers. The oracle checks ordered association, including empty bodies, and has
 reorder/duplicate/omission controls. This changes the measured workload: earlier
 pipeline timings remain historical and are not compatible performance baselines.
+
+## Selection and execution budgets
+
+`--list` enumerates cases without running connection preflight. The runner uses
+`--preflight-only` to establish eligible cases and retain framing exclusions
+before sampling. Body and exchange case filters apply before preparing their
+fixtures and must retain whole comparison groups. The router experiment's
+independent equivalence controls run outside timed samples, not during listing.
+
+Each sample process gets a budget based on selected case count and minimum batch
+duration, with calibration/warmup allowance, a 600-second floor and a 12-hour cap.
+Selections exceeding the cap fail before measurement. The budget is a timeout,
+not a prediction that all cases will reach their target duration. Partial raw
+samples remain diagnostic artifacts; an incomplete run does not produce PASS.
+
+Body fixtures use named direction, framing, transport, scheduling and consumption
+settings. Owned scan, borrowed scan and collection are exclusive choices. The
+shared input-window helper advances arrivals only when parsing needs more bytes;
+a paused runtime does not change the configured transport fragmentation.

@@ -29,7 +29,7 @@ let fields chunked size =
   else [ ("content-length", string_of_int size) ]
 
 let kit input _bigwire response_fields receive respond =
-  let conn = ok (E.server ()) in
+  let conn = ok ~error_to_string:E.error_to_string (E.server ()) in
   let current = ref None in
   let outgoing_fields = ref [] in
   let pump () =
@@ -56,7 +56,9 @@ let kit input _bigwire response_fields receive respond =
     | Some _ -> failwith "unexpected exchange event"
   in
   {
-    read = (fun off len -> ok (E.offer conn input ~off ~len));
+    read =
+      (fun off len ->
+        ok ~error_to_string:E.error_to_string (E.offer conn input ~off ~len));
     ready =
       (fun () ->
         match E.input_state conn with
@@ -68,7 +70,9 @@ let kit input _bigwire response_fields receive respond =
         Option.map
           (fun (s, off, len) -> { length = len; get = (fun i -> s.[off + i]) })
           (E.output conn));
-    ack = (fun n -> ignore (ok (E.acknowledge conn n)));
+    ack =
+      (fun n ->
+        ignore (ok ~error_to_string:E.error_to_string (E.acknowledge conn n)));
     stop = (fun () -> E.abort conn E.Cancelled);
   }
 
@@ -418,89 +422,108 @@ let check_paused_reader () =
     }
     ()
 
-let jobs () =
-  check_oracle ();
-  check_paused_reader ();
+let jobs ?(select = fun _ -> true) ?(preflight = true) () =
+  if preflight then (
+    check_oracle ();
+    check_paused_reader ());
   List.concat_map
     (fun writer_only ->
       List.concat_map
         (fun chunked ->
           List.concat_map
             (fun size ->
-              let fixture =
-                B.fixture
-                  {
-                    direction = B.Request;
-                    framing = (if chunked then B.Chunked 17 else B.Fixed);
-                    size = (if writer_only then 0 else size);
-                    transport = B.Pieces 16384;
-                    scheduling = B.Immediate;
-                    consumption = B.Owned_scan;
-                  }
+              let prepared =
+                lazy
+                  (let fixture =
+                     B.fixture
+                       {
+                         direction = B.Request;
+                         framing = (if chunked then B.Chunked 17 else B.Fixed);
+                         size = (if writer_only then 0 else size);
+                         transport = B.Pieces 16384;
+                         scheduling = B.Immediate;
+                         consumption = B.Owned_scan;
+                       }
+                   in
+                   let body =
+                     String.init size (fun i ->
+                         Char.chr (((i * 31) + 7) land 255))
+                   in
+                   let rec split off =
+                     if off = size then []
+                     else
+                       let n = min 8192 (size - off) in
+                       String.sub body off n :: split (off + n)
+                   in
+                   let pieces = split 0 in
+                   (fixture, body, pieces))
               in
-              let body =
-                String.init size (fun i -> Char.chr (((i * 31) + 7) land 255))
-              in
-              let rec split off =
-                if off = size then []
-                else
-                  let n = min 8192 (size - off) in
-                  String.sub body off n :: split (off + n)
-              in
-              let pieces = split 0 in
               List.concat_map
                 (fun (count, step, ack) ->
-                  let input =
-                    String.concat ""
-                      (List.init count (fun ordinal ->
-                           if count = 1 then fixture.wire
-                           else
-                             let prefix = "POST /body" in
-                             require (String.starts_with ~prefix fixture.wire);
-                             prefix ^ "/" ^ string_of_int ordinal
-                             ^ String.sub fixture.wire (String.length prefix)
-                                 (String.length fixture.wire
-                                - String.length prefix)))
-                  in
-                  let bigwire =
-                    Bigstringaf.of_string ~off:0 ~len:(String.length input)
-                      input
-                  in
                   let comparison =
                     Printf.sprintf "%s/%s/bytes-%d/messages-%d/read-%d/ack-%d"
                       (if writer_only then "writer" else "exchange")
                       (if chunked then "chunked" else "fixed")
                       size count step ack
                   in
-                  List.map
-                    (fun (implementation, make) ->
-                      let work =
-                        run make
-                          {
-                            input;
-                            bigwire;
-                            request_body = fixture.body;
-                            response_body = body;
-                            response_fields = fields chunked size;
-                            pieces;
-                            count;
-                            step;
-                            ack;
-                          }
-                      in
-                      (try work ()
-                       with exn ->
-                         failwith
-                           (comparison ^ "/" ^ implementation ^ ": "
-                          ^ Printexc.to_string exn));
-                      job
-                        ~bytes:(count * (size + String.length fixture.body))
-                        ~comparison ~implementation "exchange"
-                        ("external/" ^ comparison ^ "/" ^ implementation)
-                        3 work)
-                    [
-                      ("http-kit", kit); ("httpaf", httpaf); ("httpun", httpun);
-                    ])
+                  if
+                    not
+                      (select_group select "exchange" comparison
+                         [ "http-kit"; "httpaf"; "httpun" ])
+                  then []
+                  else
+                    let prepared_config =
+                      lazy
+                        (let fixture, body, pieces = Lazy.force prepared in
+                         let input =
+                           String.concat ""
+                             (List.init count (fun ordinal ->
+                                  if count = 1 then fixture.wire
+                                  else
+                                    let prefix = "POST /body" in
+                                    require
+                                      (String.starts_with ~prefix fixture.wire);
+                                    prefix ^ "/" ^ string_of_int ordinal
+                                    ^ String.sub fixture.wire
+                                        (String.length prefix)
+                                        (String.length fixture.wire
+                                       - String.length prefix)))
+                         in
+                         let bigwire =
+                           Bigstringaf.of_string ~off:0
+                             ~len:(String.length input) input
+                         in
+                         {
+                           input;
+                           bigwire;
+                           request_body = fixture.body;
+                           response_body = body;
+                           response_fields = fields chunked size;
+                           pieces;
+                           count;
+                           step;
+                           ack;
+                         })
+                    in
+                    List.map
+                      (fun (implementation, make) ->
+                        let work () =
+                          run make (Lazy.force prepared_config) ()
+                        in
+                        (try if preflight then work ()
+                         with exn ->
+                           failwith
+                             (comparison ^ "/" ^ implementation ^ ": "
+                            ^ Printexc.to_string exn));
+                        job
+                          ~bytes:
+                            (count * (size + if writer_only then 0 else size))
+                          ~comparison ~implementation "exchange"
+                          ("external/" ^ comparison ^ "/" ^ implementation)
+                          3 work)
+                      [
+                        ("http-kit", kit); ("httpaf", httpaf); ("httpun", httpun);
+                      ])
                 [ (1, 16384, 16384); (1, 1, 1); (8, 16384, 997) ])
             [ 0; 4096; 65536 ])
         [ false; true ])

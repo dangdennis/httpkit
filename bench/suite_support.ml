@@ -124,3 +124,23 @@ let check_byte ~offset ~expected ~actual =
     failwith
       (Printf.sprintf "payload byte %d: expected %02x, got %02x" offset
          (Char.code expected) (Char.code actual))
+
+let contains text needle =
+  let rec loop i =
+    i + String.length needle <= String.length text
+    && (String.sub text i (String.length needle) = needle || loop (i + 1))
+  in
+  loop 0
+
+let select_group select family comparison implementations =
+  let matches =
+    List.map
+      (fun implementation ->
+        select (family ^ "/external/" ^ comparison ^ "/" ^ implementation))
+      implementations
+  in
+  if List.exists Fun.id matches then (
+    require ~message:"case selection must retain complete comparison groups"
+      (List.for_all Fun.id matches);
+    true)
+  else false

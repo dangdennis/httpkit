@@ -250,9 +250,9 @@ let check_equivalence () =
     check definitions paths
   done
 
-let jobs () =
+let jobs ?(preflight = true) () =
   (* Runs before the timer, on every sample and catalog request. *)
-  check_equivalence ();
+  if preflight then check_equivalence ();
   List.concat_map
     (fun shape ->
       List.concat_map

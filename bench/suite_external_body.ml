@@ -180,11 +180,14 @@ let kit fixture progress =
          ()
      in
      let id =
-       match ok (E.submit_request conn request) with
+       match
+         ok ~error_to_string:E.error_to_string (E.submit_request conn request)
+       with
        | E.Accepted id -> id
        | _ -> failwith "request backpressure"
      in
-     require (ok (E.finish conn id) = E.Accepted ()));
+     require
+       (ok ~error_to_string:E.error_to_string (E.finish conn id) = E.Accepted ()));
   let owner = ref None in
   let check_id id =
     match !owner with
@@ -221,8 +224,12 @@ let kit fixture progress =
   {
     read =
       (fun ~off ~len ~eof ->
-        let consumed = ok (E.offer conn fixture.wire ~off ~len) in
-        if eof && consumed = len then ignore (ok (E.input_eof conn));
+        let consumed =
+          ok ~error_to_string:E.error_to_string
+            (E.offer conn fixture.wire ~off ~len)
+        in
+        if eof && consumed = len then
+          ignore (ok ~error_to_string:E.error_to_string (E.input_eof conn));
         consumed);
     ready =
       (fun () ->
@@ -318,7 +325,7 @@ let run ?(observe = fun ~data_events:_ ~reads:_ ~ticks:_ -> ()) fixture make ()
            (String.length fixture.body)
            progress.heads progress.complete !ticks)
 
-let jobs () =
+let jobs ?(select = fun _ -> true) ?(preflight = true) () =
   let basic =
     List.concat_map
       (fun direction ->
@@ -416,7 +423,6 @@ let jobs () =
       let { direction; framing; size; transport; scheduling; consumption } =
         config
       in
-      let fixture = fixture config in
       let framing_name =
         match framing with
         | Fixed -> "fixed"
@@ -438,53 +444,63 @@ let jobs () =
           | Borrowed_scan -> "borrowed-scan"
           | Owned_scan -> "owned-scan")
       in
-      let iterations =
-        max 1 (min 50 (262144 / max 64 (String.length fixture.wire)))
-      in
-      let implementations =
-        [ ("http-kit", kit); ("httpaf", httpaf); ("httpun", httpun) ]
-      in
-      let incompatible =
-        List.filter_map
-          (fun (implementation, make) ->
-            try
-              run fixture make ();
-              None
-            with Body_eof_before_framing (consumed, total) ->
-              if implementation = "http-kit" then
-                failwith "reference engine completed before framing";
-              Some
-                (`Assoc
-                   [
-                     ("implementation", `String implementation);
-                     ("consumed_bytes", `Int consumed);
-                     ("wire_bytes", `Int total);
-                     ( "reason",
-                       `String
-                         "Body EOF before full framing; public reader paused" );
-                   ]))
-          implementations
-      in
-      if incompatible <> [] then (
-        exclusions :=
-          `Assoc
-            [
-              ("family", `String "body");
-              ("comparison", `String comparison);
-              ( "excluded_implementations",
-                `List [ `String "http-kit"; `String "httpaf"; `String "httpun" ]
-              );
-              ("observations", `List incompatible);
-            ]
-          :: !exclusions;
-        [])
+      if
+        not
+          (select_group select "body" comparison
+             [ "http-kit"; "httpaf"; "httpun" ])
+      then []
       else
-        List.map
-          (fun (implementation, make) ->
-            job ~bytes:size ~comparison ~implementation "body"
-              ("external/" ^ comparison ^ "/" ^ implementation)
-              iterations (run fixture make))
-          implementations)
+        let prepared = lazy (fixture config) in
+        let iterations = max 1 (min 50 (262144 / max 64 (wire_size config))) in
+        let implementations =
+          [ ("http-kit", kit); ("httpaf", httpaf); ("httpun", httpun) ]
+        in
+        let incompatible =
+          if not preflight then []
+          else
+            List.filter_map
+              (fun (implementation, make) ->
+                try
+                  run (Lazy.force prepared) make ();
+                  None
+                with Body_eof_before_framing (consumed, total) ->
+                  if implementation = "http-kit" then
+                    failwith "reference engine completed before framing";
+                  Some
+                    (`Assoc
+                       [
+                         ("implementation", `String implementation);
+                         ("consumed_bytes", `Int consumed);
+                         ("wire_bytes", `Int total);
+                         ( "reason",
+                           `String
+                             "Body EOF before full framing; public reader \
+                              paused" );
+                       ]))
+              implementations
+        in
+        if incompatible <> [] then (
+          exclusions :=
+            `Assoc
+              [
+                ("family", `String "body");
+                ("comparison", `String comparison);
+                ( "excluded_implementations",
+                  `List
+                    [ `String "http-kit"; `String "httpaf"; `String "httpun" ]
+                );
+                ("observations", `List incompatible);
+              ]
+            :: !exclusions;
+          [])
+        else
+          List.map
+            (fun (implementation, make) ->
+              job ~bytes:size ~comparison ~implementation "body"
+                ("external/" ^ comparison ^ "/" ^ implementation)
+                iterations
+                (fun () -> run (Lazy.force prepared) make ()))
+            implementations)
     (basic @ fragmented @ variants
     @ List.concat_map
         (fun direction ->

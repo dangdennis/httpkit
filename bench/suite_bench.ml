@@ -6,10 +6,14 @@ let () =
   and seed = ref 42
   and list_only = ref false in
   let external_suite = ref false in
+  let preflight_only = ref false in
   let min_ms = ref 0. and case_filter = ref "" in
   let body_profile = ref "" and profile_iterations = ref 50 in
   Arg.parse
     [
+      ( "--preflight-only",
+        Arg.Set preflight_only,
+        "Prepare selected cases and print eligible catalog" );
       ("--family", Arg.Set_string family, "Family to run");
       ( "--body-profile",
         Arg.Set_string body_profile,
@@ -35,14 +39,17 @@ let () =
       (Suite_external_body.profile !body_profile !profile_iterations);
     print_newline ();
     exit 0);
+  let select id = contains id !case_filter in
+  let preflight = not !list_only in
   let families =
     if !external_suite then
       [
         ("router", Suite_external_router.jobs);
         ("http1", Suite_external_http1.jobs);
-        ("body", Suite_external_body.jobs);
-        ("exchange", Suite_exchange.jobs);
-        ("router-experiment", Suite_router_experiment.jobs);
+        ("body", fun () -> Suite_external_body.jobs ~select ~preflight ());
+        ("exchange", fun () -> Suite_exchange.jobs ~select ~preflight ());
+        ( "router-experiment",
+          fun () -> Suite_router_experiment.jobs ~preflight () );
       ]
     else
       [
@@ -63,17 +70,10 @@ let () =
   in
   if (not (Float.is_finite !min_ms)) || !min_ms < 0. || !min_ms > 1000. then
     failwith "invalid minimum duration";
-  let contains text needle =
-    let rec loop i =
-      i + String.length needle <= String.length text
-      && (String.sub text i (String.length needle) = needle || loop (i + 1))
-    in
-    loop 0
-  in
   let jobs = List.filter (fun job -> contains job.id !case_filter) jobs in
   if jobs = [] then failwith "empty case selection";
   let results =
-    if !list_only then
+    if !list_only || !preflight_only then
       List.map
         (fun job ->
           `Assoc

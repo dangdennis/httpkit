@@ -39,6 +39,25 @@ let frame framing body =
       Buffer.add_string buffer "0\r\n\r\n";
       Buffer.contents buffer
 
+let wire_size config =
+  let head = if config.direction = Request then 30 else 17 in
+  let fields, payload =
+    match config.framing with
+    | Fixed ->
+        ( String.length (Printf.sprintf "Content-Length: %d\r\n" config.size),
+          config.size )
+    | Close -> (0, config.size)
+    | Chunked chunk ->
+        let full = config.size / chunk and last = config.size mod chunk in
+        let overhead n = String.length (Printf.sprintf "%x" n) + 4 in
+        ( 28,
+          config.size
+          + (full * overhead chunk)
+          + (if last = 0 then 0 else overhead last)
+          + 5 )
+  in
+  head + fields + 2 + payload
+
 let fixture config =
   let { direction; framing; size; transport; scheduling = _; consumption = _ } =
     config
@@ -57,6 +76,8 @@ let fixture config =
      else "HTTP/1.1 200 OK\r\n")
     ^ fields ^ "\r\n" ^ frame framing body
   in
+  Suite_support.require ~message:"fixture wire size differs from catalog"
+    (String.length wire = wire_size config);
   let pattern =
     match transport with
     | Pieces n -> [| n |]
