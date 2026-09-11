@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Verify the documented styles and rejected context transitions after install."""
+from checks import require
 import os
 from pathlib import Path
 import shutil
@@ -26,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-middleware-') as directory:
                  'http-kit-core', 'http-kit-middleware']]:
         subprocess.run([dune, *args], cwd=source, env=clean, check=True,
                        capture_output=True, timeout=120)
-    assert sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core', 'http-kit-middleware']
+    require(sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core', 'http-kit-middleware'], "test_middleware_consumer.py: sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core', 'http-kit-middleware']")
     includes = [str(prefix / 'lib' / name) for name in ['http-kit-core', 'http-kit-middleware']]
     for mode, tool, extension in [('byte', compiler, 'cma'), ('native', compiler.with_name('ocamlopt'), 'cmxa')]:
         example = root / 'styles.ml'
@@ -39,12 +40,12 @@ with tempfile.TemporaryDirectory(prefix='http-kit-middleware-') as directory:
         exe = str(root / ('styles-' + mode))
         run = [str(compiler.with_name('ocamlrun')), exe] if mode == 'byte' else [exe]
         output = subprocess.check_output(run, cwd=root, env=clean, timeout=30)
-        assert output == b'PASS: basic, contextual and transition middleware\n'
+        require(output == b'PASS: basic, contextual and transition middleware\n', "test_middleware_consumer.py: output == b'PASS: basic, contextual and transition middleware\\n'")
     for fixture in sorted((ROOT / 'test/api/middleware').glob('*.ml')):
         shutil.copy2(fixture, root / fixture.name)
         result = subprocess.run([str(compiler), *[x for path in includes for x in ['-I', path]],
                                  '-c', fixture.name], cwd=root, env=clean,
                                 capture_output=True, text=True, timeout=30)
-        assert result.returncode != 0 and 'expected of type' in result.stderr, (fixture.name, result.stderr)
-        assert 'Unbound module' not in result.stderr
+        require(result.returncode != 0 and 'expected of type' in result.stderr, (fixture.name, result.stderr))
+        require('Unbound module' not in result.stderr, "test_middleware_consumer.py: 'Unbound module' not in result.stderr")
 print('PASS: installed middleware styles in native/bytecode; mismatched, skipped and reversed contexts rejected')

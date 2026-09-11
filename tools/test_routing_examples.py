@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run the shared router/middleware application over both native loopback servers."""
+from checks import require
 import http.client
 import selectors
 import subprocess
@@ -21,9 +22,9 @@ for runtime in ['eio', 'lwt']:
         try:
             with selectors.DefaultSelector() as ready:
                 ready.register(server.stdout, selectors.EVENT_READ)
-                assert ready.select(10), runtime + ' listener did not become ready'
+                require(ready.select(10), runtime + ' listener did not become ready')
             url = urlsplit(server.stdout.readline().decode().strip())
-            assert url.scheme == 'http' and url.hostname == '127.0.0.1' and url.port
+            require(url.scheme == 'http' and url.hostname == '127.0.0.1' and url.port, "test_routing_examples.py: url.scheme == 'http' and url.hostname == '127.0.0.1' and url.port")
             connection = http.client.HTTPConnection(url.hostname, url.port, timeout=5)
             # Reuse one connection to exercise response framing and retirement
             # as well as the route decisions and composed response metadata.
@@ -43,9 +44,9 @@ for runtime in ['eio', 'lwt']:
                 connection.request(method, target, body=body)
                 response = connection.getresponse()
                 actual = response.read()
-                assert (response.status, actual) == (status, expected), (runtime, method, target, response.status, actual)
-                assert response.getheader('x-example') == 'http-kit'
-                assert response.getheader('allow') == allow
+                require((response.status, actual) == (status, expected), (runtime, method, target, response.status, actual))
+                require(response.getheader('x-example') == 'http-kit', "test_routing_examples.py: response.getheader('x-example') == 'http-kit'")
+                require(response.getheader('allow') == allow, "test_routing_examples.py: response.getheader('allow') == allow")
             print('PASS:', runtime, 'routing/middleware over persistent HTTP, including HEAD, 404/405 and raw captures')
         finally:
             if connection is not None:

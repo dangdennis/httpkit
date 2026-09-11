@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise an installed package, with only its include directory and stdlib."""
+from checks import require
 import os
 import re
 from pathlib import Path
@@ -40,14 +41,14 @@ with tempfile.TemporaryDirectory(prefix='http-kit-consumer-') as directory:
     for args in [['build', '@install'], ['install', 'http-kit-core', '--prefix', str(prefix)]]:
         result = subprocess.run([dune, *args], cwd=staging, env=clean,
                                 capture_output=True, text=True, timeout=120)
-        assert result.returncode == 0, result.stdout + result.stderr
+        require(result.returncode == 0, result.stdout + result.stderr)
     library = prefix / 'lib/http-kit-core'
-    assert library.is_dir(), 'core installation missing'
-    assert sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core'], 'unrelated package installed'
+    require(library.is_dir(), 'core installation missing')
+    require(sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core'], 'unrelated package installed')
     for source in (ROOT / 'test/api').glob('*.ml'):
         shutil.copy2(source, root / source.name)
     examples = re.findall(r'\{\[(.*?)\]\}', (ROOT / 'lib/core/doc/index.mld').read_text(), re.S)
-    assert len(examples) == 1, 'documentation example inventory changed'
+    require(len(examples) == 1, 'documentation example inventory changed')
     (root / 'documentation.ml').write_text(examples[0] + '''
 let () =
   assert (Result.is_ok (request "/"));
@@ -58,18 +59,18 @@ let () =
         return subprocess.run(compile_args + extra + [name], cwd=root, env=clean,
                               capture_output=True, text=True, timeout=30)
     result = compile_file('consumer.ml', [str(library / 'http_kit_core.cma'), '-o', 'consumer'])
-    assert result.returncode == 0, result.stderr
+    require(result.returncode == 0, result.stderr)
     # Invoke ocamlrun explicitly: the compiler's absolute runtime path can belong
     # to a package sandbox; do not depend on a globally installed interpreter.
     runtime = str(Path(compiler).with_name('ocamlrun'))
     subprocess.run([runtime, str(root / 'consumer')], cwd=root, env=clean, check=True, timeout=30)
     result = compile_file('documentation.ml', [str(library / 'http_kit_core.cma'), '-o', 'documentation'])
-    assert result.returncode == 0, result.stderr
+    require(result.returncode == 0, result.stderr)
     subprocess.run([runtime, str(root / 'documentation')], cwd=root, env=clean, check=True, timeout=30)
     result = subprocess.run([str(Path(compiler).with_name('ocamlopt')), '-I', str(library),
                              str(library / 'http_kit_core.cmxa'), 'consumer.ml', '-o', 'consumer-native'],
                             cwd=root, env=clean, capture_output=True, text=True, timeout=30)
-    assert result.returncode == 0, result.stderr
+    require(result.returncode == 0, result.stderr)
     subprocess.run([str(root / 'consumer-native')], cwd=root, env=clean, check=True, timeout=30)
     negative = {
         'forged_method.ml': 'Method.t', 'forged_header.ml': 'Name.t',
@@ -79,5 +80,5 @@ let () =
     }
     for name, diagnostic in negative.items():
         result = compile_file(name, ['-c'])
-        assert result.returncode != 0 and diagnostic in result.stderr, (name, result.stderr)
+        require(result.returncode != 0 and diagnostic in result.stderr, (name, result.stderr))
 print('PASS: installed bytecode/native consumers, executable odoc example, five opaque constructors, private helper and harness isolation')

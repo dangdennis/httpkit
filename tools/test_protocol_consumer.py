@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Install protocol primitives with only declared deps; run an independent parser."""
+from checks import require
 import http.client
 import io
 import os
@@ -31,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
     prefix=root/'installed'
     def run(cwd,args):
         result=subprocess.run([dune,*args],cwd=cwd,env=clean,capture_output=True,timeout=120)
-        assert result.returncode==0,(args,result.stdout,result.stderr)
+        require(result.returncode==0, (args,result.stdout,result.stderr))
         return result.stdout
     run(stage,['build','@install'])
     run(stage,['install','--prefix',str(prefix),'http-kit-core','http-kit-http1','http-kit-engine'])
@@ -44,28 +45,28 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
     run(consumer,['build','consumer.exe','consumer.bc'])
     native=subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)
     bytecode=subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)
-    assert native==bytecode, 'instrumentation-independent consumer mismatch'
+    require(native==bytecode, 'instrumentation-independent consumer mismatch')
     class Socket:
         def makefile(self,*args): return io.BytesIO(native)
     response=http.client.HTTPResponse(Socket())
     response.begin()
-    assert response.status==200 and response.read()==b'abc'
-    assert [v for n,v in response.getheaders() if n.lower()=='set-cookie']==['a=1','b=2']
+    require(response.status==200 and response.read()==b'abc', "test_protocol_consumer.py: response.status==200 and response.read()==b'abc'")
+    require([v for n,v in response.getheaders() if n.lower()=='set-cookie']==['a=1','b=2'], "test_protocol_consumer.py: [v for n,v in response.getheaders() if n.lower()=='set-cookie']==['a=1','b=2']")
     # A second consumer links the engine directly, with no runtime adapters.
     shutil.copy2(ROOT/'test/api/engine/consumer.ml',consumer/'consumer.ml')
     (consumer/'dune').write_text('(executable (name consumer) (modes byte exe) (libraries http-kit-core http-kit-engine))\n')
     run(consumer,['build','consumer.exe','consumer.bc'])
     engine_wire=subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)
-    assert engine_wire == b'HTTP/1.1 200 \r\ncontent-length: 3\r\n\r\nabc'
-    assert subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==engine_wire
+    require(engine_wire == b'HTTP/1.1 200 \r\ncontent-length: 3\r\n\r\nabc', "test_protocol_consumer.py: engine_wire == b'HTTP/1.1 200 \\r\\ncontent-length: 3\\r\\n\\r\\nabc'")
+    require(subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==engine_wire, "test_protocol_consumer.py: subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==engine_wire")
     # The documented pure streaming recipe must also work with only installed
     # protocol packages; workspace-private modules and adapters are unavailable.
     shutil.copy2(ROOT/'examples/pure/in_memory.ml',consumer/'consumer.ml')
     run(consumer,['build','consumer.exe','consumer.bc'])
-    assert subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)==b'Hello /stream\n'
-    assert subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==b'Hello /stream\n'
+    require(subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)==b'Hello /stream\n', "test_protocol_consumer.py: subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)==b'Hello /stream\\n'")
+    require(subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==b'Hello /stream\n', "test_protocol_consumer.py: subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==b'Hello /stream\\n'")
     (consumer/'dune').write_text('(executable (name consumer) (libraries http-kit-core http-kit-http1))\n')
     (consumer/'consumer.ml').write_text('let forge (m:Http_kit_http1.metadata) = {m with persistent=true}\n')
     result=subprocess.run([dune,'build','consumer.exe'],cwd=consumer,env=clean,capture_output=True,text=True,timeout=30)
-    assert result.returncode!=0 and 'private' in result.stderr, result.stderr
+    require(result.returncode!=0 and 'private' in result.stderr, result.stderr)
 print('PASS: installed HTTP/1 and engine bytecode/native consumers, installed streaming recipe, private metadata, Python stdlib response reference')

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Advisory timing plus executable queue bounds and mixed native socket loads."""
+from checks import require
 import concurrent.futures
 import http.client
 import json
@@ -18,9 +19,9 @@ subprocess.run(command(dune,env,['build','bench/stream_bench.exe','test/interop/
 binary=ROOT/f'_build-pkg-{version}/default/bench/stream_bench.exe'
 samples=[json.loads(subprocess.check_output([str(binary)],text=True,timeout=30)) for _ in range(5)]
 for sample in samples:
-    assert sample['compiler']==version and sample['profile']=='uninstrumented'
-    assert [r['body_bytes'] for r in sample['results']]==[65536,1048576,16777216]
-    assert all(0<r['peak_engine_output_bytes']<=32768 and r['allocated_bytes']>=0 and r['ns']>0 for r in sample['results'])
+    require(sample['compiler']==version and sample['profile']=='uninstrumented', "performance.py: sample['compiler']==version and sample['profile']=='uninstrumented'")
+    require([r['body_bytes'] for r in sample['results']]==[65536,1048576,16777216], "performance.py: [r['body_bytes'] for r in sample['results']]==[65536,1048576,16777216]")
+    require(all(0<r['peak_engine_output_bytes']<=32768 and r['allocated_bytes']>=0 and r['ns']>0 for r in sample['results']), "performance.py: all(0<r['peak_engine_output_bytes']<=32768 and r['allocated_bytes']>=0 and r['ns']>0 for r in sample['results'])")
 # This is a same-source noise measurement, not a before/after regression verdict.
 noise=[]
 for index in range(3):
@@ -47,7 +48,7 @@ for runtime in ['eio','lwt']:
                     chunks=(body[i:i+8192] for i in range(0,len(body),8192)) if chunked else body
                     start=time.perf_counter_ns();conn.request('POST',path,body=chunks,encode_chunked=chunked)
                     response=conn.getresponse();payload=response.read()
-                    assert response.status==200 and payload==expected('POST',path,body)
+                    require(response.status==200 and payload==expected('POST',path,body), "performance.py: response.status==200 and payload==expected('POST',path,body)")
                     latencies.append(time.perf_counter_ns()-start);total+=size
             finally:conn.close()
             return latencies,total
@@ -56,11 +57,11 @@ for runtime in ['eio','lwt']:
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:outputs=list(pool.map(worker,[42,43,44,45]))
         finally:stop.set();sampler.join(timeout=3)
         elapsed=time.monotonic()-started;values=sorted(n for ns,_ in outputs for n in ns)
-        assert len(values)==200 and rss,'missing workload or RSS observations'
+        require(len(values)==200 and rss, 'missing workload or RSS observations')
         loads.append({'runtime':runtime,'requests':len(values),'concurrency':4,'body_bytes':sum(n for _,n in outputs),
                       'elapsed_seconds':elapsed,'p50_ns':statistics.median(values),'p99_ns':values[int(len(values)*.99)-1],
                       'peak_process_rss_kib':max(rss),'rss_samples':len(rss)})
-assert source_hash()==digest,'sources changed during performance evidence'
+require(source_hash()==digest, 'sources changed during performance evidence')
 record('performance-'+version+'.json',{'status':'PASS','compiler':version,'hard_queue_bound':32768,'sessions':samples,
     'noise':noise,'mixed_loads':loads,'timing_verdict':'ADVISORY','stable_runner_gate':'NOT_READY',
     'limitations':['Same-source local samples, not a paired baseline on reserved hardware.',

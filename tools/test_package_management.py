@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Check that Dune locks are used and invalid/missing solutions fail closed."""
+from checks import require
 import os
 from pathlib import Path
 import shutil
@@ -10,12 +11,12 @@ from dune_env import ROOT, configuration, command
 dune, configured_env, _ = configuration()
 for version, lock in [('5.5.0', 'dune.lock')]:
     _, target_env, _ = configuration(version)
-    assert command(dune, target_env, ['pkg', 'lock'])[-1] == lock
+    require(command(dune, target_env, ['pkg', 'lock'])[-1] == lock, "test_package_management.py: command(dune, target_env, ['pkg', 'lock'])[-1] == lock")
 original_env = dict(os.environ)
 try:
     os.environ.clear()
     os.environ.update(configured_env)
-    assert configuration()[1] == configured_env, 'toolchain environment must be idempotent'
+    require(configuration()[1] == configured_env, 'toolchain environment must be idempotent')
 finally:
     os.environ.clear()
     os.environ.update(original_env)
@@ -36,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-lock-') as directory:
         result = subprocess.run([str(root / 'tools/dune-pkg'), *args], cwd=root,
             env=dict(os.environ, HARNESS_COMPILER=version, DUNE_CONFIG__PKG='disabled'),
             capture_output=True, text=True, timeout=30)
-        assert (result.returncode == 0) == success, (args, result.stdout, result.stderr)
+        require((result.returncode == 0) == success, (args, result.stdout, result.stderr))
         return result.stdout + result.stderr
 
     for version, lock in [('5.5.0', 'dune.lock')]:
@@ -47,8 +48,8 @@ with tempfile.TemporaryDirectory(prefix='http-kit-lock-') as directory:
     run('5.5.0', 'pkg', 'validate-lockdir', success=False)
     shutil.rmtree(root / 'dune.lock')
     error = run('5.5.0', 'build', success=False)
-    assert 'Missing dune.lock' in error
-    assert not (root / 'dune.lock').exists()
+    require('Missing dune.lock' in error, "test_package_management.py: 'Missing dune.lock' in error")
+    require(not (root / 'dune.lock').exists(), "test_package_management.py: not (root / 'dune.lock').exists()")
     run('invalid', 'build', success=False)
-    assert 'HARNESS_COMPILER must be 5.5.0' in run('5.2.1', 'build', success=False)
+    require('HARNESS_COMPILER must be 5.5.0' in run('5.2.1', 'build', success=False), "test_package_management.py: 'HARNESS_COMPILER must be 5.5.0' in run('5.2.1', 'build', success=False)")
 print('PASS: package management enabled, 5.5.0 lock valid, stale/missing locks and invalid compilers rejected')

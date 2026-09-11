@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Source-matched local evidence; it does not certify absent production code."""
+from checks import has_inventory, INTEROP_LANES
 import hashlib
 import json
 import os
@@ -54,7 +55,7 @@ def check(milestone='M0'):
                 for minimum, field in [(2, 'core_execs'), (3, 'http1_execs'), (4, 'engine_execs')]:
                     if rank >= minimum: ok = ok and int(data.get(field, 0)) >= 10
             elif name.startswith('interop-'):
-                ok = ok and len(data.get('results', [])) == 6
+                ok = ok and has_inventory(data.get('results'), 'lane', INTEROP_LANES)
             elif name.startswith('performance-'):
                 ok = ok and data.get('hard_queue_bound') == 32768 and len(data.get('mixed_loads', [])) == 2
             results[name] = 'PASS' if ok else 'STALE_OR_FAILED'
@@ -88,6 +89,8 @@ def validate(version):
     run([str(ROOT / 'tools/harness'), 'run', '--tier', 'fast', '--count', '1000',
          '--report', str(OUT / ('suite-' + version + '.json')),
          '--junit', str(OUT / ('suite-' + version + '.xml'))])
+    run([sys.executable, str(ROOT / 'tools/test_checks.py')])
+    run([sys.executable, str(ROOT / 'tools/test_release.py')])
     run([sys.executable, str(ROOT / 'tools/test_cli.py')])
     run([sys.executable, str(ROOT / 'tools/test_core_consumer.py')])
     run([sys.executable, str(ROOT / 'tools/test_protocol_consumer.py')])

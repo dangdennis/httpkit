@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Install each runtime independently and execute the shared-handler examples."""
+from checks import require
 import os
 from pathlib import Path
 import shutil
@@ -25,7 +26,7 @@ for adapter, runtime in [('eio', 'eio_main'), ('lwt', 'lwt.unix')]:
             if (path.parent/'stublibs').is_dir():
                 shutil.copytree(path.parent/'stublibs',deps/'stublibs',dirs_exist_ok=True)
         forbidden = 'lwt' if adapter=='eio' else 'eio'
-        assert not (deps/forbidden).exists(), 'opposite runtime in dependency closure'
+        require(not (deps/forbidden).exists(), 'opposite runtime in dependency closure')
         clean['OCAMLPATH'] = str(deps)
         stage = root/'source'; stage.mkdir()
         for package in ['core','http1','engine',adapter]:
@@ -37,7 +38,7 @@ for adapter, runtime in [('eio', 'eio_main'), ('lwt', 'lwt.unix')]:
         project(stage)
         def run(cwd,args):
             result = subprocess.run([dune,*args],cwd=cwd,env=clean,capture_output=True,timeout=180)
-            assert result.returncode==0,(args,result.stdout,result.stderr)
+            require(result.returncode==0, (args,result.stdout,result.stderr))
         prefix=root/'installed'
         run(stage,['build','@install'])
         run(stage,['install','--prefix',str(prefix),*[f'http-kit-{p}' for p in ['core','http1','engine',adapter]]])
@@ -51,9 +52,9 @@ for adapter, runtime in [('eio', 'eio_main'), ('lwt', 'lwt.unix')]:
         for executable in [[str(consumer/f'_build/default/{adapter}_example.exe')],
                            [str(compiler.with_name('ocamlrun')),str(consumer/f'_build/default/{adapter}_example.bc')]]:
             result=subprocess.run(executable,cwd=consumer,env=clean,capture_output=True,timeout=15)
-            assert result.returncode==0 and result.stdout==b'Hello /\n',(executable,result.stdout,result.stderr)
+            require(result.returncode==0 and result.stdout==b'Hello /\n', (executable,result.stdout,result.stderr))
         (consumer/'opposite.ml').write_text('let _ = '+('Lwt.return_unit' if adapter=='eio' else 'Eio.Fiber.yield')+'\n')
         (consumer/'dune').write_text(f'(executable (name opposite) (modules opposite) (libraries http-kit-{adapter}))\n')
         result=subprocess.run([dune,'build','opposite.exe'],cwd=consumer,env=clean,capture_output=True,text=True,timeout=30)
-        assert result.returncode!=0 and 'Unbound module' in result.stderr, result.stderr
+        require(result.returncode!=0 and 'Unbound module' in result.stderr, result.stderr)
 print('PASS: Eio/Lwt separately installed; shared pure handler; native/bytecode sockets; opposite runtime unavailable')

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Fail-closed release assessment. Missing evidence is never inferred as passing."""
+from checks import has_inventory, MUTANTS, INTEROP_LANES
 import argparse
 import json
 from pathlib import Path
@@ -20,11 +21,11 @@ def assess(directory, expected, policy, target_names, license_present):
         data=evidence('compiler-'+version)
         add('compiler/'+version,bool(data and data.get('compiler')==version and all(data.get(k) is True for k in ['core_consumer','http1_consumer','engine_consumer','adapter_consumer','middleware_consumer','router_consumer','routing_examples']) and data.get('odoc')=='3.2.1'),'Source-matched tests, docs and installed consumers.')
         data=evidence('interop-'+version)
-        add('interop/'+version,bool(data and len(data.get('results',[]))==6),'Six direct/Nginx smoke lanes; extended reference evidence is separate.')
+        add('interop/'+version,bool(data and has_inventory(data.get('results'), 'lane', INTEROP_LANES)),'Six direct/Nginx smoke lanes; extended reference evidence is separate.')
     data=evidence('afl/evidence')
     add('instrumentation',bool(data and data.get('coverage_maps_differ') is True and data.get('crowbar_assertion_discovered_and_replayed') is True),'Coverage-map positive control and discovered/replayed planted failure.')
     data=evidence('mutations-5.5.0')
-    add('curated-mutations',bool(data and len(data.get('results',[]))>=3 and all(r.get('compiled') is True and r.get('status')=='KILLED' for r in data['results'])),'Compiled framing, ownership and output-accounting mutants must fail tests.')
+    add('curated-mutations',bool(data and has_inventory(data.get('results'), 'name', MUTANTS) and all(r.get('compiled') is True and r.get('status')=='KILLED' for r in data['results'])),'Compiled framing, ownership and output-accounting mutants must fail tests.')
     data=evidence('coverage')
     add('point-coverage',bool(data and data.get('compiler')=='5.5.0' and isinstance(data.get('percent'),(int,float)) and data['percent']>=policy['coverage_minimum_percent'] and data.get('missing_files')==[]),'At least 95% instrumented core/codec/engine points; this is not branch coverage.')
     for name in target_names:

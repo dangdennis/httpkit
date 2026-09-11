@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Curated source mutants must compile, then fail a real production test suite."""
+from checks import require
 import json
 import os
 from pathlib import Path
@@ -38,15 +39,15 @@ with tempfile.TemporaryDirectory(prefix='http-kit-mutants-') as directory:
         return subprocess.run([str(stage/'_build/default'/target)],cwd=stage,env=clean,capture_output=True,timeout=60)
     for target in sorted({entry[-1] for entry in mutants}):
         build(target);baseline=execute(target)
-        assert baseline.returncode==0,baseline.stdout+baseline.stderr
+        require(baseline.returncode==0, baseline.stdout+baseline.stderr)
     for name,file,before,after,target in mutants:
-        path=stage/file;original=path.read_text();assert original.count(before)==1,('mutant site drift',name)
+        path=stage/file;original=path.read_text();require(original.count(before)==1, ('mutant site drift',name))
         try:
             path.write_text(original.replace(before,after));build(target);result=execute(target)
             (out/(name+'.log')).write_bytes(result.stdout+result.stderr)
-            assert result.returncode!=0 and b'FAIL' in result.stdout+result.stderr,('surviving mutant',name)
+            require(result.returncode!=0 and b'FAIL' in result.stdout+result.stderr, ('surviving mutant',name))
             results.append({'name':name,'status':'KILLED','compiled':True,'suite':target})
         finally:path.write_text(original)
-assert source_hash()==digest,'sources changed during mutation validation'
+require(source_hash()==digest, 'sources changed during mutation validation')
 record('mutations-'+version+'.json',{'status':'PASS','compiler':version,'results':results,'scope':'Three curated first-party framing, ownership and output-accounting mutations; not an exhaustive mutation score.'})
 print(json.dumps({'status':'PASS','mutants':results},indent=2))

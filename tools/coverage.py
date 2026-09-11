@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Measure first-party points with a dedicated compatible compiler/PPX lock."""
+from checks import require
 import json
 import os
 from pathlib import Path
@@ -34,7 +35,7 @@ required.remove('lib/core/http_kit_core.ml')
 missing=sorted(required-{f['file'] for f in files})
 selected=[f for f in files if f['file'] in required]
 visited=sum(f['visited'] for f in selected);total=sum(f['total'] for f in selected)
-assert total>0 and source_hash()==digest,'empty coverage or sources changed'
+require(total>0 and source_hash()==digest, 'empty coverage or sources changed')
 record('coverage.json',{'status':'PASS','compiler':'5.5.0','tool_revision':'7061d643ff492b0045796357ee6917ded21fb1f0',
  'metric':'instrumented points, not branches','visited':visited,'total':total,'percent':100*visited/total,
  'missing_files':missing,'files':files,'report_directory':str(run_dir),
