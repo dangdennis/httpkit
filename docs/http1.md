@@ -37,3 +37,8 @@ Body encoders enforce exact fixed length, chunk framing, declared trailers, and 
 `test/http1` contains golden syntax/framing cases, all single split points for golden heads and selected bodies, EOF prefixes, malformed framing followed by a marker request, exact quotas, encoder misuse, and a generated fixed-body fragmentation property. The public installed consumer runs in bytecode and native modes; Python's independent stdlib HTTPResponse parser checks the emitted chunked response and duplicate Set-Cookie order.
 
 `fuzz/http1_fuzz.ml` checks one-byte versus whole-input request/response/chunked behavior. Accepted heads are re-encoded and decoded. The smoke runner uses valid seeds, preserves findings, and replays queue entries without instrumentation. `bench/http1_bench.ml` measures head time/allocation at geometric field sizes with one-byte and whole-buffer delivery. Stable-runner thresholds, reference disagreements beyond this initial lane, and long release campaigns remain later gates.
+
+Head scanning is linear in input bytes. Connection/trailer token validation uses
+a deterministic balanced set rather than repeated list scans. For C Connection
+and T Trailer tokens it takes O((C + T) log(C + 1)) name comparisons, each bounded
+by the compared name lengths. Header byte limits also bound the retained index.

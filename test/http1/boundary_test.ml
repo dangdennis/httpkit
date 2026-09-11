@@ -264,6 +264,15 @@ let lifecycle () =
       ok (C.limits ~trailers:3 ());
     ]
 
+let trailer_membership () =
+  List.iter (fun count ->
+    let repeated token = String.concat "," (List.init count (fun _ -> token)) in
+    let wire trailer = "POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\nConnection: "
+      ^ repeated "x" ^ "\r\nTrailer: " ^ trailer ^ "\r\n\r\n" in
+    ignore (ok (parse C.Request (wire (repeated "y"))));
+    assert (parse C.Request (wire (repeated "y" ^ ",x")) = Error C.Invalid_trailer))
+    [1; 10; 100; 1000; 3000]
+
 let () =
   Alcotest.run "HTTP boundary regressions"
     [
@@ -272,6 +281,7 @@ let () =
           (fun (n, f) -> Alcotest.test_case n `Quick f)
           [
             ("bounded diagnostics", diagnostics);
+            ("trailer token membership scaling", trailer_membership);
             ("configuration and outbound limits", limits);
             ("authority and target forms", authorities);
             ("status lines and forbidden framing", response_lines);

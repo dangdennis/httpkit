@@ -1,5 +1,8 @@
 open Http_kit_core
 
+(* Deterministic membership bounds for attacker-controlled token lists. *)
+module Names = Set.Make (String)
+
 type error =
   | Invalid_slice
   | Invalid_state
@@ -290,9 +293,12 @@ let validate cfg role head =
       else
         let has_close = List.mem (name "close") connection in
         let* trailer_names = tokens (values "trailer" hs) in
+        let connection_names =
+          Names.of_list (List.map Header.Name.to_string connection)
+        in
         if
           List.exists
-            (fun n -> forbidden n || List.mem n connection)
+            (fun n -> forbidden n || Names.mem (Header.Name.to_string n) connection_names)
             trailer_names
           || (trailer_names <> [] && not chunked)
         then Error Invalid_trailer
@@ -640,7 +646,6 @@ type body_state =
   | Until_eof
   | Tunnel_state
 
-module Names = Set.Make (String)
 
 let allowed_names meta =
   Names.of_list (List.map Header.Name.to_string meta.trailer_names)

@@ -68,8 +68,11 @@ val feed_head :
   len:int ->
   (int * metadata option, error) result
 (** Consumes at most [step] bytes, stopping exactly after CRLFCRLF. The caller
-    owns every unconsumed suffix. No metadata is exposed before validation. Work
-    is linear in accepted bytes; retained head memory is O(headers). *)
+    owns every unconsumed suffix. No metadata is exposed before validation. Byte scanning
+    is linear in accepted bytes. Connection/trailer membership uses a balanced
+    set: O((C + T) log(C + 1)) name comparisons for C connection and T trailer
+    tokens; each comparison is bounded by the name length. Retained head memory
+    is O(header bytes). *)
 
 val eof_head : head_decoder -> (unit, error) result
 (** A partial or absent head at EOF fails; an already completed head succeeds.
