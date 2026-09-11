@@ -105,9 +105,10 @@ val abort : t -> error -> unit
     first failure. Does nothing after ownership has transferred via Handoff. *)
 
 val queued_output_bytes : t -> int
+(** Queued serialized headers, framing and payload awaiting acknowledgement. *)
 
 val queued_input_bytes : t -> int
-(** Payload counters only. Metadata is separately bounded by codec limits;
+(** Pending Data payload only. Metadata is separately bounded by codec limits;
     application-retained events are outside engine ownership. *)
 
 val input_state : t -> [ `Idle | `Head | `Body | `Blocked | `Closed ]

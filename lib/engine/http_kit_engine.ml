@@ -34,13 +34,23 @@ type event =
   | Handoff of id
   | Closed of error option
 
+(* Receive and transmit progress are independent: an incoming Complete does
+   not imply that outgoing bytes have drained. Terminal receive reasons remain
+   distinct so an early abort cannot be mistaken for a completed body. *)
+type receiving =
+  | Awaiting_head
+  | Reading of Codec.body_decoder
+  | Received
+  | Aborted_input
+  | Transferred_input
+
+type sending = Awaiting_response | Writing of Codec.body_encoder | Sent
+
 type exchange = {
   id : id;
   request : Codec.metadata;
-  mutable incoming : Codec.body_decoder option;
-  mutable writer : Codec.body_encoder option;
-  mutable rx_done : bool;
-  mutable tx_done : bool;
+  mutable receiving : receiving;
+  mutable sending : sending;
   mutable final_sent : bool;
   mutable close_after : bool;
   mutable handoff : bool;
@@ -49,6 +59,24 @@ type exchange = {
   mutable continue_allowed : bool;
   mutable infos : int;
 }
+
+let receive_done a =
+  match a.receiving with
+  | Received | Aborted_input | Transferred_input -> true
+  | Awaiting_head | Reading _ -> false
+
+let send_done a = match a.sending with Sent -> true | _ -> false
+
+let complete_input a =
+  a.receiving <- Received;
+  a.complete_pending <- true
+
+let abort_input a =
+  a.receiving <- Aborted_input;
+  a.complete_pending <- false;
+  a.close_after <- true
+
+let complete_output a = a.sending <- Sent
 
 type t = {
   server : bool;
@@ -180,8 +208,9 @@ let upgrade_protocols hs =
 
 let validate_upgrade_request hs =
   let* protocols = upgrade_protocols hs in
-  if protocols <> [] <> connection_upgrade hs then
-    Error (Protocol Codec.Invalid_field)
+  let has_protocol = protocols <> [] in
+  let requests_upgrade = connection_upgrade hs in
+  if has_protocol <> requests_upgrade then Error (Protocol Codec.Invalid_field)
   else Ok ()
 
 let validate_handoff a response =
@@ -219,20 +248,17 @@ let body_event t a = function
   | Codec.Data bytes ->
       if not a.discard then t.pending <- Some (Data (a.id, bytes))
   | Codec.Trailers hs -> t.pending <- Some (Trailers (a.id, hs))
-  | Codec.End ->
-      a.rx_done <- true;
-      a.incoming <- None;
-      a.complete_pending <- true
+  | Codec.End -> complete_input a
 
 (* Advance only work that requires no external bytes. In particular, retire an
    exchange only after its terminal input event and all output acknowledgements. *)
 let settle t =
   if not t.stopped then (
     (match (t.active, t.pending) with
-    | Some a, None when not a.rx_done -> (
-        match a.incoming with
-        | None -> ()
-        | Some d -> (
+    | Some a, None when not (receive_done a) -> (
+        match a.receiving with
+        | Awaiting_head | Received | Aborted_input | Transferred_input -> ()
+        | Reading d -> (
             match Codec.feed_body d "" ~off:0 ~len:0 with
             | Ok (_, Some e) -> body_event t a e
             | Ok (_, None) -> ()
@@ -243,12 +269,12 @@ let settle t =
       | Some a when a.complete_pending ->
           a.complete_pending <- false;
           t.pending <- Some (Complete a.id)
-      | Some a when a.handoff && a.tx_done && t.queued = 0 ->
+      | Some a when a.handoff && send_done a && t.queued = 0 ->
           t.stopped <- true;
           t.active <- None;
           t.head <- None;
           t.pending <- Some (Handoff a.id)
-      | Some a when a.rx_done && a.tx_done && t.queued = 0 ->
+      | Some a when receive_done a && send_done a && t.queued = 0 ->
           if a.close_after || t.shutting || t.peer_eof then close t None
           else (
             t.active <- None;
@@ -264,10 +290,14 @@ let make_exchange id request incoming writer =
   {
     id;
     request;
-    incoming;
-    writer;
-    rx_done = false;
-    tx_done = false;
+    receiving =
+      (match incoming with
+      | None -> Awaiting_head
+      | Some decoder -> Reading decoder);
+    sending =
+      (match writer with
+      | None -> Awaiting_response
+      | Some encoder -> Writing encoder);
     final_sent = false;
     close_after = not request.persistent;
     handoff = false;
@@ -336,29 +366,27 @@ let respond t id response =
                   a.close_after || (not meta.persistent) || t.shutting;
                 if meta.framing = Codec.Tunnel then (
                   a.handoff <- true;
-                  a.tx_done <- true)
+                  complete_output a)
                 else (
-                  a.writer <- Some (Codec.body_encoder ~limits:t.limits meta);
+                  a.sending <-
+                    Writing (Codec.body_encoder ~limits:t.limits meta);
                   (* An early response cannot authorize reuse of unread upload bytes. *)
-                  if not a.rx_done then (
-                    a.rx_done <- true;
-                    a.incoming <- None;
-                    a.complete_pending <- false;
-                    a.close_after <- true;
+                  if not (receive_done a) then (
+                    abort_input a;
                     t.pending <- Some (Body_aborted a.id))));
               settle t;
               Ok (Accepted ()))
 
 (* Both data and final framing belong to the upload permission boundary. *)
-let awaiting_continue t a = not t.server && not a.continue_allowed
+let awaiting_continue t a = (not t.server) && not a.continue_allowed
 
 let send_data t id bytes =
   let* a = active t id in
-  if a.tx_done then Error Invalid_command
+  if send_done a then Error Invalid_command
   else
-    match a.writer with
-    | None -> Error Invalid_command
-    | Some writer -> (
+    match a.sending with
+    | Awaiting_response | Sent -> Error Invalid_command
+    | Writing writer -> (
         if awaiting_continue t a then Ok Backpressured
         else
           let overhead = 32 in
@@ -376,13 +404,14 @@ let send_data t id bytes =
 
 let finish ?(trailers = Headers.empty) t id =
   let* a = active t id in
-  if a.tx_done then Error Invalid_command
+  if send_done a then Error Invalid_command
   else
-    match a.writer with
-    | None -> Error Invalid_command
-    | Some writer -> (
+    match a.sending with
+    | Awaiting_response | Sent -> Error Invalid_command
+    | Writing writer -> (
         if awaiting_continue t a then Ok Backpressured
-        else if Headers.wire_bytes trailers > max_int - 5 then Error Resource_limit
+        else if Headers.wire_bytes trailers > max_int - 5 then
+          Error Resource_limit
         else
           let* room = reserve t (Headers.wire_bytes trailers + 5) in
           match room with
@@ -392,14 +421,13 @@ let finish ?(trailers = Headers.empty) t id =
               | Error e -> protocol t e
               | Ok wire ->
                   enqueue t wire;
-                  a.tx_done <- true;
-                  a.writer <- None;
+                  complete_output a;
                   settle t;
                   Ok (Accepted ())))
 
 let continue_request t id =
   let* a = active t id in
-  if t.server || a.tx_done then Error Invalid_command
+  if t.server || send_done a then Error Invalid_command
   else (
     a.continue_allowed <- true;
     Ok ())
@@ -425,10 +453,7 @@ let receive_head t meta =
           (Some (Codec.body_decoder ~limits:t.limits meta))
           None
       in
-      if empty meta.framing then (
-        a.rx_done <- true;
-        a.incoming <- None;
-        a.complete_pending <- true);
+      if empty meta.framing then complete_input a;
       t.active <- Some a;
       t.pending <- Some (Request (id, request));
       Ok ()
@@ -453,22 +478,17 @@ let receive_head t meta =
         a.close_after <- a.close_after || not meta.persistent;
         if meta.framing = Codec.Tunnel then (
           a.handoff <- true;
-          a.rx_done <- true;
-          a.tx_done <- true;
-          a.writer <- None)
+          a.receiving <- Transferred_input;
+          complete_output a)
         else (
           (* Do not continue a queued upload after an early final response.
              Already acknowledged bytes cannot be recalled, so force close. *)
-          if not a.tx_done then (
-            a.tx_done <- true;
-            a.writer <- None;
+          if not (send_done a) then (
+            complete_output a;
             a.close_after <- true;
             clear_output t);
-          a.incoming <- Some (Codec.body_decoder ~limits:t.limits meta);
-          if empty meta.framing then (
-            a.rx_done <- true;
-            a.incoming <- None;
-            a.complete_pending <- true));
+          a.receiving <- Reading (Codec.body_decoder ~limits:t.limits meta);
+          if empty meta.framing then complete_input a);
         t.pending <- Some (Response (a.id, response));
         Ok ()
   | _ -> Error Invalid_command
@@ -497,10 +517,10 @@ let offer t bytes ~off ~len =
                   abort t e;
                   Error e
               | Ok () -> Ok n))
-      | None, Some a when not a.rx_done -> (
-          match a.incoming with
-          | None -> Ok 0
-          | Some decoder -> (
+      | None, Some a when not (receive_done a) -> (
+          match a.receiving with
+          | Awaiting_head | Received | Aborted_input | Transferred_input -> Ok 0
+          | Reading decoder -> (
               match Codec.feed_body decoder bytes ~off ~len with
               | Error e -> protocol t e
               | Ok (n, event) ->
@@ -546,14 +566,15 @@ let input_eof t =
     | None, _ when not t.head_started ->
         close t None;
         Ok ()
-    | Some a, _ when a.rx_done ->
+    | Some a, _ when receive_done a ->
         a.close_after <- true;
         settle t;
         Ok ()
     | Some a, None -> (
-        match a.incoming with
-        | None -> protocol t Codec.Unexpected_eof
-        | Some d -> (
+        match a.receiving with
+        | Awaiting_head | Received | Aborted_input | Transferred_input ->
+            protocol t Codec.Unexpected_eof
+        | Reading d -> (
             match Codec.eof_body d with
             | Error e -> protocol t e
             | Ok event ->
@@ -587,7 +608,8 @@ let input_state t =
     match (t.head, t.active) with
     | Some _, None when t.server && not t.head_started -> `Idle
     | Some _, _ -> `Head
-    | None, Some a when (not a.rx_done) && a.incoming <> None -> `Body
+    | None, Some a when match a.receiving with Reading _ -> true | _ -> false ->
+        `Body
     | _ -> `Blocked
 
 let max_send_size t =
