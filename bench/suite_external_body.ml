@@ -1,21 +1,7 @@
 open Http_kit_core
 open Suite_support
 module E = Http_kit_engine
-
-type framing = Fixed | Chunked of int | Close
-type transport = Pieces of int | Irregular
-
-type fixture = {
-  request : bool;
-  framing : framing;
-  body : string;
-  wire : string;
-  bigwire : Bigstringaf.t;
-  arrivals : int array;
-  deferred : bool;
-  collect : bool;
-  borrowed : bool;
-}
+open Body_fixture
 
 type progress = {
   mutable position : int;
@@ -38,10 +24,13 @@ let consume fixture progress data =
   let len = String.length data in
   require (len > 0 && progress.position + len <= String.length fixture.body);
   for i = 0 to len - 1 do
-    require (data.[i] = fixture.body.[progress.position + i])
+    check_byte ~offset:(progress.position + i)
+      ~expected:fixture.body.[progress.position + i]
+      ~actual:data.[i]
   done;
   progress.position <- progress.position + len;
-  if fixture.collect then progress.chunks <- data :: progress.chunks
+  if fixture.config.consumption = Collect then
+    progress.chunks <- data :: progress.chunks
 
 (* The public upstream callback buffer is borrowed. Owned modes copy before
    scanning or retaining; borrowed mode scans inside the callback. Engine Data
@@ -52,7 +41,7 @@ let attach fixture progress schedule =
     schedule
       ~on_eof:(fun () -> progress.complete <- progress.complete + 1)
       ~on_read:(fun bs ~off ~len ->
-        if fixture.borrowed then (
+        if fixture.config.consumption = Borrowed_scan then (
           progress.data_events <- progress.data_events + 1;
           require
             (len > 0 && progress.position + len <= String.length fixture.body);
@@ -63,7 +52,9 @@ let attach fixture progress schedule =
           done;
           progress.position <- progress.position + len)
         else consume fixture progress (Bigstringaf.substring bs ~off ~len);
-        if fixture.deferred then progress.pending <- Some arm else arm ())
+        if fixture.config.scheduling = Deferred then
+          progress.pending <- Some arm
+        else arm ())
   in
   arm ()
 
@@ -80,7 +71,7 @@ let httpaf fixture progress =
     progress.heads <- progress.heads + 1;
     attach fixture progress (Httpaf.Body.schedule_read body)
   in
-  if fixture.request then
+  if fixture.config.direction = Request then
     let conn =
       Httpaf.Server_connection.create
         ~error_handler:(fun ?request:_ error _ -> fail error)
@@ -131,7 +122,7 @@ let httpun fixture progress =
     progress.heads <- progress.heads + 1;
     attach fixture progress (Httpun.Body.Reader.schedule_read body)
   in
-  if fixture.request then
+  if fixture.config.direction = Request then
     let conn =
       Httpun.Server_connection.create
         ~error_handler:(fun ?request:_ error _ -> fail error)
@@ -178,8 +169,10 @@ let httpun fixture progress =
     }
 
 let kit fixture progress =
-  let conn = ok (if fixture.request then E.server () else E.client ()) in
-  (if not fixture.request then
+  let conn =
+    ok (if fixture.config.direction = Request then E.server () else E.client ())
+  in
+  (if not (fixture.config.direction = Request) then
      let request =
        Request.create ~meth:Method.get
          ~target:(ok (Target.of_string "/body"))
@@ -203,13 +196,15 @@ let kit fixture progress =
     | None -> ()
     | Some (E.Request (id, r)) ->
         require
-          (fixture.request
+          (fixture.config.direction = Request
           && Method.equal (Request.meth r) Method.post
           && Target.to_string (Request.target r) = "/body");
         owner := Some id;
         progress.heads <- progress.heads + 1
     | Some (E.Response (id, r)) ->
-        require ((not fixture.request) && Response.status r = Status.ok);
+        require
+          ((not (fixture.config.direction = Request))
+          && Response.status r = Status.ok);
         owner := Some id;
         progress.heads <- progress.heads + 1
     | Some (E.Data (id, data)) ->
@@ -253,57 +248,62 @@ let run ?(observe = fun ~data_events:_ ~reads:_ ~ticks:_ -> ()) fixture make ()
     }
   in
   let conn = make fixture progress in
-  let offset = ref 0
-  and arrival = ref 0
-  and available = ref 0
-  and need_more = ref true
+  let window = Input_window.create () in
+  let arrival = ref 0
   and eof_sent = ref false
   and ticks = ref 0
   and reads = ref 0 in
   try
     Fun.protect ~finally:conn.stop (fun () ->
-        while progress.complete = 0 || !offset < String.length fixture.wire do
+        while
+          progress.complete = 0 || window.offset < String.length fixture.wire
+        do
           incr ticks;
           require (!ticks <= (10 * String.length fixture.wire) + 1000);
-          if (not fixture.deferred) || !ticks mod 2 = 0 then conn.pump ();
+          if (not (fixture.config.scheduling = Deferred)) || !ticks mod 2 = 0
+          then conn.pump ();
           let ready = conn.ready () in
           if
             progress.complete = 1
-            && !offset < String.length fixture.wire
+            && window.offset < String.length fixture.wire
             && not ready
           then (
             require
               (progress.heads = 1
               && progress.position = String.length fixture.body);
             raise
-              (Body_eof_before_framing (!offset, String.length fixture.wire)));
+              (Body_eof_before_framing
+                 (window.offset, String.length fixture.wire)));
           if
-            (progress.complete = 0 || !offset < String.length fixture.wire)
+            (progress.complete = 0 || window.offset < String.length fixture.wire)
             && ready
           then (
-            if !need_more && !arrival < Array.length fixture.arrivals then (
-              available := fixture.arrivals.(!arrival);
+            if window.need_more && !arrival < Array.length fixture.arrivals then (
+              Input_window.expose window fixture.arrivals.(!arrival);
               incr arrival);
             let eof =
               !arrival = Array.length fixture.arrivals
-              && !available = String.length fixture.wire
-              && fixture.framing = Close
+              && window.available = String.length fixture.wire
+              && fixture.config.framing = Close
             in
             (* Only close-delimited bodies receive EOF here. Fixed/chunked bodies
            must complete from framing; an empty feed never substitutes for EOF. *)
             require (not !eof_sent);
             incr reads;
-            let n = conn.read ~off:!offset ~len:(!available - !offset) ~eof in
-            require (n >= 0 && n <= !available - !offset);
-            offset := !offset + n;
-            need_more := n = 0 || !offset = !available;
-            if eof && !offset = String.length fixture.wire then eof_sent := true)
+            let n =
+              conn.read ~off:window.offset
+                ~len:(window.available - window.offset)
+                ~eof
+            in
+            Input_window.consume window n;
+            if eof && window.offset = String.length fixture.wire then
+              eof_sent := true)
         done;
         require
           (progress.complete = 1 && progress.heads = 1
           && progress.position = String.length fixture.body
-          && !offset = String.length fixture.wire);
-        if fixture.collect then
+          && window.offset = String.length fixture.wire);
+        if fixture.config.consumption = Collect then
           require (String.concat "" (List.rev progress.chunks) = fixture.body);
         observe ~data_events:progress.data_events ~reads:!reads ~ticks:!ticks)
   with
@@ -312,74 +312,19 @@ let run ?(observe = fun ~data_events:_ ~reads:_ ~ticks:_ -> ()) fixture make ()
       failwith
         (Printf.sprintf
            "%s (input %d/%d, body %d/%d, heads %d, EOF events %d, ticks %d)"
-           (Printexc.to_string exn) !offset
+           (Printexc.to_string exn) window.offset
            (String.length fixture.wire)
            progress.position
            (String.length fixture.body)
            progress.heads progress.complete !ticks)
 
-let frame framing body =
-  match framing with
-  | Fixed | Close -> body
-  | Chunked chunk ->
-      let buffer = Buffer.create (String.length body + 64) in
-      let rec add offset =
-        if offset < String.length body then (
-          let len = min chunk (String.length body - offset) in
-          Buffer.add_string buffer (Printf.sprintf "%x\r\n" len);
-          Buffer.add_substring buffer body offset len;
-          Buffer.add_string buffer "\r\n";
-          add (offset + len))
-      in
-      add 0;
-      Buffer.add_string buffer "0\r\n\r\n";
-      Buffer.contents buffer
-
-let fixture request framing size transport deferred collect =
-  let body = String.init size (fun i -> Char.chr (((i * 31) + 7) land 255)) in
-  let fields =
-    match framing with
-    | Fixed -> Printf.sprintf "Content-Length: %d\r\n" size
-    | Chunked _ -> "Transfer-Encoding: chunked\r\n"
-    | Close -> ""
-  in
-  let wire =
-    (if request then "POST /body HTTP/1.1\r\nHost: x\r\n"
-     else "HTTP/1.1 200 OK\r\n")
-    ^ fields ^ "\r\n" ^ frame framing body
-  in
-  let pattern =
-    match transport with
-    | Pieces n -> [| n |]
-    | Irregular -> [| 1; 7; 64; 3; 4096; 17; 8192 |]
-  in
-  let rec arrivals off i acc =
-    if off = String.length wire then Array.of_list (List.rev acc)
-    else
-      let next =
-        min (String.length wire) (off + pattern.(i mod Array.length pattern))
-      in
-      arrivals next (i + 1) (next :: acc)
-  in
-  {
-    request;
-    framing;
-    body;
-    wire;
-    bigwire = Bigstringaf.of_string ~off:0 ~len:(String.length wire) wire;
-    arrivals = arrivals 0 0 [];
-    deferred;
-    collect;
-    borrowed = false;
-  }
-
 let jobs () =
   let basic =
     List.concat_map
-      (fun request ->
+      (fun direction ->
         let framings =
           [ Fixed; Chunked 17; Chunked 8192 ]
-          @ if request then [] else [ Close ]
+          @ if direction = Request then [] else [ Close ]
         in
         List.concat_map
           (fun framing ->
@@ -387,49 +332,91 @@ let jobs () =
               (fun size ->
                 List.map
                   (fun transport ->
-                    (request, framing, size, transport, false, false))
+                    {
+                      direction;
+                      framing;
+                      size;
+                      transport;
+                      scheduling = Immediate;
+                      consumption = Owned_scan;
+                    })
                   [ Pieces 64; Pieces 16384 ])
               [ 0; 64; 4096; 65536; 1048576 ])
           framings)
-      [ true; false ]
+      [ Request; Response ]
   in
   let fragmented =
     List.concat_map
-      (fun request ->
+      (fun direction ->
         List.concat_map
           (fun size ->
             List.map
-              (fun framing -> (request, framing, size, Pieces 1, false, false))
+              (fun framing ->
+                {
+                  direction;
+                  framing;
+                  size;
+                  transport = Pieces 1;
+                  scheduling = Immediate;
+                  consumption = Owned_scan;
+                })
               ([ Fixed; Chunked 1; Chunked 17; Chunked 8192 ]
-              @ if request then [] else [ Close ]))
+              @ if direction = Request then [] else [ Close ]))
           [ 64; 4096 ])
-      [ true; false ]
+      [ Request; Response ]
   in
   let variants =
     List.concat_map
-      (fun request ->
+      (fun direction ->
         List.concat_map
           (fun size ->
             List.concat_map
               (fun framing ->
                 [
-                  (request, framing, size, Irregular, false, false);
-                  (request, framing, size, Pieces 16384, true, false);
-                  (request, framing, size, Pieces 16384, false, true);
-                  (request, framing, size, Pieces 16384, true, true);
+                  {
+                    direction;
+                    framing;
+                    size;
+                    transport = Irregular;
+                    scheduling = Immediate;
+                    consumption = Owned_scan;
+                  };
+                  {
+                    direction;
+                    framing;
+                    size;
+                    transport = Pieces 16384;
+                    scheduling = Deferred;
+                    consumption = Owned_scan;
+                  };
+                  {
+                    direction;
+                    framing;
+                    size;
+                    transport = Pieces 16384;
+                    scheduling = Immediate;
+                    consumption = Collect;
+                  };
+                  {
+                    direction;
+                    framing;
+                    size;
+                    transport = Pieces 16384;
+                    scheduling = Deferred;
+                    consumption = Collect;
+                  };
                 ])
-              ([ Fixed; Chunked 17 ] @ if request then [] else [ Close ]))
+              ([ Fixed; Chunked 17 ]
+              @ if direction = Request then [] else [ Close ]))
           [ 4096; 65536 ])
-      [ true; false ]
+      [ Request; Response ]
   in
   List.concat_map
-    (fun (request, framing, size, transport, deferred, collect, borrowed) ->
-      let fixture =
-        {
-          (fixture request framing size transport deferred collect) with
-          borrowed;
-        }
+    (fun config ->
+      let { direction; framing; size; transport; scheduling; consumption } =
+        config
       in
+      let fixture = fixture config in
       let framing_name =
         match framing with
         | Fixed -> "fixed"
@@ -443,12 +430,13 @@ let jobs () =
       in
       let comparison =
         Printf.sprintf "%s/%s/bytes-%d/%s/%s/%s"
-          (if request then "request" else "response")
+          (if direction = Request then "request" else "response")
           framing_name size transport_name
-          (if deferred then "deferred" else "immediate")
-          (if collect then "collect"
-           else if borrowed then "borrowed-scan"
-           else "owned-scan")
+          (if scheduling = Deferred then "deferred" else "immediate")
+          (match consumption with
+          | Collect -> "collect"
+          | Borrowed_scan -> "borrowed-scan"
+          | Owned_scan -> "owned-scan")
       in
       let iterations =
         max 1 (min 50 (262144 / max 64 (String.length fixture.wire)))
@@ -497,19 +485,24 @@ let jobs () =
               ("external/" ^ comparison ^ "/" ^ implementation)
               iterations (run fixture make))
           implementations)
-    (List.map
-       (fun (a, b, c, d, e, f) -> (a, b, c, d, e, f, false))
-       (basic @ fragmented @ variants)
+    (basic @ fragmented @ variants
     @ List.concat_map
-        (fun request ->
+        (fun direction ->
           List.concat_map
             (fun framing ->
               List.map
                 (fun size ->
-                  (request, framing, size, Pieces 16384, false, false, true))
+                  {
+                    direction;
+                    framing;
+                    size;
+                    transport = Pieces 16384;
+                    scheduling = Immediate;
+                    consumption = Borrowed_scan;
+                  })
                 [ 4096; 65536; 1048576 ])
             [ Fixed; Chunked 17; Chunked 8192 ])
-        [ true; false ])
+        [ Request; Response ])
 
 (* Single-fixture diagnostic entrypoint: separate process, no catalog-wide
    fixtures retained. OS stack sampling and peak RSS belong to this diagnostic
@@ -530,11 +523,22 @@ let profile selection iterations =
   require
     (List.mem mode [ "owned-scan"; "borrowed-scan"; "collect" ]
     && iterations > 0 && iterations <= 10000);
+  let consumption =
+    match mode with
+    | "collect" -> Collect
+    | "borrowed-scan" -> Borrowed_scan
+    | _ -> Owned_scan
+  in
   let fixture =
-    {
-      (fixture true (Chunked 17) 65536 (Pieces 16384) false (mode = "collect")) with
-      borrowed = mode = "borrowed-scan";
-    }
+    fixture
+      {
+        direction = Request;
+        framing = Chunked 17;
+        size = 65536;
+        transport = Pieces 16384;
+        scheduling = Immediate;
+        consumption;
+      }
   in
   let events = ref 0 and reads = ref 0 and ticks = ref 0 in
   let observe ~data_events ~reads:r ~ticks:t =

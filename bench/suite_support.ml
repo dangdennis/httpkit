@@ -1,19 +1,21 @@
+type comparison = { group : string; implementation : string }
+
 type job = {
   id : string;
   family : string;
   iterations : int;
   bytes : int;
   work : unit -> unit;
-  comparison : string option;
-  implementation : string option;
+  comparison : comparison option;
 }
 
-let require condition =
-  if not condition then failwith "benchmark result mismatch"
+let require ?(message = "benchmark invariant failed") condition =
+  if not condition then failwith message
 
-let ok = function
+let ok ?(error_to_string = fun _ -> "unformatted error") = function
   | Ok value -> value
-  | Error _ -> failwith "unexpected benchmark error"
+  | Error error ->
+      failwith ("benchmark operation failed: " ^ error_to_string error)
 
 let job ?(bytes = 0) ?comparison ?implementation family id iterations work =
   {
@@ -22,19 +24,20 @@ let job ?(bytes = 0) ?comparison ?implementation family id iterations work =
     iterations;
     bytes;
     work;
-    comparison;
-    implementation;
+    comparison =
+      (match (comparison, implementation) with
+      | None, None -> None
+      | Some group, Some implementation -> Some { group; implementation }
+      | _ -> invalid_arg "incomplete comparison metadata");
   }
 
 let labels job =
-  match (job.comparison, job.implementation) with
-  | None, None -> []
-  | Some comparison, Some implementation ->
+  match job.comparison with
+  | None -> []
+  | Some { group; implementation } ->
       [
-        ("comparison", `String comparison);
-        ("implementation", `String implementation);
+        ("comparison", `String group); ("implementation", `String implementation);
       ]
-  | _ -> failwith "incomplete comparison metadata"
 
 let measure ~quick ~min_ms job =
   let iterations =
@@ -94,3 +97,30 @@ let measure ~quick ~min_ms job =
 
 (* Preflight observations are retained in catalog and every process sample. *)
 let exclusions : Yojson.Basic.t list ref = ref []
+
+(* Only parser consumption requests another arrival. Runtime pauses do not. *)
+module Input_window = struct
+  type t = {
+    mutable offset : int;
+    mutable available : int;
+    mutable need_more : bool;
+  }
+
+  let create () = { offset = 0; available = 0; need_more = true }
+
+  let expose t available =
+    require ~message:"input arrival moved backwards" (available >= t.available);
+    t.available <- available
+
+  let consume t count =
+    require ~message:"invalid consumed input prefix"
+      (count >= 0 && count <= t.available - t.offset);
+    t.offset <- t.offset + count;
+    t.need_more <- count = 0 || t.offset = t.available
+end
+
+let check_byte ~offset ~expected ~actual =
+  if expected <> actual then
+    failwith
+      (Printf.sprintf "payload byte %d: expected %02x, got %02x" offset
+         (Char.code expected) (Char.code actual))
