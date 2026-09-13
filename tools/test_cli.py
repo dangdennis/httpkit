@@ -16,7 +16,7 @@ def run(*args, code=0):
     require(p.returncode == code, (args, p.returncode, p.stdout, p.stderr))
     return json.loads(p.stdout)
 
-with tempfile.TemporaryDirectory(prefix='http-kit-cli-') as tmp:
+with tempfile.TemporaryDirectory(prefix='httpkit-cli-') as tmp:
     tmp = Path(tmp)
     fixture = tmp / 'fault.json'
     run('example', 'drop-write', fixture)

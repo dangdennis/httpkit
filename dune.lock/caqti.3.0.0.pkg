@@ -1,0 +1,38 @@
+(version 3.0.0)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install)
+     (run
+      dune
+      install
+      -p
+      %{pkg-self:name}
+      --create-install-file
+      %{pkg-self:name}))))))
+
+(depends
+ (all_platforms
+  (angstrom
+   bigstringaf
+   domain-name
+   dune
+   dune-site
+   ipaddr
+   logs
+   lru
+   lwt-dllist
+   mtime
+   ocaml
+   ptime
+   uri
+   x509)))
+
+(source
+ (fetch
+  (url
+   https://github.com/paurkedal/ocaml-caqti/releases/download/v3.0.0/caqti-v3.0.0.tbz)
+  (checksum
+   sha512=e01f546a45b04cafd5fa262e9228e5a1aabd5e0942059c073a4181c928450baf3d990cc59ffb1a33dff445b46a0e218224a23dca96e8d24cdd0ab793d08e4538)))

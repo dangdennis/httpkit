@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module E = Http_kit_engine
+module E = Httpkit_engine
 open Body_fixture
 
 type progress = {
@@ -447,13 +447,13 @@ let jobs ?(select = fun _ -> true) ?(preflight = true) () =
       if
         not
           (select_group select "body" comparison
-             [ "http-kit"; "httpaf"; "httpun" ])
+             [ "httpkit"; "httpaf"; "httpun" ])
       then []
       else
         let prepared = lazy (fixture config) in
         let iterations = max 1 (min 50 (262144 / max 64 (wire_size config))) in
         let implementations =
-          [ ("http-kit", kit); ("httpaf", httpaf); ("httpun", httpun) ]
+          [ ("httpkit", kit); ("httpaf", httpaf); ("httpun", httpun) ]
         in
         let incompatible =
           if not preflight then []
@@ -464,7 +464,7 @@ let jobs ?(select = fun _ -> true) ?(preflight = true) () =
                   run (Lazy.force prepared) make ();
                   None
                 with Body_eof_before_framing (consumed, total) ->
-                  if implementation = "http-kit" then
+                  if implementation = "httpkit" then
                     failwith "reference engine completed before framing";
                   Some
                     (`Assoc
@@ -487,7 +487,7 @@ let jobs ?(select = fun _ -> true) ?(preflight = true) () =
                 ("comparison", `String comparison);
                 ( "excluded_implementations",
                   `List
-                    [ `String "http-kit"; `String "httpaf"; `String "httpun" ]
+                    [ `String "httpkit"; `String "httpaf"; `String "httpun" ]
                 );
                 ("observations", `List incompatible);
               ]
@@ -531,7 +531,7 @@ let profile selection iterations =
   in
   let make =
     match implementation with
-    | "http-kit" -> kit
+    | "httpkit" -> kit
     | "httpaf" -> httpaf
     | "httpun" -> httpun
     | _ -> failwith "unknown profile implementation"

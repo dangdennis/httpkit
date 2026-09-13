@@ -38,7 +38,7 @@ def backend(runtime,details=False):
             except subprocess.TimeoutExpired:p.kill();p.wait()
 @contextmanager
 def proxy(upstream,buffering):
-    with tempfile.TemporaryDirectory(prefix='http-kit-nginx-') as directory:
+    with tempfile.TemporaryDirectory(prefix='httpkit-nginx-') as directory:
         root=Path(directory)
         with socket.socket() as reservation:
             reservation.bind(('127.0.0.1',0));port=reservation.getsockname()[1]

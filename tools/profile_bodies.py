@@ -38,7 +38,7 @@ def main():
     from pathlib import Path
     directory = Path(directory)
     rows = []
-    for implementation in ('http-kit', 'httpaf', 'httpun'):
+    for implementation in ('httpkit', 'httpaf', 'httpun'):
         for mode in ('owned-scan', 'borrowed-scan', 'collect'):
             name = implementation+'-'+mode
             flags = [str(binary), '--body-profile', implementation+'/'+mode,
@@ -76,7 +76,7 @@ def main():
                       'Single-fixture, single-process diagnostics are not repeated timing comparisons.',
                       'GC allocation, post-collection live words, explicit fixture Bigarray bytes, and OS peak RSS are different quantities.',
                       'Peak RSS includes runtime, fixture, allocator retention and profiler startup; not per-connection retained memory.',
-                      'http-kit public Data remains owned even in the borrowed-scan consumer lane.',
+                      'httpkit public Data remains owned even in the borrowed-scan consumer lane.',
                       'OS stack capture uses separate instrumented processes.'])
     (directory/'report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(directory/'report.json')

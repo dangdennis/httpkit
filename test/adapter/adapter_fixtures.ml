@@ -1,4 +1,4 @@
-open Http_kit_core
+open Httpkit_core
 
 let ok = Result.get_ok
 let get = "GET / HTTP/1.1\r\nHost: x\r\n\r\n"

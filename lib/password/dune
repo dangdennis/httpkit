@@ -1,0 +1,8 @@
+(library (name httpkit_password) (public_name httpkit-password)
+ (libraries argon2)
+ (foreign_stubs (language c) (names argon2_link) (flags (:standard (:include c_flags.sexp))))
+ (c_library_flags (:include c_library_flags.sexp))
+ (instrumentation (backend bisect_ppx)))
+(rule
+ (targets c_flags.sexp c_library_flags.sexp)
+ (action (run ./config/discover.exe)))

@@ -1,6 +1,6 @@
 # Security policy
 
-http-kit is pre-release. Passing a milestone or a fuzz smoke run is not approval for an internet-facing release. `python3 tools/release.py` lists the remaining evidence gates.
+httpkit is pre-release. Passing a milestone or a fuzz smoke run is not approval for an internet-facing release. `tools/dev release` lists the remaining evidence gates.
 
 ## Reporting privately
 

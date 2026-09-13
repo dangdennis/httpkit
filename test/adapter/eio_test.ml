@@ -1,6 +1,6 @@
 open Adapter_fixtures
-module A = Http_kit_eio
-module E = Http_kit_engine
+module A = Httpkit_transport_eio
+module E = Httpkit_engine
 
 let mock ?(fragment = 16384) input =
   let offset = ref 0 and closed = ref 0 and output = Buffer.create 64 in
@@ -261,7 +261,7 @@ let collection () =
                  let body, trailers = A.collect_body ~limit c id in
                  assert (
                    limit >= 3 && body = "abc"
-                   && Http_kit_core.Headers.length trailers = 0))
+                   && Httpkit_core.Headers.length trailers = 0))
            with A.Error (A.Engine E.Resource_limit) -> assert (limit < 3));
           assert (!closed = 1))
         [ 0; 2; 3; 4 ])
@@ -387,7 +387,7 @@ let read_failures () =
              | `Invalid_count, A.Transport (Invalid_argument message) ->
                  assert (message = "transport read count")
              | ( `Truncated_body,
-                 A.Engine (E.Protocol Http_kit_http1.Unexpected_eof) ) ->
+                 A.Engine (E.Protocol Httpkit_http1.Unexpected_eof) ) ->
                  ()
              | _ -> Alcotest.fail "wrong read failure category"));
           assert (!closed = 1))

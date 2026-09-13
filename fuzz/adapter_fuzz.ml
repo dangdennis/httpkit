@@ -1,7 +1,7 @@
-open Http_kit_core
-module E = Http_kit_engine
-module A = Http_kit_eio
-module L = Http_kit_lwt
+open Httpkit_core
+module E = Httpkit_engine
+module A = Httpkit_transport_eio
+module L = Httpkit_transport_lwt
 
 let ok = Result.get_ok
 let input = "GET / HTTP/1.1\r\nHost: x\r\n\r\n"

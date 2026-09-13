@@ -1,0 +1,29 @@
+(version 0.11.0)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (ocaml
+   base64
+   dune
+   eqaf
+   mirage-crypto
+   x509
+   astring
+   yojson
+   zarith
+   ptime
+   digestif)))
+
+(source
+ (fetch
+  (url
+   https://github.com/ulrikstrid/ocaml-jose/releases/download/0.11.0/jose-0.11.0.tbz)
+  (checksum
+   sha512=b6e78ff643479070136f65eb69703aae9c24a1ba3aaeedb065ddc0d4b39229ecc62396e9aa4a08e68bbe95cad256fe33a260f9dd515b680083a3a7a2757ba558)))

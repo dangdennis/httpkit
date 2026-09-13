@@ -1,0 +1,1 @@
+(test (name web_test) (libraries httpkit httpkit-core qcheck-core))

@@ -1,5 +1,5 @@
-module A = Http_kit_eio
-module E = Http_kit_engine
+module A = Httpkit_transport_eio
+module E = Httpkit_engine
 
 let () =
   Eio_main.run (fun env ->
@@ -28,9 +28,9 @@ let () =
                     let response = Subject.response request body in
                     A.respond c id response;
                     if
-                      Http_kit_core.Request.meth request
-                      <> Http_kit_core.Method.head
-                    then A.send c id (Http_kit_core.Response.body response);
+                      Httpkit_core.Request.meth request
+                      <> Httpkit_core.Method.head
+                    then A.send c id (Httpkit_core.Response.body response);
                     A.finish c id;
                     loop ()
                 | E.Closed _ -> ()

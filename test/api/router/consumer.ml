@@ -1,5 +1,5 @@
-open Http_kit_core
-module R = Http_kit_router
+open Httpkit_core
+module R = Httpkit_router
 
 let () =
   let pattern = Result.get_ok (R.pattern "/users/:id") in

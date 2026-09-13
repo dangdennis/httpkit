@@ -1,15 +1,15 @@
-{0 http-kit-core}
+{0 httpkit-core}
 
 Checked HTTP values with no runtime dependencies beyond OCaml's standard library.
 The library performs no I/O and does not own body lifetimes.
 
 {1 Constructing a request}
 
-Validation returns bounded {!Http_kit_core.Error.t} diagnostics. Handle them at
+Validation returns bounded {!Httpkit_core.Error.t} diagnostics. Handle them at
 the boundary where untrusted strings enter your application:
 
 {[
-open Http_kit_core
+open Httpkit_core
 let ( let* ) = Result.bind
 let request path =
   let* target = Target.of_string path in
@@ -17,20 +17,20 @@ let request path =
   Ok (Request.create ~meth:Method.get ~target ~headers ())
 ]}
 
-{!Http_kit_core.Request.map_body} and {!Http_kit_core.Response.map_body} can change
+{!Httpkit_core.Request.map_body} and {!Httpkit_core.Response.map_body} can change
 the body type without interpreting it. A body may be a string, a stream, or an
 application value. Runtime adapters will own stream operations.
 
 {1 Contracts}
 
-- {!Http_kit_core.Method} preserves case and accepts extension tokens.
-- {!Http_kit_core.Header} normalizes names to lowercase; values preserve opaque
+- {!Httpkit_core.Method} preserves case and accepts extension tokens.
+- {!Httpkit_core.Header} normalizes names to lowercase; values preserve opaque
   bytes and reject injection characters. Surrounding whitespace is rejected.
-- {!Http_kit_core.Headers} preserves duplicate fields and their order, with
+- {!Httpkit_core.Headers} preserves duplicate fields and their order, with
   explicit field-count and byte budgets. Values are never implicitly joined.
-- {!Http_kit_core.Target} preserves raw percent escapes. It validates lexical
+- {!Httpkit_core.Target} preserves raw percent escapes. It validates lexical
   tokens, not URI semantics, target forms, authority, or filesystem safety.
-- {!Http_kit_core.Status} accepts codes from 100 through 599.
+- {!Httpkit_core.Status} accepts codes from 100 through 599.
 
 All lengths and diagnostic offsets count bytes, not Unicode characters. Defaults
 are project resource policies and may be explicitly overridden at construction.
@@ -43,4 +43,4 @@ still needs checks for method/target compatibility, Host, conflicting framing,
 and body semantics. These belong to the upcoming HTTP/1 codec and engine. Core
 does not reject duplicate Content-Length fields or infer Transfer-Encoding.
 
-{!modules:Http_kit_core}
+{!modules:Httpkit_core}

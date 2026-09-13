@@ -1,6 +1,6 @@
 # HTTP/1 codec policy and ownership
 
-Implemented in `http-kit-http1`, using core values and the pure ipaddr library for IPv6 authorities. The public interface is `lib/http1/http_kit_http1.mli`. The implementation is a byte-scanning state machine: each accepted byte is scanned once for delimiters, with bounded line parsing at a delimiter. There is no speculative backtracking or repeated scanning of an accumulated head on every incoming byte.
+Implemented in `httpkit-http1`, using core values and the pure ipaddr library for IPv6 authorities. The public interface is `lib/http1/httpkit_http1.mli`. The implementation is a byte-scanning state machine: each accepted byte is scanned once for delimiters, with bounded line parsing at a delimiter. There is no speculative backtracking or repeated scanning of an accumulated head on every incoming byte.
 
 ## Incremental ownership
 
@@ -34,7 +34,7 @@ Body encoders enforce exact fixed length, chunk framing, declared trailers, and 
 
 ## Evidence
 
-`test/http1` contains golden syntax/framing cases, all single split points for golden heads and selected bodies, EOF prefixes, malformed framing followed by a marker request, exact quotas, encoder misuse, and a generated fixed-body fragmentation property. The public installed consumer runs in bytecode and native modes; Python's independent stdlib HTTPResponse parser checks the emitted chunked response and duplicate Set-Cookie order.
+`test/http1` contains golden syntax/framing cases, all single split points for golden heads and selected bodies, EOF prefixes, malformed framing followed by a marker request, exact quotas, encoder misuse, and a generated fixed-body fragmentation property. The public installed consumer runs in bytecode and native modes; the independent http/af response parser checks the emitted chunked response and duplicate Set-Cookie order.
 
 `fuzz/http1_fuzz.ml` checks one-byte versus whole-input request/response/chunked behavior. Accepted heads are re-encoded and decoded. The smoke runner uses valid seeds, preserves findings, and replays queue entries without instrumentation. `bench/http1_bench.ml` measures head time/allocation at geometric field sizes with one-byte and whole-buffer delivery. Stable-runner thresholds, reference disagreements beyond this initial lane, and long release campaigns remain later gates.
 

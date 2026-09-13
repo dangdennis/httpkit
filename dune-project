@@ -1,48 +1,93 @@
 (lang dune 3.24)
-(name http-kit)
+(name httpkit)
 (generate_opam_files true)
-(maintainers "http-kit maintainers")
-(authors "http-kit maintainers")
+(maintainers "httpkit maintainers")
+(authors "httpkit maintainers")
 (package
- (name http-kit-core)
+ (name httpkit-core)
  (synopsis "Validated runtime-independent HTTP values")
  (depends (ocaml (= 5.5.0))))
 (package
- (name http-kit-http1)
+ (name httpkit-http1)
  (synopsis "Bounded incremental HTTP/1.1 codecs")
- (depends http-kit-core ipaddr (ocaml (= 5.5.0))))
+ (depends httpkit-core ipaddr (ocaml (= 5.5.0))))
 (package
- (name http-kit-engine)
+ (name httpkit-engine)
  (synopsis "Bounded sans-I/O HTTP client and server engines")
- (depends http-kit-core http-kit-http1 (ocaml (= 5.5.0))))
+ (depends httpkit-core httpkit-http1 (ocaml (= 5.5.0))))
 (package
- (name http-kit-eio)
+ (name httpkit-transport-eio)
  (synopsis "Native Eio adapter for HTTP primitives")
- (depends http-kit-core http-kit-engine eio cstruct mtime (ocaml (= 5.5.0))))
+ (depends httpkit-core httpkit-engine eio cstruct mtime (ocaml (= 5.5.0))))
 (package
- (name http-kit-lwt)
+ (name httpkit-transport-lwt)
  (synopsis "Native Lwt adapter for HTTP primitives")
- (depends http-kit-core http-kit-engine lwt mtime (ocaml (= 5.5.0))))
+ (depends httpkit-core httpkit-engine lwt mtime (ocaml (= 5.5.0))))
 (package
- (name http-kit-middleware)
+ (name httpkit-middleware)
  (synopsis "Runtime-independent middleware with typed context transitions")
- (depends http-kit-core (ocaml (= 5.5.0))))
+ (depends httpkit-core (ocaml (= 5.5.0))))
 (package
- (name http-kit-router)
+ (name httpkit-router)
  (synopsis "Bounded pure routing over raw HTTP paths")
- (depends http-kit-core (ocaml (= 5.5.0))))
+ (depends httpkit-core (ocaml (= 5.5.0))))
 (package
- (name http-kit-harness)
- (synopsis "Development-only contract harness for http-kit")
+ (name httpkit)
+ (synopsis "Bounded web application primitives")
+ (depends httpkit-core yojson base64 digestif eqaf (ocaml (= 5.5.0))))
+(package
+ (name httpkit-eio)
+ (synopsis "Composable Eio web application server")
+ (depends httpkit httpkit-router httpkit-middleware httpkit-transport-eio eio_main ipaddr base64 yojson mtime cstruct (ocaml (= 5.5.0))))
+(package
+ (name httpkit-db-eio)
+ (synopsis "Eio database transactions and migrations")
+ (depends caqti-eio caqti-driver-postgresql caqti-driver-sqlite3 digestif (ocaml (= 5.5.0))))
+(package
+ (name httpkit-cookie)
+ (synopsis "Authenticated encrypted cookie sessions")
+ (depends httpkit mirage-crypto mirage-crypto-rng base64 yojson eqaf (ocaml (= 5.5.0))))
+(package
+ (name httpkit-password)
+ (synopsis "Bounded Argon2id password hashing")
+ (depends argon2 dune-configurator conf-pkg-config (ocaml (= 5.5.0))))
+(package
+ (name httpkit-session-eio)
+ (synopsis "Durable Eio sessions for PostgreSQL and SQLite")
+ (depends httpkit httpkit-eio httpkit-db-eio base64 eqaf caqti-eio digestif (ocaml (= 5.5.0))))
+(package
+ (name httpkit-oidc)
+ (synopsis "Runtime-neutral OpenID Connect client policy")
+ (depends httpkit oidc jose uri yojson base64 eqaf ptime (ocaml (= 5.5.0))))
+(package
+ (name httpkit-oidc-eio)
+ (synopsis "Bounded Eio OpenID Connect login flows")
+ (depends httpkit-oidc httpkit-eio eio (ocaml (= 5.5.0))))
+(package
+ (name httpkit-lwt)
+ (synopsis "Composable Lwt web application server")
+ (depends httpkit httpkit-router httpkit-middleware httpkit-transport-lwt lwt base64 yojson ipaddr (ocaml (= 5.5.0))))
+(package
+ (name httpkit-harness)
+ (synopsis "Development-only contract harness for httpkit")
  (depopts bisect_ppx)
  (depends
-  http-kit-core
-  http-kit-http1
-  http-kit-engine
-  http-kit-eio
-  http-kit-lwt
-  http-kit-middleware
-  http-kit-router
+  httpkit-core
+  httpkit-http1
+  httpkit-engine
+  httpkit-transport-eio
+  httpkit-transport-lwt
+  httpkit-middleware
+  httpkit-router
+  httpkit
+  httpkit-eio
+  httpkit-db-eio
+  httpkit-cookie
+  httpkit-password
+  httpkit-session-eio
+  httpkit-oidc
+  httpkit-oidc-eio
+  httpkit-lwt
   eio_main
   (routes (= 2.0.0))
   (httpaf (= 0.7.1))

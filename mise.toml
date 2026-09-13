@@ -3,7 +3,7 @@ opam = "2.5.2"
 
 [tasks.setup]
 description = "Install Dune with opam, then build Dune-locked dependencies"
-run = "python3 tools/bootstrap.py"
+run = "tools/bootstrap"
 
 [tasks.test]
 description = "Run the HTTP harness"
@@ -19,34 +19,34 @@ run = "tools/dune-pkg build @doc"
 
 [tasks.bench]
 description = "Run repeated release-profile benchmarks across all primitives"
-run = "python3 tools/benchmarks.py"
+run = "tools/dev bench"
 
 [tasks."bench:core"]
-run = "python3 tools/benchmarks.py --family core"
+run = "tools/dev bench --family core"
 
 [tasks."bench:router"]
-run = "python3 tools/benchmarks.py --family router"
+run = "tools/dev bench --family router"
 
 [tasks."bench:parsers"]
-run = "python3 tools/benchmarks.py --family http1"
+run = "tools/dev bench --family http1"
 
 [tasks."bench:middleware"]
-run = "python3 tools/benchmarks.py --family middleware"
+run = "tools/dev bench --family middleware"
 
 [tasks."bench:engine"]
-run = "python3 tools/benchmarks.py --family engine"
+run = "tools/dev bench --family engine"
 
 [tasks."bench:compare"]
 description = "Compare common workloads against Routes, http/af and httpun"
-run = "python3 tools/benchmarks.py --external"
+run = "tools/dev bench --external"
 
 [tasks."bench:bodies"]
 description = "Compare public body-reading APIs across framing and fragmentation variants"
-run = "python3 tools/benchmarks.py --external --family body"
+run = "tools/dev bench --external --family body"
 
 [tasks."bench:router-experiment"]
 description = "Check and measure the benchmark-only route candidate index"
-run = "python3 tools/benchmarks.py --external --family router-experiment"
+run = "tools/dev bench --external --family router-experiment"
 
 [tasks."setup:nginx"]
 description = "Build the pinned local Nginx interop reference"
@@ -54,16 +54,16 @@ run = "tools/setup-nginx.sh"
 
 [tasks.interop]
 description = "Run direct and real Nginx HTTP/1 interoperability lanes"
-run = "python3 tools/interop.py"
+run = "tools/dev interop"
 
 [tasks.performance]
 description = "Measure streaming bounds and advisory native mixed workloads"
-run = "python3 tools/performance.py"
+run = "tools/dev performance"
 
 [tasks."bench:exchanges"]
 description = "Compare public body writers and persistent request/response exchanges"
-run = "python3 tools/benchmarks.py --external --family exchange"
+run = "tools/dev bench --external --family exchange"
 
 [tasks."bench:profile-bodies"]
 description = "Capture single-fixture body allocation, driver counts and OS memory diagnostics"
-run = "python3 tools/profile_bodies.py"
+run = "tools/dev profile-bodies"

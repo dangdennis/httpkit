@@ -94,7 +94,7 @@ let harness_core_requirements =
       rule = "Core values usable without an engine or runtime";
       layer = "core-install";
       source = "project-policy";
-      cases = [ "tools/test_core_consumer.py" ];
+      cases = [ "tools/devlib/consumers.ml" ];
       implemented = true;
     };
   ]
@@ -200,7 +200,7 @@ let adapter_requirements =
         cases =
           [
             "test/adapter/" ^ runtime ^ "_test.ml";
-            "tools/test_adapter_consumer.py";
+            "tools/devlib/consumers.ml";
           ];
       })
     [ "eio"; "lwt" ]

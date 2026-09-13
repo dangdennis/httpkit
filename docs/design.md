@@ -1,4 +1,4 @@
-# http-kit package design
+# httpkit package design
 
 Updated 2026-09-10. This document records implemented core contracts and the next package boundaries. The [test plan](test-harness-plan.md) defines the broader security and release requirements.
 
@@ -6,18 +6,18 @@ Updated 2026-09-10. This document records implemented core contracts and the nex
 
 | Package | Responsibility | State |
 | --- | --- | --- |
-| `http-kit-core` | Immutable checked HTTP metadata and body-polymorphic messages | Implemented in `lib/core` |
-| `http-kit-harness` | Development runners, synthetic model, conformance evidence, docs tooling | Implemented for M0–M2 |
-| `http-kit-http1` | Independently usable incremental HTTP/1 decoding and encoding | Implemented in `lib/http1` |
-| `http-kit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Implemented in `lib/engine` |
-| `http-kit-eio` | Native Eio transport, cancellation, clocks, and body streams | Implemented |
-| `http-kit-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Implemented |
-| `http-kit-middleware` | Basic, typed-context and transition handler composition | Implemented |
-| `http-kit-router` | Bounded raw-path matching with explicit method outcomes | Implemented |
+| `httpkit-core` | Immutable checked HTTP metadata and body-polymorphic messages | Implemented in `lib/core` |
+| `httpkit-harness` | Development runners, synthetic model, conformance evidence, docs tooling | Implemented for M0–M2 |
+| `httpkit-http1` | Independently usable incremental HTTP/1 decoding and encoding | Implemented in `lib/http1` |
+| `httpkit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Implemented in `lib/engine` |
+| `httpkit-transport-eio` | Native Eio transport, cancellation, clocks, and body streams | Implemented |
+| `httpkit-transport-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Implemented |
+| `httpkit-middleware` | Basic, typed-context and transition handler composition | Implemented |
+| `httpkit-router` | Bounded raw-path matching with explicit method outcomes | Implemented |
 
 Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Future codecs may depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. Eio and Lwt will have their own native APIs, without a shared monadic runtime abstraction.
 
-`http-kit-middleware` adds three public composition styles: basic wrappers, typed contexts, and typed context transitions. It depends only on core; see [middleware contracts](middleware.md).
+`httpkit-middleware` adds three public composition styles: basic wrappers, typed contexts, and typed context transitions. It depends only on core; see [middleware contracts](middleware.md).
 
 ## Core contracts
 
@@ -50,13 +50,13 @@ Bodies are generic values. `map_body` invokes the caller's function once and can
 
 `test/core` runs an independent byte-table oracle, exact-limit and injection cases, duplicate-order checks, full status-range probes, bounded-error checks, and four seeded properties. These operate on the real public library. They are separate from `test/self`, which tests the synthetic harness. The requirement registry distinguishes the two and keeps unimplemented protocol capabilities pending.
 
-`tools/test_core_consumer.py` builds and installs only core in a temporary project using the Dune-locked compiler. It compiles and runs bytecode/native consumers with only the installed library include path and stdlib. It also extracts, compiles, and runs the actual odoc example. Invalid constructor coercions and private helper/harness imports must fail compilation for the intended reason. This catches dependency leakage and misleading public examples early.
+`tools/devlib/consumers.ml` builds and installs only core in a temporary project using the Dune-locked compiler. It compiles and runs bytecode/native consumers with only the installed library include path and stdlib. It also extracts, compiles, and runs the actual odoc example. Invalid constructor coercions and private helper/harness imports must fail compilation for the intended reason. This catches dependency leakage and misleading public examples early.
 
 The isolated staging project disables package mode solely to use Dune 3.24's install command, which is unavailable in package mode. The main workspace remains locked; this test performs no dependency resolution and uses the selected compiler from that lock.
 
 `fuzz/core_fuzz.ml` exercises real constructors through Crowbar and native OCaml AFL instrumentation. The smoke budget is five seconds after validating instrumentation against planted failures. This is an infrastructure/early-regression check; long release campaigns and full protocol fuzz targets remain future work.
 
-`bench/core_bench.ml` reports time and allocated bytes per operation for valid and late-rejected targets at 16/256/8192 bytes and header workloads at 1/10/100 fields. Fixture setup is outside measured work; an opaque identity keeps results observable to the optimizer. Results include compiler and source fingerprints through `tools/evidence.py`. There are no pass/fail timing thresholds on developer laptops; stable-runner baselines and repeated statistical comparison are M6 work.
+`bench/core_bench.ml` reports time and allocated bytes per operation for valid and late-rejected targets at 16/256/8192 bytes and header workloads at 1/10/100 fields. Fixture setup is outside measured work; an opaque identity keeps results observable to the optimizer. Results include compiler and source fingerprints through `tools/devlib/evidence.ml`. There are no pass/fail timing thresholds on developer laptops; stable-runner baselines and repeated statistical comparison are M6 work.
 
 odoc 3.2.1 is pinned in the normal and coverage locks as a development dependency. First-party documentation warnings are fatal. The API reference is authored beside the code in `.mli` files; this document explains cross-module decisions rather than duplicating every signature.
 

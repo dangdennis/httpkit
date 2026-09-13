@@ -16,7 +16,7 @@ OUT = ROOT / '_artifacts'
 
 def source_hash():
     digest = hashlib.sha256()
-    paths = [ROOT / 'mise.toml', ROOT / 'http-kit-core.opam', ROOT / 'dune', ROOT / 'dune-project', ROOT / 'http-kit-harness.opam',
+    paths = [ROOT / 'mise.toml', ROOT / 'httpkit-core.opam', ROOT / 'dune', ROOT / 'dune-project', ROOT / 'httpkit-harness.opam',
              ROOT / 'dune-workspace', ROOT / 'dune-workspace.coverage',
              ROOT / 'README.md', ROOT / 'SECURITY.md', ROOT / 'LICENSE']
     paths += list(ROOT.glob('*.opam'))
@@ -102,6 +102,9 @@ def validate(version):
     run([sys.executable, str(ROOT / 'tools/test_middleware_consumer.py')])
     run([sys.executable, str(ROOT / 'tools/test_router_consumer.py')])
     run([sys.executable, str(ROOT / 'tools/test_routing_examples.py')])
+    run([sys.executable, str(ROOT / 'tools/test_framework.py')])
+    run([sys.executable, str(ROOT / 'tools/test_framework_consumer.py')])
+    run([sys.executable, str(ROOT / 'tools/test_extensions_consumer.py')])
     benchmark = json.loads(subprocess.check_output(command(dune, env,
         ['exec', './bench/core_bench.exe']), cwd=ROOT, env=env, text=True))
     if len(benchmark['results']) != 15 or any(r['ns_per_op'] <= 0 or
@@ -126,7 +129,7 @@ def validate(version):
         raise RuntimeError('compiler mismatch or sources changed during validation')
     record('compiler-' + version + '.json', {'status': 'PASS', 'compiler': actual,
            'dependency_manager': 'dune', 'lock_directory': lock.name,
-           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'engine_consumer': True, 'adapter_consumer': True, 'middleware_consumer': True, 'router_consumer': True, 'routing_examples': True, 'odoc': '3.2.1'})
+           'packages': locked_packages(lock), 'core_consumer': True, 'http1_consumer': True, 'engine_consumer': True, 'adapter_consumer': True, 'middleware_consumer': True, 'router_consumer': True, 'routing_examples': True, 'framework_consumer': True, 'framework_integration': True, 'odoc': '3.2.1'})
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['packages']:

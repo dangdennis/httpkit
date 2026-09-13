@@ -1,5 +1,5 @@
-open Http_kit_core
-open Http_kit_http1
+open Httpkit_core
+open Httpkit_http1
 
 let () =
   Printf.printf "{\"compiler\":%S,\"results\":[" Sys.ocaml_version;

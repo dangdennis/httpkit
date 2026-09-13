@@ -1,7 +1,7 @@
 (* An application drives the same pure engines that the native adapters use.
    This example has no sockets, promises, clocks, or adapter dependencies. *)
-open Http_kit_core
-module E = Http_kit_engine
+open Httpkit_core
+module E = Httpkit_engine
 
 let checked = function
   | Ok value -> value

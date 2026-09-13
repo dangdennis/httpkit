@@ -1,10 +1,10 @@
 (library
  (name http1_cases)
  (modules http1_cases)
- (libraries http-kit-core http-kit-http1 qcheck-core))
+ (libraries httpkit-core httpkit-http1 qcheck-core))
 (test
  (name http1_test)
  (modules http1_test)
  (libraries http1_cases harness alcotest))
 
-(test (name boundary_test) (modules boundary_test) (libraries http-kit-core http-kit-http1 alcotest))
+(test (name boundary_test) (modules boundary_test) (libraries httpkit-core httpkit-http1 alcotest))

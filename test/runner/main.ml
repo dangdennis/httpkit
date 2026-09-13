@@ -103,7 +103,7 @@ let report_files args json results =
       ~finally:(fun () -> close_out_noerr oc)
       (fun () ->
         Printf.fprintf oc
-          "<testsuite name=\"http-kit-harness\" tests=\"%d\" failures=\"%d\">\n"
+          "<testsuite name=\"httpkit-harness\" tests=\"%d\" failures=\"%d\">\n"
           (List.length results)
           (List.length (List.filter (fun (_, e, _) -> e <> None) results));
         List.iter
@@ -145,12 +145,15 @@ let provenance () =
     [
       ("compiler", `String Sys.ocaml_version);
       ("executable", `String Sys.executable_name);
-      ( "source",
-        read_command "python3"
-          [| "python3"; "tools/evidence.py"; "fingerprint" |] );
+      ("source", `String (Devlib.Build.source_hash ()));
       ( "packages",
-        read_command "python3" [| "python3"; "tools/evidence.py"; "packages" |]
-      );
+        `String
+          (Yojson.Basic.to_string
+             (`Assoc
+                [
+                  ("lock_directory", `String "dune.lock");
+                  ("packages", Devlib.Build.locked_packages ());
+                ])) );
     ]
 
 let main () =
@@ -165,8 +168,8 @@ let main () =
              ("cwd", `String (Sys.getcwd ()));
              ( "scope",
                `String
-                 "harness only; run tools/evidence.py check for source-matched \
-                  M0 evidence" );
+                 "harness only; run tools/dev evidence check for \
+                  source-matched M0 evidence" );
              ( "coverage_evidence",
                `Bool (Sys.file_exists "_artifacts/afl/evidence.json") );
              ("registry", Registry.to_json ());
@@ -291,18 +294,10 @@ let main () =
       in
       Scenario.save path s;
       output (`Assoc [ ("status", `String "WRITTEN"); ("path", `String path) ])
-  | [ "readiness"; "--release" ] | [ "readiness"; "--milestone"; "M7" ] -> (
+  | [ "readiness"; "--release" ] | [ "readiness"; "--milestone"; "M7" ] ->
       (* Release assessment checks retained evidence; it never starts campaigns
          or invents missing reviews. Preserve its incomplete-scope exit code. *)
-      let pid =
-        Unix.create_process "python3"
-          [| "python3"; "tools/release.py" |]
-          Unix.stdin Unix.stdout Unix.stderr
-      in
-      let _, status = Unix.waitpid [] pid in
-      match status with
-      | Unix.WEXITED ((0 | 3) as code) -> exit code
-      | _ -> exit 2)
+      Devlib.Release.main []
   | [ "readiness"; "--milestone"; "M1" ] ->
       let json, _, ok =
         run_cases ~count:200 ~seed:42
@@ -315,15 +310,7 @@ let main () =
    "--milestone";
    (("M0" | "M2" | "M3" | "M4" | "M5" | "M6") as milestone);
   ] ->
-      let args =
-        if milestone = "M0" then [| "python3"; "tools/evidence.py"; "check" |]
-        else [| "python3"; "tools/evidence.py"; "check"; milestone |]
-      in
-      let pid =
-        Unix.create_process "python3" args Unix.stdin Unix.stdout Unix.stderr
-      in
-      let _, status = Unix.waitpid [] pid in
-      if status <> Unix.WEXITED 0 then exit 2
+      Devlib.Evidence.check milestone
   | "readiness" :: _ -> die "NOT_IMPLEMENTED" "milestone unavailable"
   | ("fuzz" | "bench" | "compare") :: _ ->
       die "NOT_IMPLEMENTED"
@@ -331,7 +318,7 @@ let main () =
          targets are pending"
   | _ ->
       die "INFRA_ERROR"
-        "usage: http-kit-test \
+        "usage: httpkit-test \
          doctor|registry|run|replay|shrink|example|readiness (see README)"
 
 let () =

@@ -184,7 +184,7 @@ class LibraryComparisons(unittest.TestCase):
         group = dict(
             family="body",
             comparison="request/chunked",
-            excluded_implementations=["http-kit", "httpaf", "httpun"],
+            excluded_implementations=["httpkit", "httpaf", "httpun"],
             observations=[
                 dict(
                     implementation="httpaf",
@@ -202,7 +202,7 @@ class LibraryComparisons(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_exclusions([group, group], [])
         for key, value in [
-            ("implementation", "http-kit"),
+            ("implementation", "httpkit"),
             ("consumed_bytes", 100),
             ("reason", ""),
         ]:
@@ -221,7 +221,7 @@ class LibraryComparisons(unittest.TestCase):
                 iterations=10,
                 bytes_per_op=0,
             )
-            for name in ("http-kit", "routes")
+            for name in ("httpkit", "routes")
         ]
         samples = [
             dict(
@@ -260,7 +260,7 @@ class LibraryComparisons(unittest.TestCase):
         )
         validate_report(report)
         for field in (
-            "median_other_over_http_kit_time_ratio",
+            "median_other_over_httpkit_time_ratio",
             "other_allocated_bytes_per_op",
         ):
             changed = copy.deepcopy(report)
@@ -281,7 +281,7 @@ class LibraryComparisons(unittest.TestCase):
         rows = aggregate(samples, catalog, "5.5.0", False)
         comparisons = library_comparisons(rows, samples)
         self.assertEqual(comparisons[0]["sample_time_ratios"], [2, 1, 3])
-        self.assertEqual(comparisons[0]["median_other_over_http_kit_time_ratio"], 2)
+        self.assertEqual(comparisons[0]["median_other_over_httpkit_time_ratio"], 2)
         report = dict(
             results=rows,
             samples=samples,

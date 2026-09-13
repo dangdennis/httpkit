@@ -1,0 +1,15 @@
+(version 3.0.1)
+
+(build
+ (all_platforms ((action (run dune build -p %{pkg-self:name} -j %{jobs})))))
+
+(depends
+ (all_platforms
+  (ocaml caqti dune postgresql uri)))
+
+(source
+ (fetch
+  (url
+   https://github.com/paurkedal/ocaml-caqti/releases/download/v3.0.1/caqti-v3.0.1.tbz)
+  (checksum
+   sha512=f2191e91c6104ffdd9c6e6a698f29ef87e284af239390a3c9529befe1e2a05e991a08564ceecf913df39b49474e354ce3893bb078f7ad92a2ce4ad93ab70700d)))

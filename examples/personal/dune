@@ -2,12 +2,12 @@
  (name eio_server)
  (modules eio_server)
  (modes byte exe)
- (libraries http-kit-eio http-kit-router http-kit-middleware eio_main))
+ (libraries httpkit-transport-eio httpkit-router httpkit-middleware eio_main))
 (executable
  (name eio_streaming)
  (modules eio_streaming)
  (modes byte exe)
- (libraries http-kit-eio eio_main))
+ (libraries httpkit-transport-eio eio_main))
 (rule
  (alias runtest)
  (action (run ./eio_streaming.exe)))
@@ -15,7 +15,7 @@
  (name eio_cancel)
  (modules eio_cancel)
  (modes byte exe)
- (libraries http-kit-eio eio_main))
+ (libraries httpkit-transport-eio eio_main))
 (rule
  (alias runtest)
  (action (run ./eio_cancel.exe)))

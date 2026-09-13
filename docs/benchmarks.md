@@ -1,6 +1,6 @@
 # Benchmarking the primitives
 
-The pure router is implemented in `http-kit-router` and shared by both native
+The pure router is implemented in `httpkit-router` and shared by both native
 Eio and Lwt example servers. Its bounded, declaration-ordered array scan supports
 literal segments, named parameters, final wildcards and method mismatch results.
 It is not a trie; typed capture conversion and reverse URL generation are not
@@ -23,18 +23,18 @@ mise run bench:middleware
 mise run bench:engine
 
 # Short functional smoke, also run on Linux and macOS in CI:
-python3 tools/benchmarks.py --quick --samples 3
+tools/dev bench --quick --samples 3
 
 # More independent samples of one family:
-python3 tools/benchmarks.py --family router --samples 10 --seed 42
+tools/dev bench --family router --samples 10 --seed 42
 ```
 
 The runner builds a native executable with `--profile=release` in
 `_build-bench-5.5.0`, separate from correctness, coverage and AFL builds. It clears
 inherited OCaml runtime/compiler tuning and AFL/Bisect instrumentation variables.
 The first build can take longer while locked dependencies are built for this
-profile. Python only builds, launches and aggregates; all timed primitive work
-runs inside OCaml, without Python or socket overhead.
+profile. The OCaml developer CLI builds, launches and aggregates separate benchmark
+processes; timed primitive work excludes orchestration and socket overhead.
 
 ## Workload inventory
 
@@ -50,7 +50,7 @@ Total: **128 cases**. The executable exposes its catalog through `--list`; the
 runner requires that exact catalog, iteration counts and byte counts in every
 sample. Unknown families, invalid measurements, duplicate/missing cases and wrong
 compiler versions fail the run. CI gates successful execution and report validity,
-not timing thresholds. `python3 tools/test_benchmarks.py` checks report integrity
+not timing thresholds. `tools/dev bench-test` checks report integrity
 and comparison rejection with deterministic fixtures.
 
 Router tables, parsed body metadata, input strings and middleware chains are built
@@ -98,9 +98,9 @@ Retain a full report before changing production code, then compare on the same
 machine with the same command options:
 
 ```sh
-python3 tools/benchmarks.py --family router --samples 10
+tools/dev bench --family router --samples 10
 # Substitute the report.json path printed by that run below.
-python3 tools/benchmarks.py --family router --samples 10 \
+tools/dev bench --family router --samples 10 \
   --baseline _artifacts/benchmarks/BASELINE-RUN/report.json
 ```
 
@@ -141,9 +141,9 @@ fixture preparation separate and an explicit result oracle in every timed case.
 
 ```sh
 mise run bench:compare
-python3 tools/benchmarks.py --external --family router
-python3 tools/benchmarks.py --external --family http1
-python3 tools/benchmarks.py --external --quick --samples 3
+tools/dev bench --external --family router
+tools/dev bench --external --family http1
+tools/dev bench --external --quick --samples 3
 ```
 
 `--external` selects a separate catalog; it does not append to or reuse the
@@ -153,12 +153,12 @@ order. Five process samples are the default. Linux/macOS CI runs the short form.
 
 | Lane | Libraries | Common workloads | Cases |
 | --- | --- | --- | ---: |
-| Routing | http-kit, Routes 2.0.0 | Table construction plus one checked lookup; first/middle/last/missing lookup at 10/100/1000 routes; literal, parameter, wildcard, empty wildcard, raw encoded capture with query | 40 |
-| HTTP heads | http-kit, http/af 0.7.1, httpun 0.2.0 | Request/response heads with 0/10/90 extra fields, fragmented at 1/64/16384 bytes | 54 |
+| Routing | httpkit, Routes 2.0.0 | Table construction plus one checked lookup; first/middle/last/missing lookup at 10/100/1000 routes; literal, parameter, wildcard, empty wildcard, raw encoded capture with query | 40 |
+| HTTP heads | httpkit, http/af 0.7.1, httpun 0.2.0 | Request/response heads with 0/10/90 extra fields, fragmented at 1/64/16384 bytes | 54 |
 
 This head/router subset has **94 cases forming 56 pairwise comparisons**.
 The default external command also runs the body and router-experiment lanes below. Names, versions and source
-checksums are locked by Dune in both existing locks. Only `http-kit-harness`
+checksums are locked by Dune in both existing locks. Only `httpkit-harness`
 depends on these libraries; production package dependencies are unchanged.
 Reports retain versions of the comparison libraries and Angstrom, Bigstringaf
 and Faraday as well as the full lock/workload hash. Benchmark and dependency
@@ -189,7 +189,7 @@ through `Angstrom.Buffered`. These exported `*_private.Parse` entry points are
 benchmark-only interfaces and may change across versions. The comparison checks
 HTTP/1.1, method/target or status, every field/value and complete input consumption.
 All inputs have `Content-Length: 0`; requests also have Host. Extra fields have
-unique names. http-kit additionally checks its returned zero-length framing.
+unique names. httpkit additionally checks its returned zero-length framing.
 
 **Validation work is not equivalent.** Our codec applies authority, framing and
 resource-limit checks before returning a head. The upstream raw parsers have a
@@ -211,7 +211,7 @@ its default 4 KiB initial buffer. Field-result adaptation and equality checks ar
 also timed. Allocated bytes describe the OCaml GC heap; they omit externally
 allocated Bigarray payloads, so they cannot establish total-memory superiority.
 
-The report begins with per-workload medians, allocation and **other/http-kit time
+The report begins with per-workload medians, allocation and **other/httpkit time
 ratios**, calculated within each process before taking their median. Below 1
 means the other library was faster on that workload. Raw ratios and measurements
 are retained, and incomplete comparison groups fail. There is no pooled score,
@@ -222,10 +222,10 @@ runs, including external mode in its configuration checks.
 
 ```sh
 mise run bench:bodies
-python3 tools/benchmarks.py --external --family body --quick --samples 3
+tools/dev bench --external --family body --quick --samples 3
 ```
 
-The initial owned-body lane generates 128 common workloads, each attempted against http-kit,
+The initial owned-body lane generates 128 common workloads, each attempted against httpkit,
 httpaf and httpun: 384 potential timed cases. Preflight currently excludes 16
 whole workload groups because httpaf can report body EOF before consuming the
 last framing bytes and then pause reads in this driver. The remaining 112 groups
@@ -334,10 +334,10 @@ suite adds four kit-only Expect/early-final policy cases, for **128 cases**.
 ```sh
 mise run bench:exchanges
 mise run bench:profile-bodies
-python3 tools/profile_bodies.py --stack  # macOS, separate instrumented processes
-python3 tools/benchmarks.py --external --family body \
+tools/dev profile-bodies --stack  # macOS, separate instrumented processes
+tools/dev bench --external --family body \
   --case bytes-65536/step-16384/immediate --min-ms 50 --samples 5
-python3 tools/benchmarks.py --external --family router-experiment \
+tools/dev bench --external --family router-experiment \
   --case /1000 --min-ms 50 --samples 5
 ```
 
@@ -402,7 +402,7 @@ ranking or budget. Low observed variation alone does not establish controlled
 power, thermals, scheduling or CPU isolation. This host remains unreserved;
 regression budgets stay unset until reviewed, reproducible baselines exist.
 
-`profile_bodies.py` builds one 64 KiB, 17-byte-chunk fixture per process, captures
+`performance.ml` builds one 64 KiB, 17-byte-chunk fixture per process, captures
 payload-event/read/tick counts, cumulative OCaml allocation, and live heap words
 after cleanup and full collection. Its fixture Bigarray size is explicit.
 `/usr/bin/time` retains OS peak RSS (macOS reports bytes; Linux `time -v` reports

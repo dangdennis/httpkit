@@ -1,12 +1,12 @@
-open Http_kit_core
-open Http_kit_http1
+open Httpkit_core
+open Httpkit_http1
 
 let check b s = if not b then failwith s
 let ok = function Ok x -> x | Error e -> failwith (error_to_string e)
 
 let value = function
   | Ok x -> x
-  | Error e -> failwith (Http_kit_core.Error.to_string e)
+  | Error e -> failwith (Httpkit_core.Error.to_string e)
 
 let request ?(target = "/") ?(meth = Method.get) hs =
   Request.create ~meth

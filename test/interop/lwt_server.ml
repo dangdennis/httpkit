@@ -1,6 +1,6 @@
 open Lwt.Syntax
-module A = Http_kit_lwt
-module E = Http_kit_engine
+module A = Httpkit_transport_lwt
+module E = Httpkit_engine
 
 let () =
   Lwt_main.run
@@ -32,9 +32,9 @@ let () =
                    let* () = A.respond c id response in
                    let* () =
                      if
-                       Http_kit_core.Request.meth request
-                       <> Http_kit_core.Method.head
-                     then A.send c id (Http_kit_core.Response.body response)
+                       Httpkit_core.Request.meth request
+                       <> Httpkit_core.Method.head
+                     then A.send c id (Httpkit_core.Response.body response)
                      else Lwt.return_unit
                    in
                    let* () = A.finish c id in

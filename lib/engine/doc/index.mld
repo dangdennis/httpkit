@@ -1,8 +1,8 @@
-{0 http-kit-engine}
+{0 httpkit-engine}
 
 A single-owner HTTP/1 connection composes core values and strict codecs. It owns
-no transport, clock, scheduler or callback. Use {!Http_kit_engine.server} or
-{!Http_kit_engine.client}, then explicitly offer input, poll events, submit
+no transport, clock, scheduler or callback. Use {!Httpkit_engine.server} or
+{!Httpkit_engine.client}, then explicitly offer input, poll events, submit
 commands, and acknowledge output prefixes.
 
 A Backpressured command has no effects; retry it after progress. An Accepted
@@ -28,4 +28,4 @@ A runtime adapter should put a deadline around graceful shutdown and abort if it
 expires. Transport errors and cancellation must reach abort and wake native
 waiters. Mutating one engine simultaneously from multiple domains is unsupported.
 
-{!modules:Http_kit_engine}
+{!modules:Httpkit_engine}

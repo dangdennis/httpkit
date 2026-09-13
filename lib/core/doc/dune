@@ -1,2 +1,2 @@
 (documentation
- (package http-kit-core))
+ (package httpkit-core))

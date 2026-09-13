@@ -1,12 +1,12 @@
 # Development
 
-Build and validate http-kit from a repository checkout. For usage, start with the
+Build and validate httpkit from a repository checkout. For usage, start with the
 [README](../README.md) and [examples](examples.md).
 
 ## Toolchain and dependencies
 
 
-Prerequisites: mise, a C build toolchain, Python 3, and Git. **mise manages opam; opam manages Dune; Dune package management owns the project compiler and dependencies.** `mise.toml` pins opam 2.5.2. Setup uses that opam to install Dune 3.24.1 in the project-local `dune-bootstrap` switch, then links `.toolchain/bin/dune` to the opam-owned executable. It never copies an unrelated Dune from PATH. Existing global opam switches and shell profiles are untouched.
+Prerequisites: mise, a C build toolchain and Git. **mise manages opam; opam manages Dune; Dune package management owns the project compiler and dependencies.** `mise.toml` pins opam 2.5.2. Setup uses that opam to install Dune 3.24.1 in the project-local `dune-bootstrap` switch, then links `.toolchain/bin/dune` to the opam-owned executable. It never copies an unrelated Dune from PATH. Existing global opam switches and shell profiles are untouched.
 
 ```sh
 mise trust
@@ -16,9 +16,9 @@ tools/harness doctor
 mise run test
 ```
 
-Only **OCaml 5.5.0** is supported. Dependencies are declared in `dune-project`; the `.opam` files are generated. `dune.lock/` records the compiler/dependency solution, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep it in version control. `http-kit-harness` owns test and documentation dependencies; production packages have separate dependency closures.
+Only **OCaml 5.5.0** is supported. Dependencies are declared in `dune-project`; the `.opam` files are generated. `dune.lock/` records the compiler/dependency solution, source checksums, and platform-specific actions for Linux and macOS on x86_64 and arm64. Keep it in version control. `httpkit-harness` owns test and documentation dependencies; production packages have separate dependency closures.
 
-`mise trust` approves this repository's tool/task configuration. The opam switch's OCaml compiler exists only to build Dune; the Dune lock selects OCaml 5.5.0 for http-kit. CI follows the same mise → opam → Dune setup.
+`mise trust` approves this repository's tool/task configuration. The opam switch's OCaml compiler exists only to build Dune; the Dune lock selects OCaml 5.5.0 for httpkit. CI follows the same mise → opam → Dune setup.
 
 The workspace explicitly enables package management. Regular setup and CI consume the existing lock; they never refresh dependency versions. The wrapper rejects a missing lock rather than silently resolving a new one. To deliberately update dependencies, edit `dune-project` (or the repository revision in the workspace files), then run:
 
@@ -45,13 +45,13 @@ mise run bench
 Tests use the fast harness tier. Benchmarks retain reports under
 `_artifacts/benchmarks/`; timing comparisons are advisory.
 After generating API documentation, open
-`_build-pkg-5.5.0/default/_doc/_html/http-kit-core/index.html`.
+`_build-pkg-5.5.0/default/_doc/_html/httpkit-core/index.html`.
 
 For broader local validation, run the locked compiler, docs, CLI and
 installed-consumer checks:
 
 ```sh
-python3 tools/evidence.py validate 5.5.0
+tools/dev evidence validate 5.5.0
 ```
 
 ## Focused checks
@@ -61,7 +61,7 @@ tools/harness run --suite core --count 1000
 tools/harness run --suite http1 --count 1000
 tools/harness run --suite engine
 tools/dune-pkg runtest test/adapter
-python3 tools/test_adapter_consumer.py
+tools/dev consumer adapter
 ```
 
 To inspect the harness and reproduce a deliberately broken subject:
@@ -89,3 +89,5 @@ Evidence is source-matched: changes to implementation, tests, toolchain, locks o
 API documentation invalidate earlier reports. Local validation and remote CI are
 separate results. Release readiness remains incomplete until all required gates
 have current evidence.
+
+See [Developer tooling](tooling.md) for the consolidated OCaml CLI and command inventory.

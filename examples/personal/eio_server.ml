@@ -1,9 +1,9 @@
 (* Loopback application and observable acceptance subject. Send "stop" on stdin
    to stop admission, drain active exchanges and close all owned transports. *)
-open Http_kit_core
-module A = Http_kit_eio
-module E = Http_kit_engine
-module R = Http_kit_router
+open Httpkit_core
+module A = Httpkit_transport_eio
+module E = Httpkit_engine
+module R = Httpkit_router
 
 let ok = Result.get_ok
 let upload_limit = 1048576
@@ -42,7 +42,7 @@ let tagged request response =
             (Response.headers response)))
       response
   in
-  Http_kit_middleware.Basic.chain [ tag ] (fun _ -> response) request
+  Httpkit_middleware.Basic.chain [ tag ] (fun _ -> response) request
 
 let () =
   Eio_main.run (fun env ->

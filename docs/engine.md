@@ -1,6 +1,6 @@
 # Sans-I/O engine ownership
 
-`http-kit-engine` composes core values and strict HTTP/1 codecs. Client and server instances have one owner; calls perform no I/O, clock reads, scheduler effects, or application callbacks. The API is in `lib/engine/http_kit_engine.mli`.
+`httpkit-engine` composes core values and strict HTTP/1 codecs. Client and server instances have one owner; calls perform no I/O, clock reads, scheduler effects, or application callbacks. The API is in `lib/engine/httpkit_engine.mli`.
 
 ## Admission and events
 

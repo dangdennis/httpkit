@@ -1,0 +1,3 @@
+(library (name httpkit_oidc_eio) (public_name httpkit-oidc-eio)
+ (libraries httpkit-oidc httpkit-eio eio)
+ (instrumentation (backend bisect_ppx)))

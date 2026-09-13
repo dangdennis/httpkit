@@ -1,4 +1,4 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
 
 let jobs () =

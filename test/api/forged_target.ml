@@ -1,1 +1,1 @@
-let _ : Http_kit_core.Target.t = "/ bad"
+let _ : Httpkit_core.Target.t = "/ bad"

@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module H = Http_kit_http1
+module H = Httpkit_http1
 
 let kit_fields fields =
   List.map
@@ -24,7 +24,7 @@ let fragments step wire =
 
 (* These upstream entry points intentionally expose raw head parsers. They are
    version-pinned benchmark dependencies, never production dependencies. Their
-   parse result is NOT proof of http-kit's authority/framing/limit policies. *)
+   parse result is NOT proof of httpkit's authority/framing/limit policies. *)
 let angstrom parser chunks =
   let state =
     List.fold_left
@@ -163,7 +163,7 @@ let jobs () =
                     ("external/" ^ comparison ^ "/" ^ implementation)
                     200 work)
                 [
-                  ("http-kit", run_kit);
+                  ("httpkit", run_kit);
                   ("httpaf", run_httpaf);
                   ("httpun", run_httpun);
                 ])

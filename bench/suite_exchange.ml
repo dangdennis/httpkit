@@ -1,10 +1,10 @@
 (* Public server APIs, with both directions driven to their framing boundary.
    No sockets: input is caller-owned, output remains borrowed until acknowledged.
    The same codec oracle checks payloads, framing, response count and suffixes. *)
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module E = Http_kit_engine
-module H = Http_kit_http1
+module E = Httpkit_engine
+module H = Httpkit_http1
 module B = Body_fixture
 
 type writer = { push : string -> bool; finish : unit -> bool }
@@ -469,7 +469,7 @@ let jobs ?(select = fun _ -> true) ?(preflight = true) () =
                   if
                     not
                       (select_group select "exchange" comparison
-                         [ "http-kit"; "httpaf"; "httpun" ])
+                         [ "httpkit"; "httpaf"; "httpun" ])
                   then []
                   else
                     let prepared_config =
@@ -522,7 +522,7 @@ let jobs ?(select = fun _ -> true) ?(preflight = true) () =
                           ("external/" ^ comparison ^ "/" ^ implementation)
                           3 work)
                       [
-                        ("http-kit", kit); ("httpaf", httpaf); ("httpun", httpun);
+                        ("httpkit", kit); ("httpaf", httpaf); ("httpun", httpun);
                       ])
                 [ (1, 16384, 16384); (1, 1, 1); (8, 16384, 997) ])
             [ 0; 4096; 65536 ])

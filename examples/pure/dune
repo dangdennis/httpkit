@@ -2,7 +2,7 @@
  (name in_memory)
  (modules in_memory)
  (modes byte exe)
- (libraries http-kit-core http-kit-engine))
+ (libraries httpkit-core httpkit-engine))
 
 (rule
  (alias runtest)

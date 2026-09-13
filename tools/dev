@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+task_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$task_root"
+"$task_root/tools/dune-pkg" build tools/dev.exe
+exec "$task_root/_build-pkg-5.5.0/default/tools/dev.exe" "$@"

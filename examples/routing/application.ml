@@ -1,7 +1,7 @@
 (* Shared application code: no native runtime or transport types. *)
-open Http_kit_core
-module R = Http_kit_router
-module M = Http_kit_middleware
+open Httpkit_core
+module R = Httpkit_router
+module M = Httpkit_middleware
 
 let response ?(headers = []) status body =
   let headers =
@@ -50,7 +50,7 @@ let dispatch request =
 let handle =
   let tag next request =
     let r = next request in
-    let header = Result.get_ok (Header.of_strings "x-example" "http-kit") in
+    let header = Result.get_ok (Header.of_strings "x-example" "httpkit") in
     Response.with_headers
       (Result.get_ok (Headers.add header (Response.headers r)))
       r
@@ -91,12 +91,12 @@ let authenticate request =
 
 let protected user _request =
   response
-    ~headers:[ ("x-example", "http-kit") ]
+    ~headers:[ ("x-example", "httpkit") ]
     200
     ("Hello " ^ user.name ^ "\n")
 
 let denied () =
-  response ~headers:[ ("x-example", "http-kit") ] 401 "Demo identity required\n"
+  response ~headers:[ ("x-example", "httpkit") ] 401 "Demo identity required\n"
 
 let is_protected request =
   Target.to_string (Request.target request) = "/protected"

@@ -1,1 +1,1 @@
-(library (name http_kit_engine) (public_name http-kit-engine) (libraries http-kit-core http-kit-http1) (instrumentation (backend bisect_ppx)))
+(library (name httpkit_engine) (public_name httpkit-engine) (libraries httpkit-core httpkit-http1) (instrumentation (backend bisect_ppx)))

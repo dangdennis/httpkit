@@ -1,4 +1,4 @@
-# http-kit
+# httpkit
 
 Small, composable HTTP libraries for OCaml. Use checked HTTP values, incremental
 HTTP/1 codecs and a Sans-I/O engine independently, or add native Eio and Lwt adapters
@@ -10,7 +10,7 @@ runtime's native concurrency and cancellation model.
 ## Get started
 
 Requires **OCaml 5.5.0**. To work from this repository, install mise, a C build
-toolchain, Python 3 and Git, then run these commands from the checkout:
+toolchain and Git, then run these commands from the checkout:
 
 ```sh
 mise trust
@@ -37,7 +37,7 @@ Both sides run in one process; no listening port is needed.
 The server uses this [pure handler](examples/runtime/transform.ml):
 
 ```ocaml
-open Http_kit_core
+open Httpkit_core
 
 let handle request =
   let body = "Hello " ^ Target.to_string (Request.target request) ^ "\n" in
@@ -49,8 +49,8 @@ let handle request =
   Response.create ~status:Status.ok ~headers body
 ```
 
-The executable links `http-kit-eio` and `eio_main`; the handler needs only
-`http-kit-core`. This small example collects bodies; use the adapter's streaming
+The executable links `httpkit-transport-eio` and `eio_main`; the handler needs only
+`httpkit-core`. This small example collects bodies; use the adapter's streaming
 operations for larger transfers and configure limits for your application.
 
 Prefer Lwt? Run the [equivalent example](examples/runtime/lwt_example.ml):
@@ -63,19 +63,24 @@ tools/dune-pkg exec ./examples/runtime/lwt_example.exe
 
 | Package | Use it for |
 | --- | --- |
-| `http-kit-core` | Checked headers, methods, targets and body-polymorphic messages |
-| `http-kit-http1` | Incremental HTTP/1 decoding, encoding and framing validation |
-| `http-kit-engine` | Sans-I/O client/server connections with bounded queues and backpressure |
-| `http-kit-eio` | Native Eio transport, streaming, deadlines and cancellation |
-| `http-kit-lwt` | Native Lwt transport, streaming, deadlines and cancellation |
-| `http-kit-middleware` | Basic wrappers, typed contexts and typed context transitions |
-| `http-kit-router` | Declaration-ordered path matching and explicit method outcomes |
+| `httpkit-core` | Checked headers, methods, targets and body-polymorphic messages |
+| `httpkit-http1` | Incremental HTTP/1 decoding, encoding and framing validation |
+| `httpkit-engine` | Sans-I/O client/server connections with bounded queues and backpressure |
+| `httpkit-transport-eio` | Native Eio transport, streaming, deadlines and cancellation |
+| `httpkit-transport-lwt` | Native Lwt transport, streaming, deadlines and cancellation |
+| `httpkit-middleware` | Basic wrappers, typed contexts and typed context transitions |
+| `httpkit-router` | Declaration-ordered path matching and explicit method outcomes |
+| `httpkit` | URL/forms, JSON, cookies, sessions, HTML, multipart, SSE and WebSocket primitives |
+| `httpkit-eio` | Eio application dispatch, middleware, files and realtime connections |
+| `httpkit-db-eio` | PostgreSQL/SQLite pools, transactions and migrations through Caqti |
 
 Applications supply listeners and TLS. Codecs and engines can also be used with
 other runtimes through their explicit input, output and event interfaces.
 
 ## Documentation
 
+- [Eio web application guide](docs/framework.md)
+- [Sessions, login and Lwt applications](docs/extensions.md)
 - [Runnable examples](docs/examples.md)
 - [Core values and package design](docs/design.md)
 - [HTTP/1 contracts](docs/http1.md), [engine contracts](docs/engine.md) and [native adapters](docs/adapters.md)

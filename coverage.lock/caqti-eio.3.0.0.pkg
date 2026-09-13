@@ -1,0 +1,15 @@
+(version 3.0.0)
+
+(build
+ (all_platforms ((action (run dune build -p %{pkg-self:name} -j %{jobs})))))
+
+(depends
+ (all_platforms
+  (caqti dune eio logs ocaml)))
+
+(source
+ (fetch
+  (url
+   https://github.com/paurkedal/ocaml-caqti/releases/download/v3.0.0/caqti-v3.0.0.tbz)
+  (checksum
+   sha512=e01f546a45b04cafd5fa262e9228e5a1aabd5e0942059c073a4181c928450baf3d990cc59ffb1a33dff445b46a0e218224a23dca96e8d24cdd0ab793d08e4538)))

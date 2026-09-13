@@ -10,7 +10,7 @@ The user deferred all AFL work, including campaigns and timeout investigation.
 Preserve the historical request input and the new core-target timeout from the
 interrupted campaign; neither is resolved. Continue all non-AFL validation and
 restart the two-hour Eio soak on the updated candidate. Existing public-release
-requirements remain unchanged. Use `python3 tools/personal_validation.py --long --skip-afl`.
+requirements remain unchanged. Use `tools/dev personal-validate --long --skip-afl`.
 
 ## Ordered work
 

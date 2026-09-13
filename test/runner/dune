@@ -1,5 +1,5 @@
 (executable
  (name main)
- (public_name http-kit-test)
- (package http-kit-harness)
- (libraries harness harness_runtime self_cases core_cases http1_cases engine_cases unix))
+ (public_name httpkit-test)
+ (package httpkit-harness)
+ (libraries devlib harness harness_runtime self_cases core_cases http1_cases engine_cases unix))

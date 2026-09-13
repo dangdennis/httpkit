@@ -1,5 +1,5 @@
-open Http_kit_core
-open Http_kit_engine
+open Httpkit_core
+open Httpkit_engine
 
 let check b s = if not b then failwith s
 let ok = function Ok x -> x | Error e -> failwith (error_to_string e)
@@ -10,7 +10,7 @@ let accepted = function
 
 let value = function
   | Ok x -> x
-  | Error e -> failwith (Http_kit_core.Error.to_string e)
+  | Error e -> failwith (Httpkit_core.Error.to_string e)
 
 let request ?(meth = Method.get) ?(target = "/") fields =
   Request.create ~meth

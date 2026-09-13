@@ -1,0 +1,3 @@
+(library (name httpkit_cookie) (public_name httpkit-cookie)
+ (libraries httpkit mirage-crypto mirage-crypto-rng base64 yojson eqaf)
+ (instrumentation (backend bisect_ppx)))

@@ -1,1 +1,1 @@
-let pattern : Http_kit_router.pattern = []
+let pattern : Httpkit_router.pattern = []

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Minimal bootstrapping before an OCaml compiler is available.
+set -eu
+task_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$task_root"
+[ "$#" -le 1 ] && [ "${1:-5.5.0}" = 5.5.0 ] || { echo 'usage: tools/bootstrap [5.5.0]' >&2; exit 2; }
+task_opam=$(mise which opam)
+task_repo=$(sed -n 's/^[[:space:]]*"opam_repository": "\([^"]*\)".*/\1/p' toolchain/manifest.json)
+task_dune=$(sed -n 's/^[[:space:]]*"dune": "\([^"]*\)".*/\1/p' toolchain/manifest.json)
+[ -n "$task_repo" ] && [ -n "$task_dune" ] || exit 2
+export OPAMROOT="$task_root/.toolchain/opam" OPAMLOGS="$task_root/.toolchain/opam-logs"
+mkdir -p "$OPAMLOGS"
+task_count=${GIT_CONFIG_COUNT:-0}
+export "GIT_CONFIG_KEY_$task_count=maintenance.auto" "GIT_CONFIG_VALUE_$task_count=false"
+task_count=$((task_count + 1))
+export "GIT_CONFIG_KEY_$task_count=gc.auto" "GIT_CONFIG_VALUE_$task_count=0"
+export GIT_CONFIG_COUNT=$((task_count + 1))
+if [ ! -f "$OPAMROOT/config" ]; then
+  "$task_opam" init --bare --disable-sandboxing --no-setup -y default "git+$task_repo"
+else
+  "$task_opam" repository set-url default "git+$task_repo" --all-switches -y
+fi
+if [ ! -x "$OPAMROOT/dune-bootstrap/bin/ocamlc" ]; then
+  "$task_opam" switch create dune-bootstrap ocaml-base-compiler.5.5.0 -y --jobs=4
+fi
+"$task_opam" install --switch=dune-bootstrap -y --jobs=4 "dune.$task_dune"
+mkdir -p .toolchain/bin
+rm -f .toolchain/bin/dune.new
+ln -s ../opam/dune-bootstrap/bin/dune .toolchain/bin/dune.new
+mv -f .toolchain/bin/dune.new .toolchain/bin/dune
+tools/dune-pkg pkg validate-lockdir dune.lock
+tools/dune-pkg build -j 4 @pkg-install tools/dev.exe
+printf '%s\n' 'Ready: tools/dev validate'

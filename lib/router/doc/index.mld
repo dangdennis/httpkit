@@ -1,6 +1,6 @@
 {0 Routing primitives}
 
-{!Http_kit_router} matches methods and raw origin-form paths against a bounded,
+{!Httpkit_router} matches methods and raw origin-form paths against a bounded,
 declaration-ordered table. Patterns support literals, named parameters and a
 final wildcard. The table stores application data without invoking handlers.
 

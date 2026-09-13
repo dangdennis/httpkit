@@ -1,6 +1,6 @@
 (* The same pure handler is linked by both runtime examples. It consumes only
    validated request metadata and owns the body value it returns. *)
-open Http_kit_core
+open Httpkit_core
 
 let handle request =
   let body = "Hello " ^ Target.to_string (Request.target request) ^ "\n" in

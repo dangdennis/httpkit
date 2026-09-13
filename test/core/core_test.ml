@@ -8,7 +8,7 @@ let () =
               failwith ("unknown core case: " ^ name))
           requirement.cases)
     Harness.Registry.requirements;
-  Alcotest.run "http-kit-core"
+  Alcotest.run "httpkit-core"
     [
       ( "core",
         List.map

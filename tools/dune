@@ -1,0 +1,4 @@
+(executable
+ (name dev)
+ (modules dev)
+ (libraries devlib))

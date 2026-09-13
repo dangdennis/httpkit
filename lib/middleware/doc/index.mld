@@ -1,8 +1,8 @@
 {0 Middleware composition}
 
-{!Http_kit_middleware.Basic} composes request handlers.
-{!Http_kit_middleware.Context} adds an application-selected context type.
-{!Http_kit_middleware.Transition} tracks changes to that context across wrappers.
+{!Httpkit_middleware.Basic} composes request handlers.
+{!Httpkit_middleware.Context} adds an application-selected context type.
+{!Httpkit_middleware.Transition} tracks changes to that context across wrappers.
 
 All styles preserve the result type and request body type. They do not choose a
 scheduler, body stream, error representation, or response policy. A handler may

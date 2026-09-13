@@ -1,5 +1,5 @@
-open Http_kit_core
-module E = Http_kit_engine
+open Httpkit_core
+module E = Httpkit_engine
 
 let ok = Result.get_ok
 

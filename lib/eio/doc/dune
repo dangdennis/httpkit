@@ -1,1 +1,1 @@
-(documentation (package http-kit-eio))
+(documentation (package httpkit-transport-eio))

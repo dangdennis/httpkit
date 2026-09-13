@@ -17,14 +17,14 @@ repository root):
 
 ```sh
 git rev-parse HEAD
-git worktree add --detach ../http-kit-m7-review HEAD
-cd ../http-kit-m7-review
+git worktree add --detach ../httpkit-m7-review HEAD
+cd ../httpkit-m7-review
 mise trust
 mise install opam
 mise run setup
 mise run setup:afl
 mise run setup:nginx
-python3 tools/evidence.py fingerprint
+tools/dev evidence fingerprint
 ```
 
 Record the full commit and fingerprint with your results. Use the same commit on
@@ -40,13 +40,13 @@ Evidence for an older commit remains useful history, not approval for the fix.
 Run these sequentially; several tools share the normal build directory:
 
 ```sh
-python3 tools/evidence.py validate 5.5.0
-python3 tools/fuzz-smoke.py
-python3 tools/interop.py
-python3 tools/performance.py
-python3 tools/coverage.py
-python3 tools/mutations.py
-python3 tools/test_release.py
+tools/dev evidence validate 5.5.0
+tools/dev fuzz-smoke
+tools/dev interop
+tools/dev performance
+tools/dev coverage
+tools/dev mutations
+tools/dev selftest release
 ```
 
 Required results: tests/docs/installed consumers pass, AFL positive controls pass,
@@ -85,8 +85,8 @@ delete the finding or simply raise the timeout to obtain a green result.
 ## 3. Smoke, then full campaigns
 
 ```sh
-python3 tools/campaign.py --seconds 30
-python3 tools/campaign.py --seconds 28800
+tools/dev fuzz --seconds 30
+tools/dev fuzz --seconds 28800
 ```
 
 The second command runs eight hours **per target**, up to 72 hours of fuzz CPU for
@@ -159,7 +159,7 @@ verify reviewer identity or the truth of manually supplied results. The maintain
 must verify supporting material. Missing work remains `NOT_READY`.
 
 ```sh
-python3 tools/release.py --output _artifacts/release.json
+tools/dev release --output _artifacts/release.json
 tools/harness readiness --release
 tools/harness readiness --milestone M7
 ```

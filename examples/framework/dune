@@ -1,0 +1,2 @@
+(executable (name server) (modes exe byte)
+ (libraries httpkit-eio httpkit-db-eio eio_main))

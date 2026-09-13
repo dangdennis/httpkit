@@ -1,16 +1,16 @@
 (executable
  (name core_bench)
  (modules core_bench)
- (libraries http-kit-core mtime.clock.os))
+ (libraries httpkit-core mtime.clock.os))
 
-(executable (name http1_bench) (modules http1_bench) (libraries http-kit-core http-kit-http1 mtime.clock.os))
+(executable (name http1_bench) (modules http1_bench) (libraries httpkit-core httpkit-http1 mtime.clock.os))
 
-(executable (name stream_bench) (modules stream_bench) (libraries http-kit-core http-kit-engine mtime.clock.os))
+(executable (name stream_bench) (modules stream_bench) (libraries httpkit-core httpkit-engine mtime.clock.os))
 
 (executable (name router_bench) (modules router_bench)
- (libraries http-kit-core http-kit-router mtime.clock.os))
+ (libraries httpkit-core httpkit-router mtime.clock.os))
 
 (executable
  (name suite_bench)
  (modules suite_bench body_fixture suite_support suite_core suite_router suite_http1 suite_middleware suite_engine suite_external_router suite_external_http1 suite_external_body suite_exchange suite_router_experiment)
- (libraries http-kit-core http-kit-http1 http-kit-engine http-kit-router http-kit-middleware mtime.clock.os yojson routes httpaf httpun angstrom bigstringaf))
+ (libraries httpkit-core httpkit-http1 httpkit-engine httpkit-router httpkit-middleware mtime.clock.os yojson routes httpaf httpun angstrom bigstringaf))

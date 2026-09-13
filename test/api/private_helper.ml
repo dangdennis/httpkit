@@ -1,1 +1,1 @@
-let _ = Http_kit_core.Validation.token 'x'
+let _ = Httpkit_core.Validation.token 'x'

@@ -18,8 +18,8 @@ def run(args, *, expected=True):
         raise RuntimeError(result.stdout + result.stderr)
     return result
 
-run(['build', 'http-kit-core.install'])
-with tempfile.TemporaryDirectory(prefix='http-kit-consumer-') as directory:
+run(['build', 'httpkit-core.install'])
+with tempfile.TemporaryDirectory(prefix='httpkit-consumer-') as directory:
     root = Path(directory)
     prefix = root / 'installed'
     # Resolve only the compiler through Dune; invoke it outside the checkout with
@@ -35,16 +35,16 @@ with tempfile.TemporaryDirectory(prefix='http-kit-consumer-') as directory:
     staging = root / 'package'
     staging.mkdir()
     shutil.copytree(ROOT / 'lib/core', staging / 'core')
-    shutil.copy2(ROOT / 'http-kit-core.opam', staging / 'http-kit-core.opam')
-    (staging / 'dune-project').write_text('(lang dune 3.24)\n(name http-kit-core)\n')
+    shutil.copy2(ROOT / 'httpkit-core.opam', staging / 'httpkit-core.opam')
+    (staging / 'dune-project').write_text('(lang dune 3.24)\n(name httpkit-core)\n')
     (staging / 'dune-workspace').write_text('(lang dune 3.24)\n(pkg disabled)\n')
-    for args in [['build', '@install'], ['install', 'http-kit-core', '--prefix', str(prefix)]]:
+    for args in [['build', '@install'], ['install', 'httpkit-core', '--prefix', str(prefix)]]:
         result = subprocess.run([dune, *args], cwd=staging, env=clean,
                                 capture_output=True, text=True, timeout=120)
         require(result.returncode == 0, result.stdout + result.stderr)
-    library = prefix / 'lib/http-kit-core'
+    library = prefix / 'lib/httpkit-core'
     require(library.is_dir(), 'core installation missing')
-    require(sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core'], 'unrelated package installed')
+    require(sorted(p.name for p in (prefix / 'lib').iterdir()) == ['httpkit-core'], 'unrelated package installed')
     for source in (ROOT / 'test/api').glob('*.ml'):
         shutil.copy2(source, root / source.name)
     examples = re.findall(r'\{\[(.*?)\]\}', (ROOT / 'lib/core/doc/index.mld').read_text(), re.S)
@@ -58,17 +58,17 @@ let () =
     def compile_file(name, extra):
         return subprocess.run(compile_args + extra + [name], cwd=root, env=clean,
                               capture_output=True, text=True, timeout=30)
-    result = compile_file('consumer.ml', [str(library / 'http_kit_core.cma'), '-o', 'consumer'])
+    result = compile_file('consumer.ml', [str(library / 'httpkit_core.cma'), '-o', 'consumer'])
     require(result.returncode == 0, result.stderr)
     # Invoke ocamlrun explicitly: the compiler's absolute runtime path can belong
     # to a package sandbox; do not depend on a globally installed interpreter.
     runtime = str(Path(compiler).with_name('ocamlrun'))
     subprocess.run([runtime, str(root / 'consumer')], cwd=root, env=clean, check=True, timeout=30)
-    result = compile_file('documentation.ml', [str(library / 'http_kit_core.cma'), '-o', 'documentation'])
+    result = compile_file('documentation.ml', [str(library / 'httpkit_core.cma'), '-o', 'documentation'])
     require(result.returncode == 0, result.stderr)
     subprocess.run([runtime, str(root / 'documentation')], cwd=root, env=clean, check=True, timeout=30)
     result = subprocess.run([str(Path(compiler).with_name('ocamlopt')), '-I', str(library),
-                             str(library / 'http_kit_core.cmxa'), 'consumer.ml', '-o', 'consumer-native'],
+                             str(library / 'httpkit_core.cmxa'), 'consumer.ml', '-o', 'consumer-native'],
                             cwd=root, env=clean, capture_output=True, text=True, timeout=30)
     require(result.returncode == 0, result.stderr)
     subprocess.run([str(root / 'consumer-native')], cwd=root, env=clean, check=True, timeout=30)

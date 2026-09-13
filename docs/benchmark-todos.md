@@ -1,6 +1,6 @@
 # Benchmark experiments and remaining work
 
-Owner: the http-kit repository. Updated 2026-09-11. This is the persistent
+Owner: the httpkit repository. Updated 2026-09-11. This is the persistent
 benchmark backlog; checked items mean implemented and exercised, not a production
 performance or security approval. Commands and comparison boundaries live in
 [benchmarks.md](benchmarks.md). Release campaigns remain governed by the

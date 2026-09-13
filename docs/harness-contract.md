@@ -2,7 +2,7 @@
 
 This is an executable scaffold for testing future HTTP primitives. Its current subject is intentionally a synthetic stream machine. `Begin` announces a message and a byte count directly; no code parses an HTTP header. The client/server role is recorded for future bindings but does not claim different protocol behavior yet.
 
-M2 adds a separate real subject: the public `http-kit-core` library. `tools/harness run --suite core` executes its constructor/security/property tests; the default `all` suite runs both subjects and labels its scope. Core does not pretend to implement the synthetic stream machine. The [package design](design.md) documents its actual limits. The installed-consumer checks and microbenchmarks are external validation steps recorded by `tools/evidence.py`, and `readiness --milestone M2` requires their source-matched evidence. Protocol and runtime capabilities remain pending.
+M2 adds a separate real subject: the public `httpkit-core` library. `tools/harness run --suite core` executes its constructor/security/property tests; the default `all` suite runs both subjects and labels its scope. Core does not pretend to implement the synthetic stream machine. The [package design](design.md) documents its actual limits. The installed-consumer checks and microbenchmarks are external validation steps recorded by `tools/devlib/evidence.ml`, and `readiness --milestone M2` requires their source-matched evidence. Protocol and runtime capabilities remain pending.
 
 ## Independent implementations
 

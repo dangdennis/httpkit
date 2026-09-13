@@ -1,5 +1,5 @@
-open Http_kit_core
-module M = Http_kit_middleware
+open Httpkit_core
+module M = Httpkit_middleware
 
 type anonymous = { token : string }
 type authenticated = { user : string }

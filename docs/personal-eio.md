@@ -1,4 +1,4 @@
-# Using http-kit with Eio
+# Using httpkit with Eio
 
 These examples target OCaml 5.5.0. Build from the repository using the
 [development setup](development.md).
@@ -20,7 +20,7 @@ The installed-consumer check compiles and runs this source in native and bytecod
 forms with Lwt unavailable:
 
 ```sh
-python3 tools/test_adapter_consumer.py
+tools/dev consumer adapter
 ```
 
 ## Cancel a blocked operation
@@ -79,9 +79,9 @@ TLS and application authentication remain caller responsibilities.
 ## Exercise and measure it
 
 ```sh
-python3 tools/personal_use.py --mode smoke
-python3 tools/personal_use.py --mode profile --seconds 10
-python3 tools/personal_use.py --mode soak --seconds 7200
+tools/dev personal-load --mode smoke
+tools/dev personal-load --mode profile --seconds 10
+tools/dev personal-load --mode soak --seconds 7200
 ```
 
 The profile runs 1, 4 and 8 concurrent clients for the specified duration each.
@@ -94,7 +94,7 @@ are retained under `_artifacts/personal/`; failures remain failures.
 RSS sampling uses `ps`, and descriptor observation uses `/proc` on Linux or `lsof`
 on macOS. These require local process-observation access. Latencies include the
 intentional slow reads; reports identify histogram upper bounds rather than
-inventing precise percentiles. Local profiles are advisory and include Python
+inventing precise percentiles. Local profiles are advisory and include OCaml client
 client overhead. This is not a comparison against another HTTP implementation.
 
 Personal-use resource budgets are 256 MiB observed server RSS, at most 32 MiB
@@ -114,7 +114,7 @@ profile replaces the [public-release requirements](release.md).
 To run the current non-AFL local sequence and the approved two-hour soak:
 
 ```sh
-python3 tools/personal_validation.py --long --skip-afl
+tools/dev personal-validate --long --skip-afl
 ```
 
 This runs baseline validation and the performance profile first, then the two-hour

@@ -67,28 +67,28 @@ out.mkdir(parents=True, exist_ok=True)
 mutants = [
     (
         "framing-cl-te",
-        "lib/http1/http_kit_http1.ml",
+        "lib/http1/httpkit_http1.ml",
         "if cl <> [] && te <> [] then Error Ambiguous_framing",
         "if false && cl <> [] && te <> [] then Error Ambiguous_framing",
         "test/http1/http1_test.exe",
     ),
     (
         "foreign-request-id",
-        "lib/engine/http_kit_engine.ml",
+        "lib/engine/httpkit_engine.ml",
         "a.owner == b.owner && a.number = b.number",
         "a.owner == a.owner && a.number = b.number",
         "test/engine/engine_test.exe",
     ),
     (
         "output-accounting",
-        "lib/engine/http_kit_engine.ml",
+        "lib/engine/httpkit_engine.ml",
         "t.queued <- t.queued - count;",
         "t.queued <- t.queued - min count 0;",
         "test/engine/engine_test.exe",
     ),
 ]
 results = []
-with tempfile.TemporaryDirectory(prefix="http-kit-mutants-") as directory:
+with tempfile.TemporaryDirectory(prefix="httpkit-mutants-") as directory:
     stage = Path(directory)
     for name in ["lib", "test", "fuzz", "examples", "bench"]:
         shutil.copytree(ROOT / name, stage / name)

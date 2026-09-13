@@ -31,11 +31,11 @@ FAMILIES = (
 )
 SCHEMA = 1
 EXTERNAL_IMPLEMENTATIONS = {
-    "router": {"http-kit", "routes"},
-    "http1": {"http-kit", "httpaf", "httpun"},
-    "body": {"http-kit", "httpaf", "httpun"},
-    "exchange": {"http-kit", "httpaf", "httpun"},
-    "router-experiment": {"http-kit", "prefix-index", "deep-index"},
+    "router": {"httpkit", "routes"},
+    "http1": {"httpkit", "httpaf", "httpun"},
+    "body": {"httpkit", "httpaf", "httpun"},
+    "exchange": {"httpkit", "httpaf", "httpun"},
+    "router-experiment": {"httpkit", "prefix-index", "deep-index"},
 }
 
 
@@ -117,14 +117,14 @@ def library_comparisons(results, samples):
             set(implementations) == EXTERNAL_IMPLEMENTATIONS[family],
             "incomplete library comparison",
         )
-        ours = implementations["http-kit"]
+        ours = implementations["httpkit"]
         for implementation, other in sorted(implementations.items()):
             need(
                 (ours["iterations"], ours["bytes_per_op"])
                 == (other["iterations"], other["bytes_per_op"]),
                 "comparison workload sizes differ",
             )
-            if implementation == "http-kit":
+            if implementation == "httpkit":
                 continue
             # Each process contains every implementation. Pair within that
             # process before summarizing ratios; do not pool unrelated cases.
@@ -137,11 +137,11 @@ def library_comparisons(results, samples):
                     family=family,
                     workload=workload,
                     implementation=implementation,
-                    http_kit_ns_per_op=ours["median_ns_per_op"],
+                    httpkit_ns_per_op=ours["median_ns_per_op"],
                     other_ns_per_op=other["median_ns_per_op"],
-                    median_other_over_http_kit_time_ratio=statistics.median(ratios),
+                    median_other_over_httpkit_time_ratio=statistics.median(ratios),
                     sample_time_ratios=ratios,
-                    http_kit_allocated_bytes_per_op=ours[
+                    httpkit_allocated_bytes_per_op=ours[
                         "median_allocated_bytes_per_op"
                     ],
                     other_allocated_bytes_per_op=other["median_allocated_bytes_per_op"],
@@ -183,7 +183,7 @@ def validate_exclusions(exclusions, catalog):
         seen.add(key)
         need(
             sorted(group["excluded_implementations"])
-            == ["http-kit", "httpaf", "httpun"],
+            == ["httpaf", "httpkit", "httpun"],
             "partial group exclusion",
         )
         observations = group["observations"]
@@ -422,7 +422,7 @@ def markdown(report):
             + ", ".join(f"{k} {v}" for k, v in report["libraries"].items())
             + ".",
             "",
-            "HTTP heads: raw upstream parsers versus the validating http-kit codec; validation work is not equivalent.",
+            "HTTP heads: raw upstream parsers versus the validating httpkit codec; validation work is not equivalent.",
             "Routes lane: common GET paths only; excludes method policy and conflicting route precedence.",
             "Body lanes: owned scan/collection and borrowed scan are distinct; kit Data is always owned. Includes setup and cleanup.",
             "Exchange lane: public server body writers plus receive/send and persistent pipelines; exact payload/framing oracle.",
@@ -430,16 +430,16 @@ def markdown(report):
             "Times include API adaptation and result checks. No overall winner or security verdict is implied.",
             "Allocation is GC heap only; externally allocated Bigarray payloads are excluded.",
             "",
-            "**Time ratio = other / http-kit**, paired within each process. Below 1 means the other library was faster.",
+            "**Time ratio = other / httpkit**, paired within each process. Below 1 means the other library was faster.",
             "",
-            "| Family / workload | Other | http-kit ns/op | Other ns/op | Time ratio | http-kit B/op | Other B/op |",
+            "| Family / workload | Other | httpkit ns/op | Other ns/op | Time ratio | httpkit B/op | Other B/op |",
             "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
         ]
         for r in report["library_comparisons"]:
             intro.append(
-                f"| {r['family']}/{r['workload']} | {r['implementation']} | {r['http_kit_ns_per_op']:.1f} | "
-                f"{r['other_ns_per_op']:.1f} | {r['median_other_over_http_kit_time_ratio']:.3f} | "
-                f"{r['http_kit_allocated_bytes_per_op']:.1f} | {r['other_allocated_bytes_per_op']:.1f} |"
+                f"| {r['family']}/{r['workload']} | {r['implementation']} | {r['httpkit_ns_per_op']:.1f} | "
+                f"{r['other_ns_per_op']:.1f} | {r['median_other_over_httpkit_time_ratio']:.3f} | "
+                f"{r['httpkit_allocated_bytes_per_op']:.1f} | {r['other_allocated_bytes_per_op']:.1f} |"
             )
         lines[5:5] = intro + [""]
     for r in report["results"]:
@@ -714,7 +714,7 @@ def main():
         report["library_comparisons"] = library_comparisons(report["results"], samples)
         need(report["library_comparisons"], "missing external comparisons")
         report["limitations"] += [
-            "Upstream private head parsers do less validation than http-kit; parsing responsibilities differ.",
+            "Upstream private head parsers do less validation than httpkit; parsing responsibilities differ.",
             "Routing excludes method policy and ambiguous precedence; Routes wildcard slash normalization is timed.",
             "GC allocation excludes external Bigarray payloads and does not measure total memory.",
             "Unique header names only; the httpaf raw-parser reversed field representation is checked explicitly.",

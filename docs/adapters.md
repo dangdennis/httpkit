@@ -1,6 +1,6 @@
 # Native runtime adapters
 
-M5 adds independently installable `http-kit-eio` and `http-kit-lwt`. Their APIs use native fibers/promises; core, codec and engine still have no runtime dependency. Eio depends on Eio 1.5, Lwt on Lwt 6.1.2, through both committed Dune locks. A legitimate Eio dependency named `lwt-dllist` is a data structure, not the Lwt promise runtime.
+M5 adds independently installable `httpkit-transport-eio` and `httpkit-transport-lwt`. Their APIs use native fibers/promises; core, codec and engine still have no runtime dependency. Eio depends on Eio 1.5, Lwt on Lwt 6.1.2, through both committed Dune locks. A legitimate Eio dependency named `lwt-dllist` is a data structure, not the Lwt promise runtime.
 
 ## Ownership and operation
 

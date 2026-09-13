@@ -1,1 +1,1 @@
-let _ : Http_kit_core.Header.Value.t = "x\r\ny"
+let _ : Httpkit_core.Header.Value.t = "x\r\ny"

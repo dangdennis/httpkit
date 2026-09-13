@@ -1,1 +1,1 @@
-let _ : Http_kit_core.Method.t = "GET\r\n"
+let _ : Httpkit_core.Method.t = "GET\r\n"

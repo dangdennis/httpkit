@@ -7,17 +7,17 @@
 (executable
  (name core_fuzz)
  (modules core_fuzz)
- (libraries http-kit-core crowbar)
+ (libraries httpkit-core crowbar)
  (modes exe))
 
 (executable
  (name http1_fuzz)
  (modules http1_fuzz)
- (libraries http-kit-core http-kit-http1 crowbar)
+ (libraries httpkit-core httpkit-http1 crowbar)
  (modes exe))
 
 (executable (name engine_fuzz) (modules engine_fuzz) (libraries engine_scenarios crowbar) (modes exe))
 
-(executable (name release_fuzz) (modules release_fuzz) (libraries http-kit-core http-kit-engine crowbar) (modes exe))
+(executable (name release_fuzz) (modules release_fuzz) (libraries httpkit-core httpkit-engine crowbar) (modes exe))
 
-(executable (name adapter_fuzz) (modules adapter_fuzz) (libraries http-kit-core http-kit-engine http-kit-eio http-kit-lwt eio.mock lwt.unix crowbar) (modes exe))
+(executable (name adapter_fuzz) (modules adapter_fuzz) (libraries httpkit-core httpkit-engine httpkit-transport-eio httpkit-transport-lwt eio.mock lwt.unix crowbar) (modes exe))

@@ -39,7 +39,7 @@ require(
 )
 require(
     "complete comparison groups"
-    in catalog("--family", "exchange", "--case", "/http-kit", "--list", success=False),
+    in catalog("--family", "exchange", "--case", "/httpkit", "--list", success=False),
     "partial group selection was not rejected",
 )
 body = catalog(

@@ -1,0 +1,19 @@
+(version 0.2.0)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (ocaml dune jose uri yojson logs eqaf)))
+
+(source
+ (fetch
+  (url
+   https://github.com/ulrikstrid/ocaml-oidc/releases/download/v0.2.0/oidc-v0.2.0.tbz)
+  (checksum
+   sha512=7b4db0a1b3fc0eabc58e8b966b0f6a99ab601fd0f6ad7dfdc9908fce607f77088de7cae0cc09ee852caff0f94e8e2fcb7c768035482571a41ebfad2cfe6a2b51)))

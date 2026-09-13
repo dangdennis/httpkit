@@ -72,8 +72,8 @@ for runtime in ["eio", "lwt"]:
                     (runtime, method, target, response.status, actual),
                 )
                 require(
-                    response.getheader("x-example") == "http-kit",
-                    "test_routing_examples.py: response.getheader('x-example') == 'http-kit'",
+                    response.getheader("x-example") == "httpkit",
+                    "test_routing_examples.py: response.getheader('x-example') == 'httpkit'",
                 )
                 require(
                     response.getheader("allow") == allow,

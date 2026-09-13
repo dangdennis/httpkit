@@ -1,4 +1,4 @@
-module T = Http_kit_engine.Timeout
+module T = Httpkit_engine.Timeout
 
 let remaining expected now t =
   Alcotest.(check (option (float 0.00001)))

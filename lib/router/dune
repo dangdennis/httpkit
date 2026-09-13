@@ -1,2 +1,2 @@
-(library (name http_kit_router) (public_name http-kit-router)
- (libraries http-kit-core) (instrumentation (backend bisect_ppx)))
+(library (name httpkit_router) (public_name httpkit-router)
+ (libraries httpkit-core) (instrumentation (backend bisect_ppx)))

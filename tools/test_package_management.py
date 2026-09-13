@@ -20,9 +20,9 @@ try:
 finally:
     os.environ.clear()
     os.environ.update(original_env)
-with tempfile.TemporaryDirectory(prefix='http-kit-lock-') as directory:
+with tempfile.TemporaryDirectory(prefix='httpkit-lock-') as directory:
     root = Path(directory)
-    for name in ['dune-project', 'dune-workspace', 'http-kit-harness.opam', 'http-kit-core.opam']:
+    for name in ['dune-project', 'dune-workspace', 'httpkit-harness.opam', 'httpkit-core.opam']:
         shutil.copy2(ROOT / name, root / name)
     for name in ['dune.lock']:
         shutil.copytree(ROOT / name, root / name)

@@ -1,4 +1,4 @@
-open Http_kit_core
+open Httpkit_core
 
 let response request body =
   let target = Target.to_string (Request.target request) in

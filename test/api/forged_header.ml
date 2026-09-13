@@ -1,1 +1,1 @@
-let _ : Http_kit_core.Header.Name.t = "x: injected"
+let _ : Httpkit_core.Header.Name.t = "x: injected"

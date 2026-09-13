@@ -1,5 +1,5 @@
-open Http_kit_core
-open Http_kit_engine
+open Httpkit_core
+open Httpkit_engine
 
 let ok = Result.get_ok
 

@@ -1,5 +1,5 @@
-module A = Http_kit_eio
-module E = Http_kit_engine
+module A = Httpkit_transport_eio
+module E = Httpkit_engine
 
 let () =
   Eio_main.run (fun env ->
@@ -19,13 +19,13 @@ let () =
                   ignore (A.collect_body c id);
                   let response = Transform.handle request in
                   A.respond c id response;
-                  A.send c id (Http_kit_core.Response.body response);
+                  A.send c id (Httpkit_core.Response.body response);
                   A.finish c id))
             (fun () ->
               A.with_connection ~clock (A.of_flow b)
                 (Result.get_ok (E.client ()))
                 (fun c ->
-                  let open Http_kit_core in
+                  let open Httpkit_core in
                   let request =
                     Request.create ~meth:Method.get
                       ~target:(Result.get_ok (Target.of_string "/"))

@@ -9,7 +9,7 @@ let () =
           r.cases)
     Harness.Registry.requirements;
 
-  Alcotest.run "http-kit-http1"
+  Alcotest.run "httpkit-http1"
     [
       ( "http1",
         List.map

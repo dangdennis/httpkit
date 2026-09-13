@@ -1,0 +1,5 @@
+(tests
+ (names auth_test sql_session_test lwt_app_test oidc_eio_test)
+ (libraries httpkit-cookie httpkit-password httpkit-session-eio httpkit-lwt httpkit-oidc-eio
+  mirage-crypto-rng.unix mirage-crypto-pk eio_main lwt.unix caqti-eio)
+ (modes byte_complete exe))

@@ -1,6 +1,6 @@
 open Lwt.Syntax
-module A = Http_kit_lwt
-module E = Http_kit_engine
+module A = Httpkit_transport_lwt
+module E = Httpkit_engine
 
 let handle request =
   if Application.is_protected request then
@@ -13,8 +13,8 @@ let handle request =
     let endpoint user request =
       Lwt.return (Application.protected user request)
     in
-    Http_kit_middleware.Transition.compose authorize
-      Http_kit_middleware.Transition.identity endpoint () request
+    Httpkit_middleware.Transition.compose authorize
+      Httpkit_middleware.Transition.identity endpoint () request
   else Lwt.return (Application.handle request)
 
 let () =
@@ -57,14 +57,14 @@ let () =
                            else Lwt.return_unit
                          in
                          let* body, _ = A.collect_body ~limit:65536 c id in
-                         handle (Http_kit_core.Request.with_body body request)
+                         handle (Httpkit_core.Request.with_body body request)
                    in
                    let* () = A.respond c id response in
                    let* () =
                      if
-                       Http_kit_core.Request.meth request
-                       <> Http_kit_core.Method.head
-                     then A.send c id (Http_kit_core.Response.body response)
+                       Httpkit_core.Request.meth request
+                       <> Httpkit_core.Method.head
+                     then A.send c id (Httpkit_core.Response.body response)
                      else Lwt.return_unit
                    in
                    let* () = A.finish c id in

@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module R = Http_kit_router
+module R = Httpkit_router
 
 let target = fun s -> ok (Target.of_string s)
 let make_route path value = R.route ~meth:Method.get (ok (R.pattern path)) value

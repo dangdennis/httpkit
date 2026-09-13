@@ -14,27 +14,27 @@ compiler = Path(subprocess.check_output(command(dune, env,
     text=True).strip()).resolve()
 clean = {k: v for k, v in env.items() if not k.startswith(('OCAML', 'CAML', 'DUNE'))}
 clean['PATH'] = str(compiler.parent) + os.pathsep + clean['PATH']
-with tempfile.TemporaryDirectory(prefix='http-kit-middleware-') as directory:
+with tempfile.TemporaryDirectory(prefix='httpkit-middleware-') as directory:
     root = Path(directory)
     source = root / 'source'; source.mkdir()
     for name in ['core', 'middleware']:
         shutil.copytree(ROOT / 'lib' / name, source / name)
-        shutil.copy2(ROOT / f'http-kit-{name}.opam', source)
+        shutil.copy2(ROOT / f'httpkit-{name}.opam', source)
     (source / 'dune-project').write_text('(lang dune 3.24)\n(name installed-middleware)\n')
     (source / 'dune-workspace').write_text('(lang dune 3.24)\n(pkg disabled)\n')
     prefix = root / 'installed'
     for args in [['build', '@install'], ['install', '--prefix', str(prefix),
-                 'http-kit-core', 'http-kit-middleware']]:
+                 'httpkit-core', 'httpkit-middleware']]:
         subprocess.run([dune, *args], cwd=source, env=clean, check=True,
                        capture_output=True, timeout=120)
-    require(sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core', 'http-kit-middleware'], "test_middleware_consumer.py: sorted(p.name for p in (prefix / 'lib').iterdir()) == ['http-kit-core', 'http-kit-middleware']")
-    includes = [str(prefix / 'lib' / name) for name in ['http-kit-core', 'http-kit-middleware']]
+    require(sorted(p.name for p in (prefix / 'lib').iterdir()) == ['httpkit-core', 'httpkit-middleware'], "test_middleware_consumer.py: sorted(p.name for p in (prefix / 'lib').iterdir()) == ['httpkit-core', 'httpkit-middleware']")
+    includes = [str(prefix / 'lib' / name) for name in ['httpkit-core', 'httpkit-middleware']]
     for mode, tool, extension in [('byte', compiler, 'cma'), ('native', compiler.with_name('ocamlopt'), 'cmxa')]:
         example = root / 'styles.ml'
         shutil.copy2(ROOT / 'examples/middleware/styles.ml', example)
         args = [str(tool), *[x for path in includes for x in ['-I', path]],
-                str(Path(includes[0]) / ('http_kit_core.' + extension)),
-                str(Path(includes[1]) / ('http_kit_middleware.' + extension)),
+                str(Path(includes[0]) / ('httpkit_core.' + extension)),
+                str(Path(includes[1]) / ('httpkit_middleware.' + extension)),
                 'styles.ml', '-o', 'styles-' + mode]
         subprocess.run(args, cwd=root, env=clean, check=True, capture_output=True, timeout=30)
         exe = str(root / ('styles-' + mode))

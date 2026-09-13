@@ -1,6 +1,6 @@
-open Http_kit_core
-module E = Http_kit_engine
-module C = Http_kit_http1
+open Httpkit_core
+module E = Httpkit_engine
+module C = Httpkit_http1
 
 let ok = Result.get_ok
 let accept = function Ok (E.Accepted x) -> x | _ -> failwith "not accepted"

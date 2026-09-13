@@ -1,2 +1,2 @@
 (test (name router_test) (modules router_test)
- (libraries http-kit-core http-kit-router alcotest qcheck-core))
+ (libraries httpkit-core httpkit-router alcotest qcheck-core))

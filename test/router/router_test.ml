@@ -1,5 +1,5 @@
-open Http_kit_core
-module R = Http_kit_router
+open Httpkit_core
+module R = Httpkit_router
 
 let ok = Result.get_ok
 let route meth path value = R.route ~meth (ok (R.pattern path)) value

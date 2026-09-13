@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module R = Http_kit_router
+module R = Httpkit_router
 
 (* Both adapters return the selected endpoint and its string capture. All timed
    lookups are GET on unambiguous valid paths. Routes has no HTTP method table;
@@ -57,7 +57,7 @@ let jobs () =
         let initial = ok (Target.of_string "/group0/value") in
         let build =
           [
-            case (Printf.sprintf "compile/%d" count) "http-kit" 100 (fun () ->
+            case (Printf.sprintf "compile/%d" count) "httpkit" 100 (fun () ->
                 let table = ok (R.compile kit_routes) in
                 require (kit_lookup table initial () = Some (0, "value")));
             case (Printf.sprintf "compile/%d" count) "routes" 100 (fun () ->
@@ -88,7 +88,7 @@ let jobs () =
                   case workload implementation 5000 (fun () ->
                       require (lookup () = expected)))
                 [
-                  ("http-kit", kit_lookup kit_table target);
+                  ("httpkit", kit_lookup kit_table target);
                   ("routes", routes_lookup routes_table path);
                 ])
             probes)
@@ -136,7 +136,7 @@ let jobs () =
             case ("shape/" ^ name) implementation 5000 (fun () ->
                 require (lookup () = Some (0, capture))))
           [
-            ("http-kit", kit_lookup kit target);
+            ("httpkit", kit_lookup kit target);
             ("routes", routes_lookup routes path);
           ])
       shapes

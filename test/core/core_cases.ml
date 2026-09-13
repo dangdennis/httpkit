@@ -1,4 +1,4 @@
-open Http_kit_core
+open Httpkit_core
 
 let check condition message = if not condition then failwith message
 let ok = function Ok x -> x | Error e -> failwith (Error.to_string e)

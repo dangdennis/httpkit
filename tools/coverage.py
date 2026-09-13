@@ -31,7 +31,7 @@ for line in summary.splitlines():
     if match:files.append({'file':match[3],'visited':int(match[1]),'total':int(match[2])})
 required={str(p.relative_to(ROOT)) for layer in ['core','http1','engine'] for p in (ROOT/'lib'/layer).glob('*.ml')}
 # This file is exclusively module aliases, with no executable expressions.
-required.remove('lib/core/http_kit_core.ml')
+required.remove('lib/core/httpkit_core.ml')
 missing=sorted(required-{f['file'] for f in files})
 selected=[f for f in files if f['file'] in required]
 visited=sum(f['visited'] for f in selected);total=sum(f['total'] for f in selected)
@@ -39,6 +39,6 @@ require(total>0 and source_hash()==digest, 'empty coverage or sources changed')
 record('coverage.json',{'status':'PASS','compiler':'5.5.0','tool_revision':'7061d643ff492b0045796357ee6917ded21fb1f0',
  'metric':'instrumented points, not branches','visited':visited,'total':total,'percent':100*visited/total,
  'missing_files':missing,'files':files,'report_directory':str(run_dir),
- 'exclusions':[{'file':'lib/core/http_kit_core.ml','reason':'Module aliases only; no executable expressions.'}]})
+ 'exclusions':[{'file':'lib/core/httpkit_core.ml','reason':'Module aliases only; no executable expressions.'}]})
 print(summary)
 print(json.dumps({'percent':100*visited/total,'missing_files':missing,'report_directory':str(run_dir)},indent=2))

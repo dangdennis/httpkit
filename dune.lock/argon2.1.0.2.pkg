@@ -1,0 +1,27 @@
+(version 1.0.2)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (ocaml dune dune-configurator ctypes ctypes-foreign result)))
+
+(depexts
+ ((libargon2-dev)
+  (= %{os_family} debian))
+ ((libargon2-dev)
+  (= %{os_family} ubuntu))
+ ((libargon2-devel)
+  (= %{os_family} fedora)))
+
+(source
+ (fetch
+  (url
+   https://github.com/Khady/ocaml-argon2/releases/download/1.0.2/argon2-1.0.2.tbz)
+  (checksum
+   sha512=c25a2c5dda3eecd13de82026c4e301f2896a0dc3a2cc9b6ed48925e1fef4fdfc1751091c85638d811a5c642b0a72e1a52df063e5b9cf935041575ecfc7fc76ae)))

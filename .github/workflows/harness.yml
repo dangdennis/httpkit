@@ -23,24 +23,28 @@ jobs:
           version: "2026.6.10"
           install_args: opam
       # mise installs opam; opam bootstraps Dune; Dune locks supply the test compiler.
-      - run: python3 tools/bootstrap.py ${{ matrix.compiler }}
-      - run: python3 tools/evidence.py validate ${{ matrix.compiler }}
-      - run: python3 tools/test_benchmarks.py
+      - uses: ./.github/actions/native-dependencies
+      - run: tools/bootstrap ${{ matrix.compiler }}
+      - run: tools/dev evidence validate ${{ matrix.compiler }}
+      - run: tools/dev databases
+      - run: tools/dev databases --binary _build-pkg-5.5.0/default/test/extensions/sql_session_test.exe
+      - run: tools/dev framework-load --mode smoke
+      - run: tools/dev bench-test
       # Workload correctness is gating; timing on shared CI hosts is advisory.
-      - run: python3 tools/benchmarks.py --quick --samples 3
+      - run: tools/dev bench --quick --samples 3
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
-      - run: python3 tools/benchmarks.py --external --quick --samples 3
+      - run: tools/dev bench --external --quick --samples 3
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
       - run: mise run setup:nginx
-      - run: python3 tools/interop.py
+      - run: tools/dev interop
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
-      - run: python3 tools/personal_use.py --mode smoke
+      - run: tools/dev personal-load --mode smoke
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
-      - run: python3 tools/performance.py
+      - run: tools/dev performance
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -59,10 +63,11 @@ jobs:
         with:
           version: "2026.6.10"
           install_args: opam
-      - run: python3 tools/bootstrap.py 5.5.0
+      - uses: ./.github/actions/native-dependencies
+      - run: tools/bootstrap 5.5.0
       - run: mise run setup:afl
-      - run: python3 tools/fuzz-smoke.py
-      - run: python3 tools/campaign.py --seconds 30
+      - run: tools/dev fuzz-smoke
+      - run: tools/dev fuzz --seconds 30
       # AFL corpus names contain colons, which upload-artifact rejects. Archive
       # the complete evidence tree without renaming seeds or losing findings.
       - name: Archive fuzz evidence
@@ -87,11 +92,14 @@ jobs:
         with:
           version: "2026.6.10"
           install_args: opam
-      - run: python3 tools/bootstrap.py 5.5.0
-      - run: python3 tools/test_checks.py
-      - run: python3 tools/test_release.py
-      - run: python3 tools/coverage.py
-      - run: python3 tools/mutations.py
+      - uses: ./.github/actions/native-dependencies
+      - run: tools/bootstrap 5.5.0
+      - run: tools/dev selftest checks
+      - run: tools/dev selftest release
+      - run: tools/dev coverage
+      - run: tools/dev mutations
+      - run: tools/dev coverage framework
+      - run: tools/dev mutations framework
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

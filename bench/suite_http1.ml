@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module H = Http_kit_http1
+module H = Httpkit_http1
 
 let decode_head ~step role wire =
   let decoder = H.head_decoder role in

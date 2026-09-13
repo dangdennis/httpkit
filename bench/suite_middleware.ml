@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module M = Http_kit_middleware
+module M = Httpkit_middleware
 
 let jobs () =
   let request =

@@ -1,5 +1,5 @@
-open Http_kit_http1
-open Http_kit_core
+open Httpkit_http1
+open Httpkit_core
 
 let parse role wire step =
   let d = head_decoder role in

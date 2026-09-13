@@ -1,6 +1,6 @@
 # Middleware: choose the context guarantee you need
 
-`http-kit-middleware` depends only on core. It provides three related styles, not
+`httpkit-middleware` depends only on core. It provides three related styles, not
 three competing application frameworks. Every style preserves the request body
 and handler output types. Wrappers may return a response, a result, or a native
 runtime promise. No body is read, closed, or copied by the combinators.
@@ -63,7 +63,7 @@ owned by the adapter/application.
 
 ```sh
 tools/dune-pkg exec ./examples/middleware/styles.exe
-python3 tools/test_middleware_consumer.py
+tools/dev consumer middleware
 ```
 
 [The example](../examples/middleware/styles.ml) demonstrates all three styles and

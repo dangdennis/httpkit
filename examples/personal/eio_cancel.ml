@@ -1,6 +1,6 @@
 (* Cancel a blocked response read and verify that the owned transport closes. *)
-module A = Http_kit_eio
-module E = Http_kit_engine
+module A = Httpkit_transport_eio
+module E = Httpkit_engine
 
 let () =
   Eio_main.run (fun env ->

@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module E = Http_kit_engine
+module E = Httpkit_engine
 
 let accepted = function
   | Ok (E.Accepted value) -> value
@@ -42,7 +42,7 @@ let protocol_jobs () =
                   ]))
           ()
       in
-      let head, _ = ok (Http_kit_http1.encode_request request) in
+      let head, _ = ok (Httpkit_http1.encode_request request) in
       List.map
         (fun early ->
           job
@@ -114,7 +114,7 @@ let jobs () =
         in
         let header, _ =
           ok
-            (Http_kit_http1.encode_response ~request_method:Method.get response)
+            (Httpkit_http1.encode_response ~request_method:Method.get response)
         in
         let expected = header ^ body in
         List.map
@@ -161,7 +161,7 @@ let jobs () =
       ~headers:(ok (Headers.of_list [ ("host", "x") ]))
       ()
   in
-  let request_wire, _ = ok (Http_kit_http1.encode_request request) in
+  let request_wire, _ = ok (Httpkit_http1.encode_request request) in
   let client =
     List.map
       (fun step ->

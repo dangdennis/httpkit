@@ -1,4 +1,4 @@
-# http-kit test harness: security, performance, and API ergonomics
+# httpkit test harness: security, performance, and API ergonomics
 
 Status: living implementation plan, originally written 2026-09-09 and updated 2026-09-10. M0–M6 implementation is complete: harness, core values, codecs, engines, adapters, and initial interoperability/performance lanes. M7 release tooling is implemented; full campaigns, extended experiments, and independent approval remain pending. See the [manual M7 checklist](m7-manual-checklist.md). Numbers below are proposed project policies and test budgets unless identified as implemented in the [package design](design.md); they are not performance or safety guarantees.
 
@@ -431,7 +431,7 @@ Required consumer fixtures:
 | Manual engine driver | Drive a complete exchange over in-memory byte queues using only documented public APIs |
 | Eio server and client | Direct-style handlers; explicit switches/flows; streaming and cancellation work |
 | Lwt server and client | Promise-style handlers; streaming and cancellation work without Eio |
-| Third-party transport | A small scripted transport works without editing http-kit or instantiating a universal I/O monad |
+| Third-party transport | A small scripted transport works without editing httpkit or instantiating a universal I/O monad |
 | Shared pure transformation | The exact same request/response transformation module is used by both adapter examples |
 | Streaming transformer | Bounded chunk transform and trailer forwarding; no collect-all helper required |
 | Framework-like assembly | Hand-written dispatch plus one pure header transformation composed outside the engine; no router package required |
@@ -504,22 +504,22 @@ Before a required capability exists, CI reports its pending status without claim
 
 ## 19. Developer commands and failure artifacts
 
-Implement one development-only runner named `http-kit-test` that dispatches suites and writes a consistent report. The following are planned commands; they do not exist yet:
+Implement one development-only runner named `httpkit-test` that dispatches suites and writes a consistent report. The following are planned commands; they do not exist yet:
 
 ```sh
-http-kit-test doctor
-http-kit-test run --tier fast
-http-kit-test run --suite contract --case H1.FRAME.CL_TE
-http-kit-test run --suite property --seed 42 --count 1000
-http-kit-test run --suite adapter --runtime eio
-http-kit-test run --suite adapter --runtime lwt
-http-kit-test replay path/to/scenario.json
-http-kit-test shrink path/to/scenario.json
-http-kit-test fuzz --target request-codec --seconds 1200
-http-kit-test bench --profile micro --output path/to/results
-http-kit-test compare --baseline path/to/baseline --candidate path/to/results
-http-kit-test readiness --milestone M3
-http-kit-test readiness --release
+httpkit-test doctor
+httpkit-test run --tier fast
+httpkit-test run --suite contract --case H1.FRAME.CL_TE
+httpkit-test run --suite property --seed 42 --count 1000
+httpkit-test run --suite adapter --runtime eio
+httpkit-test run --suite adapter --runtime lwt
+httpkit-test replay path/to/scenario.json
+httpkit-test shrink path/to/scenario.json
+httpkit-test fuzz --target request-codec --seconds 1200
+httpkit-test bench --profile micro --output path/to/results
+httpkit-test compare --baseline path/to/baseline --candidate path/to/results
+httpkit-test readiness --milestone M3
+httpkit-test readiness --release
 ```
 
 `doctor` reports executable paths/versions, supported compiler, dependencies, AFL coverage smoke status, available native/reference tools, and profile prerequisites. It does not install tools or modify the user's global environment. Dune aliases call the same runner for `runtest`, API, coverage, fuzz-smoke, and benchmark-smoke tasks; document aliases as they are implemented.
@@ -559,7 +559,7 @@ Implement in this order. Each milestone adds real evidence and is independently 
 
 For every feature PR, require: the contract entry; smallest deterministic regression/positive case; appropriate property/model coverage; resource-limit behavior; public usage example if API changes; and benchmark coverage only when the change affects a measured hot path or retention. Avoid writing shallow tests that merely restate a trivial implementation.
 
-The first implementation task completed the M0–M1 harness. The current M2 slice adds the standalone `http-kit-core` library, 14 deterministic core cases, four constructor properties, installed bytecode/native consumers and compile-fail fixtures, executable odoc examples, a native core fuzz target, and initial allocation/time microbenchmarks. `tools/harness readiness --milestone M2` requires matching evidence from OCaml 5.5.0 and AFL smoke. This slice validates lexical construction, not wire serialization; the M3 codec will validate message combinations before serialization. No parser, listener, engine, or runtime adapter is present yet.
+The first implementation task completed the M0–M1 harness. The current M2 slice adds the standalone `httpkit-core` library, 14 deterministic core cases, four constructor properties, installed bytecode/native consumers and compile-fail fixtures, executable odoc examples, a native core fuzz target, and initial allocation/time microbenchmarks. `tools/harness readiness --milestone M2` requires matching evidence from OCaml 5.5.0 and AFL smoke. This slice validates lexical construction, not wire serialization; the M3 codec will validate message combinations before serialization. No parser, listener, engine, or runtime adapter is present yet.
 
 ## 21. Release acceptance and honest limits
 
@@ -635,7 +635,7 @@ Each ID maps to at least one positive control and one counterexample or delibera
 
 ## M3 implementation update
 
-`http-kit-http1` supplies incremental head/body decoding and encoding with strict framing, target/Host checks, bounded work and metadata, chunk extensions, trailers, and EOF handling. The public suite, installed consumer, initial independent Python stdlib reference, fragmentation fuzz targets, and geometric head benchmarks run in compiler validation. See [HTTP/1 policy](http1.md). Engine sequencing, adapter behavior, broad interop, long fuzz campaigns and independent security review remain later gates.
+`httpkit-http1` supplies incremental head/body decoding and encoding with strict framing, target/Host checks, bounded work and metadata, chunk extensions, trailers, and EOF handling. The public suite, installed consumer, independent response reference, fragmentation fuzz targets, and geometric head benchmarks run in compiler validation. See [HTTP/1 policy](http1.md). Engine sequencing, adapter behavior, broad interop, long fuzz campaigns and independent security review remain later gates.
 
 ## M4 implementation update
 

@@ -1,0 +1,16 @@
+name: Native database dependencies
+description: Development libraries and disposable PostgreSQL test binaries
+runs:
+  using: composite
+  steps:
+    - if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpq-dev postgresql libsqlite3-dev libgmp-dev libargon2-dev libffi-dev pkg-config
+    - if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install postgresql@16 sqlite gmp argon2 libffi pkgconf
+        echo "$(brew --prefix postgresql@16)/bin" >> "$GITHUB_PATH"
+        echo "PKG_CONFIG_PATH=$(brew --prefix postgresql@16)/lib/pkgconfig:$(brew --prefix sqlite)/lib/pkgconfig:$(brew --prefix gmp)/lib/pkgconfig:$(brew --prefix argon2)/lib/pkgconfig:$(brew --prefix libffi)/lib/pkgconfig" >> "$GITHUB_ENV"

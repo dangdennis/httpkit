@@ -1,0 +1,2 @@
+(executable (name db_test) (libraries httpkit-db-eio eio_main caqti-eio.unix))
+(rule (alias runtest) (action (run ./db_test.exe)))

@@ -16,7 +16,7 @@ original memory/execution limits, produced no findings. These initial observatio
 precede the final candidate freeze; use the reproducible command for current data:
 
 ```sh
-python3 tools/triage_timeout.py
+tools/dev triage-timeout
 ```
 
 The tool retains commands, logs, direct timing observations and AFL corpora in

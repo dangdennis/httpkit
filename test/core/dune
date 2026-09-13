@@ -1,7 +1,7 @@
 (library
  (name core_cases)
  (modules core_cases)
- (libraries http-kit-core qcheck-core))
+ (libraries httpkit-core qcheck-core))
 
 (test
  (name core_test)

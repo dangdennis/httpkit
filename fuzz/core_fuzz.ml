@@ -1,4 +1,4 @@
-open Http_kit_core
+open Httpkit_core
 
 let token_chars =
   "!#$%&'*+-.^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"

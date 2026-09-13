@@ -3,7 +3,7 @@
 Status: implemented; validation is tracked by source-matched local evidence. Created 2026-09-11 from the
 three-agent code review and focused reproduction probes.
 
-The objective is to make http-kit easier to read, compose and audit while fixing
+The objective is to make httpkit easier to read, compose and audit while fixing
 the concrete contract and evidence defects found in the review. Preserve the
 pure core → HTTP/1 codec → engine → native adapter architecture, the small router,
 and the Transition middleware style. Work through the commits below in order;
@@ -20,7 +20,7 @@ C1–C12 code and documentation changes are implemented. The checklist below
 retains the original review criteria; use `_artifacts/` reports for actual
 validation outcomes, source hashes and remaining release gates.
 
-- Operational requirements are explicit, including optimized-Python negative
+- Operational requirements are explicit, including non-removable negative
   controls and named release inventories. Dense release/mutation/campaign code
   is formatted and central release predicates have names.
 - Expect finalization and both native upload examples are corrected. Trailer
@@ -58,8 +58,8 @@ cannot be ranked against historical identical-message pipeline reports.
 - Keep Eio and Lwt cancellation machinery separate. Share concepts, fixtures and
   parity requirements; do not introduce a generic runtime functor.
 - Keep benchmark-only router indexes out of production.
-- Python remains orchestration code. Make its operational checks explicit;
-  rewriting it in another language is not part of this plan.
+- The original language constraint is superseded by the approved OCaml tooling
+  migration. Operational checks remain explicit and non-removable.
 - Add regression tests that fail for the identified defect. Refactors need
   behavioral equivalence checks, not tests that merely mirror the new structure.
 - Each implementation commit includes its relevant comments and documentation,
@@ -72,7 +72,7 @@ cannot be ranked against historical identical-message pipeline reports.
 
 | Commit | Deliverable | Dependency / exit gate |
 | --- | --- | --- |
-| C1 | Explicit operational evidence checks | Optimized and ordinary Python reject false success |
+| C1 | Explicit operational evidence checks | Debug and release tooling reject false success |
 | C2 | Consistent Expect write gating | Engine regression proves no premature final chunk |
 | C3 | Expect policy in both native examples | Client receives interim/final head before sending body |
 | C4 | Bounded trailer membership work | Semantic equivalence and documented complexity |
@@ -91,9 +91,9 @@ work. Do not merge these into one large cleanup commit.
 
 ## C1 — Make operational evidence checks unconditional
 
-Primary files: `tools/mutations.py`, `tools/campaign.py`, `tools/evidence.py`,
-`tools/release.py` and their tests. Audit `coverage.py`, `performance.py`,
-`interop.py`, bootstrap/package tooling and consumer checks for the same pattern.
+Primary files: `tools/devlib/mutations.ml`, `tools/devlib/fuzz.ml`, `tools/devlib/evidence.ml`,
+`tools/devlib/release.ml` and their tests. Audit `coverage.ml`, `performance.ml`,
+`interop.ml`, bootstrap/package tooling and consumer checks for the same pattern.
 
 The confirmed defect is that optimization removes the mutation-result assertion
 and allows a successful mutant execution to be recorded as `KILLED`. Campaign
@@ -113,20 +113,20 @@ not a finding that past ordinary runs were false.
   without launching a full AFL campaign or mutation build.
 - [ ] Test a surviving mutant, compilation failure, failing baseline, site drift,
   changed source hash, insufficient campaign duration/executions and findings.
-  Run the validator tests in subprocesses with normal Python, `-O`, and
-  `PYTHONOPTIMIZE=1`. The tests themselves must not use removable assertions.
+  Run validator controls against the OCaml developer CLI in debug and release
+  builds, including a build with assertions disabled. The tests themselves must not use removable assertions.
 - [ ] Expand dense release checks into named validators. Require the declared
   interop lanes and curated mutant identities, reject duplicate/missing entries,
   and update producers and positive fixtures together. Use inventories from the
   actual harness, not new arbitrary counts or test fixtures containing `[{}]`.
 
-Acceptance: every negative fixture fails in all interpreter modes; valid evidence
+Acceptance: every negative fixture fails in all validated build modes; valid evidence
 still passes; release validation reports the failed condition clearly. This is
 consistency validation, not a cryptographic authenticity guarantee for artifacts.
 
 ## C2 — Enforce Expect gating consistently in the engine
 
-Files: `lib/engine/http_kit_engine.ml`, its interface, `test/engine/engine_cases.ml`
+Files: `lib/engine/httpkit_engine.ml`, its interface, `test/engine/engine_cases.ml`
 and `docs/engine.md`.
 
 - [ ] Centralize the applicable send permission check used by `send_data` and
@@ -148,7 +148,7 @@ the existing engine boundary and scenario suites pass.
 ## C3 — Teach a complete Expect policy in the routing examples
 
 Files: `examples/routing/eio_server.ml`, `examples/routing/lwt_server.ml`, their
-shared application module, `tools/test_routing_examples.py`, `docs/examples.md`.
+shared application module, `tools/devlib/interop.ml`, `docs/examples.md`.
 
 - [ ] Decide on the request head before collecting a body: for a supported
   upload that will be consumed, emit 100; for a rejected request, send the final
@@ -168,7 +168,7 @@ on a client sending the body unconditionally to make progress.
 
 ## C4 — Remove repeated trailer membership scans
 
-Files: `lib/http1/http_kit_http1.ml`, `.mli`, `test/http1/http1_cases.ml`,
+Files: `lib/http1/httpkit_http1.ml`, `.mli`, `test/http1/http1_cases.ml`,
 `docs/http1.md`, and focused parser benchmark fixtures.
 
 - [ ] Build an internal membership index once for Connection tokens and use it
@@ -215,7 +215,7 @@ the relevant test to fail; both native suites remain deterministic.
 
 ## C6 — Validate every retained benchmark report layer
 
-Files: `tools/benchmarks.py`, `tools/test_benchmarks.py`, `docs/benchmarks.md`.
+Files: `tools/devlib/benchmarks.ml`, `tools/devlib/benchmark_test.ml`, `docs/benchmarks.md`.
 
 - [ ] Introduce one validation path used before rendering a fresh report and
   before comparing either retained report.
@@ -285,7 +285,7 @@ compatibility checks just to obtain an automated ratio.
 
 ## C9 — Align selection, preparation and execution budgets
 
-Files: `bench/suite_bench.ml`, `suite_support.ml`, `tools/benchmarks.py` and tests.
+Files: `bench/suite_bench.ml`, `suite_support.ml`, `tools/devlib/benchmarks.ml` and tests.
 
 - [ ] Enumerate lightweight case descriptions, filter selections while retaining
   complete comparison groups, then prepare/preflight only selected work.
@@ -307,7 +307,7 @@ Acceptance: the allowed 1,000 ms setting cannot silently collide with a fixed
 
 ## C10 — Make engine lifecycle invariants local
 
-Files: `lib/engine/http_kit_engine.ml`, `test/engine/engine_cases.ml`,
+Files: `lib/engine/httpkit_engine.ml`, `test/engine/engine_cases.ml`,
 `engine_scenarios.ml`, `docs/engine.md`.
 
 - [ ] Write a transition table for receive progress, send progress, continuation
@@ -388,17 +388,17 @@ the Transition example demonstrates composition without custom framework glue.
 Use the existing wrappers and locked compiler. Representative focused commands:
 
 ```sh
-python3 tools/test_benchmarks.py
-python3 tools/test_release.py
+tools/dev bench-test
+tools/dev selftest release
 tools/dune-pkg runtest test/engine test/http1 test/adapter
-python3 tools/test_routing_examples.py
-python3 tools/test_protocol_consumer.py
-python3 tools/test_adapter_consumer.py
-python3 tools/test_middleware_consumer.py
+tools/dev routing-test
+tools/dev consumer protocol
+tools/dev consumer adapter
+tools/dev consumer middleware
 tools/dune-pkg build @doc
 tools/harness run --tier fast
-python3 tools/benchmarks.py --external --family exchange --quick
-python3 tools/benchmarks.py --external --family body --quick
+tools/dev bench --external --family exchange --quick
+tools/dev bench --external --family body --quick
 ```
 
 Add C1's optimization-mode tests to the normal tooling test entrypoint when they

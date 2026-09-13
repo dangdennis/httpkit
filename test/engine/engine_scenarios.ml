@@ -1,5 +1,5 @@
-open Http_kit_core
-module E = Http_kit_engine
+open Httpkit_core
+module E = Httpkit_engine
 
 let require b message = if not b then failwith message
 let ok = function Ok x -> x | Error e -> failwith (E.error_to_string e)
@@ -74,7 +74,7 @@ let run bytes =
           require (!model.sent = 64) "short body completed";
           model := { !model with finished = true }
       | Ok E.Backpressured -> ()
-      | Error (E.Protocol Http_kit_http1.Invalid_length) ->
+      | Error (E.Protocol Httpkit_http1.Invalid_length) ->
           require (!model.sent < 64) "complete body rejected";
           model := { !model with terminal = true }
       | Error _ -> failwith "unexpected finish error"

@@ -1,6 +1,6 @@
 open Lwt.Syntax
-module A = Http_kit_lwt
-module E = Http_kit_engine
+module A = Httpkit_transport_lwt
+module E = Httpkit_engine
 
 let () =
   Lwt_main.run
@@ -19,12 +19,12 @@ let () =
               let* _ = A.collect_body c id in
               let response = Transform.handle request in
               let* () = A.respond c id response in
-              let* () = A.send c id (Http_kit_core.Response.body response) in
+              let* () = A.send c id (Httpkit_core.Response.body response) in
               A.finish c id))
          (A.with_connection (A.of_fd b)
             (Result.get_ok (E.client ()))
             (fun c ->
-              let open Http_kit_core in
+              let open Httpkit_core in
               let request =
                 Request.create ~meth:Method.get
                   ~target:(Result.get_ok (Target.of_string "/"))

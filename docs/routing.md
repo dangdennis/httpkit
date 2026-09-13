@@ -1,6 +1,6 @@
 # Routing as a pure primitive
 
-`http-kit-router` depends only on core. Build validated patterns, associate them
+`httpkit-router` depends only on core. Build validated patterns, associate them
 with application values, compile a bounded table, then look up a method/target.
 The result is a match with captures, no matching path, a method mismatch, or an
 input/limit error. The router never invokes handlers or constructs responses.
@@ -84,11 +84,11 @@ application examples, not a deployment template; TLS and application authorizati
 remain separate concerns.
 
 ```sh
-python3 tools/test_routing_examples.py
-python3 tools/test_router_consumer.py
+tools/dev routing-test
+tools/dev consumer router
 ```
 
-The first check uses Python's independent HTTP client against both servers over
+The first check uses an OCaml client checked against http/af against both servers over
 persistent connections: precedence, raw captures, 404/405 and Allow, HEAD body
 suppression, middleware headers and binary echo. The second installs only core
 and router, checks native/bytecode consumers, and rejects a forged pattern.

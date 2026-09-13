@@ -1,7 +1,7 @@
 (* Both directions stream incrementally; neither side retains a complete body. *)
-open Http_kit_core
-module A = Http_kit_eio
-module E = Http_kit_engine
+open Httpkit_core
+module A = Httpkit_transport_eio
+module E = Httpkit_engine
 
 let ok = Result.get_ok
 let chunk = String.make 8192 'x'

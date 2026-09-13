@@ -1,5 +1,5 @@
-module A = Http_kit_eio
-module E = Http_kit_engine
+module A = Httpkit_transport_eio
+module E = Httpkit_engine
 
 let handle request =
   if Application.is_protected request then
@@ -10,8 +10,8 @@ let handle request =
       | Some user -> next user request
       | None -> Application.denied ()
     in
-    Http_kit_middleware.Transition.compose authorize
-      Http_kit_middleware.Transition.identity Application.protected () request
+    Httpkit_middleware.Transition.compose authorize
+      Httpkit_middleware.Transition.identity Application.protected () request
   else Application.handle request
 
 let () =
@@ -48,13 +48,13 @@ let () =
                           if Application.expects_continue request then
                             A.respond c id Application.continue_response;
                           let body, _ = A.collect_body ~limit:65536 c id in
-                          handle (Http_kit_core.Request.with_body body request)
+                          handle (Httpkit_core.Request.with_body body request)
                     in
                     A.respond c id response;
                     if
-                      Http_kit_core.Request.meth request
-                      <> Http_kit_core.Method.head
-                    then A.send c id (Http_kit_core.Response.body response);
+                      Httpkit_core.Request.meth request
+                      <> Httpkit_core.Method.head
+                    then A.send c id (Httpkit_core.Response.body response);
                     A.finish c id;
                     loop ()
                 | E.Body_aborted _ | E.Complete _ -> loop ()

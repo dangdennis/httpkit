@@ -1,12 +1,12 @@
 {0 Native Lwt HTTP connections}
 
-{!Http_kit_lwt} drives {!Http_kit_engine} with native Lwt promises and unbuffered
-Lwt_unix descriptors. {!Http_kit_lwt.with_connection} cancels and joins its reader
+{!Httpkit_transport_lwt} drives {!Httpkit_engine} with native Lwt promises and unbuffered
+Lwt_unix descriptors. {!Httpkit_transport_lwt.with_connection} cancels and joins its reader
 and writer before closing an owned transport. No detached Lwt.async work is used.
 
 One event loop owns a connection. One promise chain consumes incoming events.
-Output admission is bounded; {!Http_kit_lwt.collect_body} defaults to a 1 MiB cap.
-{!Http_kit_lwt.serve_connections} bounds admitted transports. The caller owns
+Output admission is bounded; {!Httpkit_transport_lwt.collect_body} defaults to a 1 MiB cap.
+{!Httpkit_transport_lwt.serve_connections} bounds admitted transports. The caller owns
 listener creation, TLS, backlog, and routing. Custom transports must support
 cancellation. Clock injection supports deterministic deadline tests.
 

@@ -15,7 +15,7 @@ def locked(args):
     return subprocess.check_output(command(dune,env,args),cwd=ROOT,env=env,text=True,timeout=1800).strip()
 compiler = Path(locked(['exec','--','sh','-c','command -v ocamlc'])).resolve()
 dependencies = [Path(p) for p in locked(['exec','--','ocamlfind','query','-recursive','-format','%d','ipaddr']).splitlines()]
-with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as directory:
+with tempfile.TemporaryDirectory(prefix='httpkit-protocol-consumer-') as directory:
     root=Path(directory)
     clean={k:v for k,v in env.items() if not k.startswith(('OCAML','CAML','DUNE'))}
     clean['PATH']=str(compiler.parent)+os.pathsep+clean['PATH']
@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
     stage=root/'source';stage.mkdir()
     for package in ['core','http1','engine']:
         shutil.copytree(ROOT/'lib'/package,stage/package)
-        shutil.copy2(ROOT/f'http-kit-{package}.opam',stage/f'http-kit-{package}.opam')
+        shutil.copy2(ROOT/f'httpkit-{package}.opam',stage/f'httpkit-{package}.opam')
     (stage/'dune-project').write_text('(lang dune 3.24)\n(name protocol-install)\n')
     (stage/'dune-workspace').write_text('(lang dune 3.24)\n(pkg disabled)\n')
     prefix=root/'installed'
@@ -35,12 +35,12 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
         require(result.returncode==0, (args,result.stdout,result.stderr))
         return result.stdout
     run(stage,['build','@install'])
-    run(stage,['install','--prefix',str(prefix),'http-kit-core','http-kit-http1','http-kit-engine'])
+    run(stage,['install','--prefix',str(prefix),'httpkit-core','httpkit-http1','httpkit-engine'])
     clean['OCAMLPATH']=str(prefix/'lib')+os.pathsep+str(deps)
     consumer=root/'consumer';consumer.mkdir()
     (consumer/'dune-project').write_text('(lang dune 3.24)\n(name consumer)\n')
     (consumer/'dune-workspace').write_text('(lang dune 3.24)\n(pkg disabled)\n')
-    (consumer/'dune').write_text('(executable (name consumer) (modes byte exe) (libraries http-kit-core http-kit-http1))\n')
+    (consumer/'dune').write_text('(executable (name consumer) (modes byte exe) (libraries httpkit-core httpkit-http1))\n')
     shutil.copy2(ROOT/'test/api/http1/consumer.ml',consumer/'consumer.ml')
     run(consumer,['build','consumer.exe','consumer.bc'])
     native=subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)
@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
     require([v for n,v in response.getheaders() if n.lower()=='set-cookie']==['a=1','b=2'], "test_protocol_consumer.py: [v for n,v in response.getheaders() if n.lower()=='set-cookie']==['a=1','b=2']")
     # A second consumer links the engine directly, with no runtime adapters.
     shutil.copy2(ROOT/'test/api/engine/consumer.ml',consumer/'consumer.ml')
-    (consumer/'dune').write_text('(executable (name consumer) (modes byte exe) (libraries http-kit-core http-kit-engine))\n')
+    (consumer/'dune').write_text('(executable (name consumer) (modes byte exe) (libraries httpkit-core httpkit-engine))\n')
     run(consumer,['build','consumer.exe','consumer.bc'])
     engine_wire=subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)
     require(engine_wire == b'HTTP/1.1 200 \r\ncontent-length: 3\r\n\r\nabc', "test_protocol_consumer.py: engine_wire == b'HTTP/1.1 200 \\r\\ncontent-length: 3\\r\\n\\r\\nabc'")
@@ -65,8 +65,8 @@ with tempfile.TemporaryDirectory(prefix='http-kit-protocol-consumer-') as direct
     run(consumer,['build','consumer.exe','consumer.bc'])
     require(subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)==b'Hello /stream\n', "test_protocol_consumer.py: subprocess.check_output([str(consumer/'_build/default/consumer.exe')],timeout=30)==b'Hello /stream\\n'")
     require(subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==b'Hello /stream\n', "test_protocol_consumer.py: subprocess.check_output([str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/consumer.bc')],timeout=30)==b'Hello /stream\\n'")
-    (consumer/'dune').write_text('(executable (name consumer) (libraries http-kit-core http-kit-http1))\n')
-    (consumer/'consumer.ml').write_text('let forge (m:Http_kit_http1.metadata) = {m with persistent=true}\n')
+    (consumer/'dune').write_text('(executable (name consumer) (libraries httpkit-core httpkit-http1))\n')
+    (consumer/'consumer.ml').write_text('let forge (m:Httpkit_http1.metadata) = {m with persistent=true}\n')
     result=subprocess.run([dune,'build','consumer.exe'],cwd=consumer,env=clean,capture_output=True,text=True,timeout=30)
     require(result.returncode!=0 and 'private' in result.stderr, result.stderr)
 print('PASS: installed HTTP/1 and engine bytecode/native consumers, installed streaming recipe, private metadata, Python stdlib response reference')

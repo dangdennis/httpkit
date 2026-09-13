@@ -1,6 +1,6 @@
-open Http_kit_core
+open Httpkit_core
 open Suite_support
-module R = Http_kit_router
+module R = Httpkit_router
 module Prefixes = Map.Make (String)
 
 type definition = {
@@ -301,7 +301,7 @@ let jobs ?(preflight = true) () =
           let construction = Printf.sprintf "%s/compile/%d" shape count in
           let builds =
             [
-              make construction 10 "http-kit" (fun () ->
+              make construction 10 "httpkit" (fun () ->
                   ignore (reference definitions));
               make construction 10 "prefix-index" (fun () ->
                   let next = compile definitions in
@@ -332,7 +332,7 @@ let jobs ?(preflight = true) () =
           in
           builds
           @ [
-              hot "http-kit" (R.lookup linear);
+              hot "httpkit" (R.lookup linear);
               hot "prefix-index" (lookup indexed);
               hot "deep-index" (lookup_deep deep);
             ]
@@ -349,7 +349,7 @@ let jobs ?(preflight = true) () =
                   Printf.sprintf "%s/lookup/%d/%s" shape count label
                 in
                 [
-                  make workload 5000 "http-kit" (fun () ->
+                  make workload 5000 "httpkit" (fun () ->
                       require (R.lookup linear ~meth ~target = expected));
                   make workload 5000 "prefix-index" (fun () ->
                       require (lookup indexed ~meth ~target = expected));

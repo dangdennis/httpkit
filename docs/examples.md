@@ -10,7 +10,7 @@ tools/dune-pkg exec ./examples/pure/in_memory.exe
 ```
 
 Expected output is `Hello /stream` followed by a newline. The example links only
-`http-kit-core` and `http-kit-engine` (which depends on the HTTP/1 codec).
+`httpkit-core` and `httpkit-engine` (which depends on the HTTP/1 codec).
 No Eio or Lwt types enter this application.
 
 Read [the source](../examples/pure/in_memory.ml) in this order:
