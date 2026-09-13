@@ -1,5 +1,10 @@
 # Native runtime adapters
 
+The entry modules are `Httpkit_transport_eio` and `Httpkit_transport_lwt`.
+Application handlers and dispatch live in `Httpkit_eio` (`httpkit-eio`) and
+`Httpkit_lwt` (`httpkit-lwt`); see the [framework guide](framework.md) and
+[Lwt application guide](extensions.md#lwt-applications).
+
 M5 adds independently installable `httpkit-transport-eio` and `httpkit-transport-lwt`. Their APIs use native fibers/promises; core, codec and engine still have no runtime dependency. Eio depends on Eio 1.5, Lwt on Lwt 6.1.2, through both committed Dune locks. A legitimate Eio dependency named `lwt-dllist` is a data structure, not the Lwt promise runtime.
 
 ## Ownership and operation

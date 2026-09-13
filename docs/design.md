@@ -1,6 +1,6 @@
 # httpkit package design
 
-Updated 2026-09-10. This document records implemented core contracts and the next package boundaries. The [test plan](test-harness-plan.md) defines the broader security and release requirements.
+This document records the current package names and implemented core contracts. The [test plan](test-harness-plan.md) defines the broader security and release requirements.
 
 ## Package boundaries
 
@@ -14,8 +14,25 @@ Updated 2026-09-10. This document records implemented core contracts and the nex
 | `httpkit-transport-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Implemented |
 | `httpkit-middleware` | Basic, typed-context and transition handler composition | Implemented |
 | `httpkit-router` | Bounded raw-path matching with explicit method outcomes | Implemented |
+| `httpkit` | Runtime-neutral web primitives: URL/forms, JSON, cookies, HTML, multipart and realtime codecs | Implemented |
+| `httpkit-eio` | Eio applications, middleware, files, sessions and realtime connections | Implemented |
+| `httpkit-lwt` | Lwt applications, middleware, sessions and realtime connections | Implemented |
+| `httpkit-db-eio` | Caqti pools, transactions and migrations for PostgreSQL/SQLite | Implemented |
+| `httpkit-cookie` | Encrypted cookie sessions and key rotation | Implemented |
+| `httpkit-session-eio` | Shared PostgreSQL/SQLite browser sessions | Implemented |
+| `httpkit-password` | Argon2id hashing, verification and rehash policy | Implemented |
+| `httpkit-oidc` | Authorization-code/PKCE requests and ID-token policy | Implemented |
+| `httpkit-oidc-eio` | Browser login, callback handling and provider requests | Implemented |
 
-Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Future codecs may depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. Eio and Lwt will have their own native APIs, without a shared monadic runtime abstraction.
+Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Codecs depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. Eio and Lwt have their own native APIs, without a shared monadic runtime abstraction.
+
+Production package names are also Dune public library names. Their entry modules capitalize
+`Httpkit` and replace hyphens with underscores: `httpkit-core` exposes
+`Httpkit_core`, and `httpkit-transport-eio` exposes `Httpkit_transport_eio`.
+`httpkit` exposes `Httpkit`; `httpkit-eio` and `httpkit-lwt` expose the application
+modules `Httpkit_eio` and `Httpkit_lwt`. Use the `transport` packages for low-level
+connections. See the [framework guide](framework.md) and [extensions](extensions.md)
+for application APIs and installation examples. Packages are not yet published to opam.
 
 `httpkit-middleware` adds three public composition styles: basic wrappers, typed contexts, and typed context transitions. It depends only on core; see [middleware contracts](middleware.md).
 

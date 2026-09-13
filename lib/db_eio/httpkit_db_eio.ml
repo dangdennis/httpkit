@@ -153,6 +153,8 @@ type migration = {
   sqlite : string list;
 }
 
+(* Migration history is persistent application data; package renames must not
+   create a new history table and replay already applied migrations. *)
 module Q = struct
   open Caqti.Templater
 

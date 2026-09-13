@@ -11,13 +11,13 @@ release builds on the local macOS ARM64 host. Commands and contracts are in
 
 For a 65,536-byte POST body in 17-byte HTTP chunks, arriving in 16,384-byte
 transport fragments, all three implementations delivered 3,859 data events.
-Http-kit required 3,863 input calls; httpaf/httpun required eight. These are
+httpkit required 3,863 input calls; httpaf/httpun required eight. These are
 public API/driver differences, not different payloads. Transport boundaries can
 split an HTTP chunk, which explains why event count exceeds wire chunk count.
 
 | Implementation | Owned-scan allocation/op | Borrowed-scan allocation/op | Collect allocation/op | Owned process peak RSS |
 | --- | ---: | ---: | ---: | ---: |
-| http-kit | 5,782,820 B | 5,782,820 B | 6,033,604 B | 7,241,728 B |
+| httpkit | 5,782,820 B | 5,782,820 B | 6,033,604 B | 7,241,728 B |
 | httpaf | 39,420,572 B | 39,297,172 B | 39,671,356 B | 8,339,456 B |
 | httpun | 39,298,156 B | 39,174,756 B | 39,548,940 B | 8,323,072 B |
 
@@ -29,7 +29,7 @@ allocation difference. Both upstream stack samples are dominated by
 investigating repeated queue materialization as a primary hotspot. This is
 workload-specific evidence, not a general library ranking or a vulnerability.
 
-Http-kit's hottest sampled leaf was the benchmark payload checker, followed by
+httpkit's hottest sampled leaf was the benchmark payload checker, followed by
 the codec state loop, runtime mutation work, engine settling and chunk-line
 handling. Optimizing only payload copying would miss other significant work.
 The benchmark deliberately checks every byte, so these are not parser-only
@@ -56,7 +56,7 @@ The focused 54-case body run used five processes and a 50 ms calibration target:
 upstream values to approximately 79 KB and 14 KB. Ownership costs matter much
 more for this contiguous-body case than for thousands of tiny chunks.
 
-Http-kit exposes owned Data in both scan modes. A borrowed-scan comparison does
+httpkit exposes owned Data in both scan modes. A borrowed-scan comparison does
 not demonstrate a borrowed kit API. Collection costs include chunk retention,
 list processing and final concatenation.
 
@@ -159,7 +159,7 @@ not per request. A full exchange checks eight uploads plus eight responses;
 a writer case has empty uploads and eight response bodies. Incoming chunked
 bodies use 17-byte wire chunks; outgoing writes use up to 8 KiB per submission.
 
-| Workload | http-kit time | httpaf time | httpun time | http-kit allocation | httpaf allocation | httpun allocation |
+| Workload | httpkit time | httpaf time | httpun time | httpkit allocation | httpaf allocation | httpun allocation |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Fixed response writer | 12.85 ms | 11.70 ms | 11.59 ms | 1.92 MB | 2.04 MB | 1.95 MB |
 | Chunked response writer | 11.90 ms | 15.13 ms | 11.59 ms | 3.59 MB | 2.17 MB | 2.14 MB |
@@ -176,7 +176,7 @@ throughput, request latency percentiles or peak resident memory.
 ## Hosted CI status
 
 The code milestone was pushed as `e11840c`. GitHub Actions run
-[34575520676](https://github.com/dangdennis/http-kit/actions/runs/34575520676)
+[34575520676](https://github.com/dangdennis/httpkit/actions/runs/34575520676)
 failed before starting any job steps. Its annotation states that recent account
 payments failed or the spending limit needs increasing. Hosted CI requires the
 account owner to resolve that billing condition and rerun; no workflow failure

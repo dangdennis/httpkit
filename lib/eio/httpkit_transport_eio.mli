@@ -1,7 +1,9 @@
 open Httpkit_core
-(** Native Eio driver. All connection operations must run in the same domain.
-    Reader/writer fibers are scoped to with_connection; no background work
-    survives its return. There is no shared promise abstraction with Lwt. *)
+(** Native Eio driver from [httpkit-transport-eio]. The application API is
+    [Httpkit_eio] in [httpkit-eio]. All connection operations must run in the
+    same domain. Reader/writer fibers are scoped to with_connection; no
+    background work survives its return. There is no shared promise abstraction
+    with Lwt. *)
 
 module Engine = Httpkit_engine
 module Timeout = Engine.Timeout

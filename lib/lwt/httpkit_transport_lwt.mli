@@ -1,6 +1,8 @@
 open Httpkit_core
-(** Native Lwt driver. All operations belong to one Lwt event loop. Reader and
-    writer promises are cancelled and joined before scoped cleanup completes. *)
+(** Native Lwt driver from [httpkit-transport-lwt]. The application API is
+    [Httpkit_lwt] in [httpkit-lwt]. All operations belong to one Lwt event loop.
+    Reader and writer promises are cancelled and joined before scoped cleanup
+    completes. *)
 
 module Engine = Httpkit_engine
 module Timeout = Engine.Timeout

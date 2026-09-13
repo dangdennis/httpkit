@@ -3,6 +3,7 @@ module W = Httpkit
 
 type 'a t = { store : 'a W.Session.t; mutex : Eio.Mutex.t; ttl : int }
 
+(* Keep the deployed cookie identifier stable across library renames. *)
 let name = "__Host-http-kit"
 
 let create ?capacity ~ttl ~clock ~random () =

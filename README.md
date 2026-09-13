@@ -72,7 +72,13 @@ tools/dune-pkg exec ./examples/runtime/lwt_example.exe
 | `httpkit-router` | Declaration-ordered path matching and explicit method outcomes |
 | `httpkit` | URL/forms, JSON, cookies, sessions, HTML, multipart, SSE and WebSocket primitives |
 | `httpkit-eio` | Eio application dispatch, middleware, files and realtime connections |
+| `httpkit-lwt` | Lwt application dispatch, middleware, sessions and realtime connections |
 | `httpkit-db-eio` | PostgreSQL/SQLite pools, transactions and migrations through Caqti |
+| `httpkit-cookie` | Encrypted cookie sessions and key rotation |
+| `httpkit-session-eio` | Shared PostgreSQL/SQLite browser sessions |
+| `httpkit-password` | Argon2id hashing, verification and rehash policy |
+| `httpkit-oidc` | Authorization-code/PKCE requests and ID-token policy |
+| `httpkit-oidc-eio` | Browser login and provider integration for Eio applications |
 
 Applications supply listeners and TLS. Codecs and engines can also be used with
 other runtimes through their explicit input, output and event interfaces.

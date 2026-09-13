@@ -5,6 +5,8 @@ let build_dir = "_build-fuzz-pkg-5.5.0"
 let binary name = root / build_dir / "default/fuzz" / (name ^ ".exe")
 let plain name = Build.binary ("fuzz/" ^ name ^ ".exe")
 
+(* Preserve the existing fuzz environment variables so retained replay commands
+   continue to select the same cases and fault controls after library renames. *)
 let environment () =
   List.fold_left
     (fun env (k, v) -> set env k v)

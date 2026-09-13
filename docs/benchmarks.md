@@ -342,7 +342,7 @@ tools/dev bench --external --family router-experiment \
 ```
 
 The borrowed-scan lane checks upstream Bigarray slices inside their callback
-without retaining them. Http-kit still supplies owned immutable Data: this lane
+without retaining them. httpkit still supplies owned immutable Data: this lane
 compares the APIs' available ownership models, not equivalent zero-copy
 implementations. Owned-scan and collect retain their original copy semantics.
 All modes count payload events; the small counter overhead is included.
