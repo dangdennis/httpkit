@@ -5,6 +5,10 @@ PostgreSQL and SQLite. Keep runtime-neutral protocol helpers independent of the
 server and database packages. Existing APIs remain available. README stays brief.
 AFL execution and its two unresolved timeout findings remain deferred by request.
 
+The [protocol library plan](protocol-libraries-plan.md) covers the next libraries:
+headers, compression, files, TLS, clients, HTTP/2, WebSocket additions and HTTP/3.
+It specifies package boundaries, reuse decisions, staged delivery and acceptance.
+
 ## Delivery sequence
 
 | Stage | Deliverable | Acceptance boundary | Status |
