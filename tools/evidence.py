@@ -90,6 +90,8 @@ def validate(version):
          '--report', str(OUT / ('suite-' + version + '.json')),
          '--junit', str(OUT / ('suite-' + version + '.xml'))])
     run([sys.executable, str(ROOT / 'tools/test_checks.py')])
+    run([sys.executable, str(ROOT / 'tools/test_personal_use.py')])
+    run([sys.executable, '-O', str(ROOT / 'tools/test_personal_use.py')])
     run([sys.executable, str(ROOT / 'tools/test_benchmarks.py')])
     run([sys.executable, str(ROOT / 'tools/test_benchmark_selection.py')])
     run([sys.executable, str(ROOT / 'tools/test_release.py')])

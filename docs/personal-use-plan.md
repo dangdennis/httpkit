@@ -1,0 +1,39 @@
+# Eio personal-use acceptance
+
+Scope: OCaml 5.5.0, HTTP/1.1, Eio first, bounded local applications. This is a
+separate acceptance profile; the public-release policy is unchanged. README stays
+focused on using the packages.
+
+## Ordered work
+
+1. Investigate the retained request timeout with its original AFL 512 MiB / 2 s
+   limits. Preserve findings; passing replays alone do not establish root cause.
+   Refresh compiler/tests/docs/installed consumers, coverage and direct/proxy interop.
+2. Add a complete Eio application with incremental uploads/downloads, routing,
+   middleware, bounded admission/body/output, cancellation and graceful shutdown.
+3. Exercise slow peers, EOF/reset, oversized/ambiguous input, early rejection,
+   keep-alive, cancellation and shutdown. Check exact bytes and resource cleanup.
+   Keep both adapters in shared-code regression validation.
+4. Measure routed requests, uploads and downloads at increasing concurrency.
+   Keep correctness checks and report latency, throughput and memory. Only adopt
+   optimizations supported by equivalent alternating baseline/candidate runs.
+5. Freeze code, then run 1,800 seconds per each of the nine fuzz targets and a
+   7,200-second Eio mixed-load soak. Preserve source hashes, corpora and failures.
+   Require correct responses, no untriaged findings, bounded resources and clean
+   shutdown. Smoke runs cannot substitute for these budgets.
+6. Verify a separately installed Eio consumer, document measured limits and tag a
+   candidate only after required evidence passes. Keep a known-good rollback ref.
+
+The implementation agent owns code, tests and experiment execution. External
+review, publication licensing and the full public release matrix remain separate.
+An unexplained historical timeout stays explicitly unresolved; do not manufacture
+an infrastructure classification or a clean acceptance result.
+
+## Measurement interpretation
+
+Use a local repeatable workload to establish a usable operating range. Host load
+and client saturation can invalidate latency/throughput comparisons. No universal
+requests/second target is assumed, and no prototype router optimization is adopted
+without measured benefit. Resource checks distinguish engine bounds, application
+retention, post-GC live heap, descriptors and process RSS. RSS need not fall to its
+startup value; persistent growth after warmup must be investigated.

@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import time
 from dune_env import ROOT, configuration, command
@@ -72,6 +73,10 @@ def main():
         # gets a seed that reaches its intended first-party state.
         (seeds / "valid").write_bytes(b"\0" + target["seed"].encode() + b"\0")
         (seeds / "controls").write_bytes(b"\0\x03\x02\x01\x02\0")
+        # Retain previously discovered inputs as seeds; do not waive findings.
+        corpus_directory = ROOT / "fuzz/corpus" / name
+        for seed in sorted(corpus_directory.glob("*.seed")):
+            shutil.copy2(seed, seeds / seed.name)
         binary = ROOT / build / "default/fuzz" / (target["binary"] + ".exe")
         plain = (
             ROOT / f"_build-pkg-{version}/default/fuzz" / (target["binary"] + ".exe")

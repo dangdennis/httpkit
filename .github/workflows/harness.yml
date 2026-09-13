@@ -37,6 +37,9 @@ jobs:
       - run: python3 tools/interop.py
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}
+      - run: python3 tools/personal_use.py --mode smoke
+        env:
+          HARNESS_COMPILER: ${{ matrix.compiler }}
       - run: python3 tools/performance.py
         env:
           HARNESS_COMPILER: ${{ matrix.compiler }}

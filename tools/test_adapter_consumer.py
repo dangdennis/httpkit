@@ -55,6 +55,15 @@ for adapter, runtime in [('eio', 'eio_main'), ('lwt', 'lwt.unix')]:
                            [str(compiler.with_name('ocamlrun')),str(consumer/f'_build/default/{adapter}_example.bc')]]:
             result=subprocess.run(executable,cwd=consumer,env=clean,capture_output=True,timeout=15)
             require(result.returncode==0 and result.stdout==b'Hello /\n', (executable,result.stdout,result.stderr))
+        if adapter == 'eio':
+            shutil.copy2(ROOT/'examples/personal/eio_streaming.ml', consumer/'eio_streaming.ml')
+            (consumer/'dune').write_text('(executable (name eio_streaming) (modules eio_streaming) (modes byte exe) (libraries http-kit-eio eio_main))\n')
+            run(consumer,['build','eio_streaming.exe','eio_streaming.bc'])
+            for executable in [[str(consumer/'_build/default/eio_streaming.exe')],
+                               [str(compiler.with_name('ocamlrun')),str(consumer/'_build/default/eio_streaming.bc')]]:
+                result=subprocess.run(executable,cwd=consumer,env=clean,capture_output=True,timeout=15)
+                require(result.returncode==0 and result.stdout==b'Streamed 1048576 bytes each way\n',
+                        (executable,result.stdout,result.stderr))
         (consumer/'opposite.ml').write_text('let _ = '+('Lwt.return_unit' if adapter=='eio' else 'Eio.Fiber.yield')+'\n')
         (consumer/'dune').write_text(f'(executable (name opposite) (modules opposite) (libraries http-kit-{adapter}))\n')
         result=subprocess.run([dune,'build','opposite.exe'],cwd=consumer,env=clean,capture_output=True,text=True,timeout=30)

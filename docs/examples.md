@@ -47,10 +47,10 @@ Both print `Hello /` and call the same pure
 client/server cleanup reproducible. Eio owns fibers and switches; Lwt owns promises
 and cancellation. There is no shared promise interface in the production core.
 
-These existing adapter examples collect small bodies. Fully worked streaming and
-cancellation recipes remain the next example tasks; the adapter contracts and
-lifecycle tests already cover those operations. See [adapter ownership and
-limits](adapters.md) before adapting a recipe to a long-lived application.
+These small adapter examples collect bodies. The [Eio personal-use examples](personal-eio.md)
+add incremental upload/download, routing and middleware, peer cancellation, and
+graceful shutdown with active transfers. See [adapter ownership and limits](adapters.md)
+before adapting a recipe to a long-lived application.
 
 Routing examples decide whether to consume the upload before reading its body.
 A supported Expect upload receives 100 Continue first; unmatched routes receive
