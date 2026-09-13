@@ -82,7 +82,6 @@ TLS and application authentication remain caller responsibilities.
 python3 tools/personal_use.py --mode smoke
 python3 tools/personal_use.py --mode profile --seconds 10
 python3 tools/personal_use.py --mode soak --seconds 7200
-python3 tools/campaign.py --seconds 1800
 ```
 
 The profile runs 1, 4 and 8 concurrent clients for the specified duration each.
@@ -106,19 +105,21 @@ Inspect the retained trends as well. Engine queue bounds have separate exact
 checks. The initial reference observation precedes warmup; the first two
 observations are excluded from growth comparisons.
 
-The nine 30-minute fuzz targets run sequentially (about 4.5 hours plus setup and
+AFL work is currently deferred at user request. If resumed separately, the nine
+30-minute fuzz targets run sequentially (about 4.5 hours plus setup and
 corpus replay). They retain the original 512 MiB and 2-second execution limits.
 Source changes invalidate final evidence. Neither these budgets nor the personal
 profile replaces the [public-release requirements](release.md).
 
-To run the complete local sequence and both approved long experiments:
+To run the current non-AFL local sequence and the approved two-hour soak:
 
 ```sh
-python3 tools/personal_validation.py --long
+python3 tools/personal_validation.py --long --skip-afl
 ```
 
-This runs baseline validation first, then the nine sequential AFL targets alongside
-the two-hour Eio soak. The performance profile runs before AFL starts. It writes
+This runs baseline validation and the performance profile first, then the two-hour
+Eio soak. `--skip-afl` defers AFL instrumentation checks, campaigns and timeout
+investigation; seeded properties, Bisect coverage and curated mutations still run. It writes
 step logs and a durable report under `_artifacts/personal/validation-*`. A failed
 step stops the sequence; interrupted long-run process groups are terminated.
 The historical timeout remains separately visible as unresolved even when new

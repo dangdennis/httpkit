@@ -4,6 +4,14 @@ Scope: OCaml 5.5.0, HTTP/1.1, Eio first, bounded local applications. This is a
 separate acceptance profile; the public-release policy is unchanged. README stays
 focused on using the packages.
 
+## Current scope decision
+
+The user deferred all AFL work, including campaigns and timeout investigation.
+Preserve the historical request input and the new core-target timeout from the
+interrupted campaign; neither is resolved. Continue all non-AFL validation and
+restart the two-hour Eio soak on the updated candidate. Existing public-release
+requirements remain unchanged. Use `python3 tools/personal_validation.py --long --skip-afl`.
+
 ## Ordered work
 
 1. Investigate the retained request timeout with its original AFL 512 MiB / 2 s

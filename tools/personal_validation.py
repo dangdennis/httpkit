@@ -18,7 +18,10 @@ from checks import require
 
 def stop_process(process):
     if process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
         try:
             process.wait(timeout=20)
         except subprocess.TimeoutExpired:
@@ -28,13 +31,14 @@ def stop_process(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--long', action='store_true', help='also run nine 30-minute campaigns and a two-hour soak')
+    parser.add_argument('--long', action='store_true', help='also run the two-hour soak and any enabled campaigns')
+    parser.add_argument('--skip-afl', action='store_true', help='defer all AFL execution, including smoke checks and timeout investigation')
     args = parser.parse_args()
     digest = source_hash()
     commit = subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip()
     directory = ROOT/'_artifacts/personal'/f'validation-{time.time_ns()}'
     directory.mkdir(parents=True)
-    result = dict(status='RUNNING',source_sha256=digest,commit=commit,directory=str(directory),steps=[])
+    result = dict(status='RUNNING',source_sha256=digest,commit=commit,directory=str(directory),steps=[],afl='DEFERRED_BY_REQUEST' if args.skip_afl else 'ENABLED')
     report = directory/'report.json'
     def save(): report.write_text(json.dumps(result,indent=2)+'\n')
     def run(name, arguments):
@@ -65,7 +69,10 @@ def main():
             ('historical-timeout-replay',[py,'tools/triage_timeout.py']),
             ('eio-smoke',[py,'tools/personal_use.py','--mode','smoke']),
             ('eio-profile',[py,'tools/personal_use.py','--mode','profile','--seconds','10']),
-        ]: run(name,command)
+        ]:
+            if args.skip_afl and name in ['instrumentation', 'historical-timeout-replay']:
+                continue
+            run(name,command)
         if args.long:
             # The profile above runs alone. Soak timing is not used for performance
             # ranking, so it can share this frozen candidate with one AFL worker.
@@ -76,6 +83,8 @@ def main():
                     ('eio-soak',[py,'tools/personal_use.py','--mode','soak','--seconds','7200',
                                  '--binary',str(ROOT/'_build-pkg-5.5.0/default/examples/personal/eio_server.exe')]),
                 ]:
+                    if args.skip_afl and name == 'campaigns':
+                        continue
                     log=directory/(name+'.log');handle=log.open('wb')
                     p=subprocess.Popen(command,cwd=ROOT,stdout=handle,stderr=subprocess.STDOUT,start_new_session=True)
                     row=dict(name=name,command=command,status='RUNNING',log=str(log),pid=p.pid)
@@ -96,11 +105,14 @@ def main():
                     stop_process(p)
                     handle.close();row['status']='INTERRUPTED'
         result['status']='EXPERIMENTS_PASSED'
-        result['readiness']='NOT_READY'
-        result['unresolved_findings']=['Historical request timeout: repeated replays are not a root-cause classification.']
+        result['readiness']='NON_AFL_CHECKS_PASSED' if args.skip_afl else 'NOT_READY'
+        result['public_release']='NOT_READY'
+        result['unresolved_findings']=['Historical request timeout: repeated replays are not a root-cause classification.',
+                                       'Core-target timeout recorded during the interrupted campaign; investigation deferred at user request.']
         save();print(json.dumps(dict(status=result['status'],readiness=result['readiness'],report=str(report))),flush=True)
     except BaseException as exn:
-        result['status']='FAIL';result['error']=repr(exn);save();raise
+        result['status']='INTERRUPTED' if isinstance(exn, KeyboardInterrupt) else 'FAIL'
+        result['error']=repr(exn);save();raise
 
 
 if __name__=='__main__': main()

@@ -30,3 +30,13 @@ is not evidence that shutdown caused it. The bounded request parser and successf
 replays narrow the investigation but do not establish the historical cause.
 A personal-use acceptance report must keep this finding visible. A clean long
 campaign provides additional evidence, not an automatic resolution.
+
+## AFL deferred
+
+The user subsequently asked to skip all AFL work. The interrupted new core
+campaign had recorded a 44-byte timeout input at 112,469 ms, after 585,549
+executions. Its SHA-256 is
+`18059b55b5a5736107d87ce9e676a20b9be0c21c5a0ae57c6a60d3137dd3b72e`.
+The input is preserved as `fuzz/corpus/core/deferred-timeout.seed`; original logs
+and corpus remain in `_artifacts/campaigns/a063c71df498-nb78ebzw`. It has not been
+investigated or resolved. Non-AFL checks and the Eio soak continue separately.
