@@ -16,6 +16,16 @@ from evidence import ROOT, source_hash
 from checks import require
 
 
+def progress(message):
+    """Console output is optional; durable reports determine validation status."""
+    try:
+        print(message, flush=True)
+    except BrokenPipeError:
+        # A desktop restart can disconnect stdout while detached checks survive.
+        # Redirect it so the interpreter's final flush cannot fail either.
+        sys.stdout = open(os.devnull, 'w')
+
+
 def stop_process(process):
     if process.poll() is None:
         try:
@@ -44,7 +54,7 @@ def main():
     def run(name, arguments):
         require(source_hash()==digest,'source changed before '+name)
         row = dict(name=name,command=arguments,status='RUNNING',log=str(directory/(name+'.log')))
-        result['steps'].append(row);save();print(name+': started',flush=True)
+        result['steps'].append(row);save();progress(name+': started')
         start=time.monotonic()
         with Path(row['log']).open('wb') as log:
             p=subprocess.Popen(arguments,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
@@ -56,7 +66,7 @@ def main():
         row.update(status='PASS' if p.returncode==0 else 'FAIL',exit=p.returncode,seconds=time.monotonic()-start)
         save();require(p.returncode==0,('validation failed',name,row['log']))
         require(source_hash()==digest,'source changed during '+name)
-        print(name+': PASS',flush=True)
+        progress(name+': PASS')
     py=sys.executable
     try:
         for name, command in [
@@ -89,7 +99,7 @@ def main():
                     p=subprocess.Popen(command,cwd=ROOT,stdout=handle,stderr=subprocess.STDOUT,start_new_session=True)
                     row=dict(name=name,command=command,status='RUNNING',log=str(log),pid=p.pid)
                     result['steps'].append(row);jobs.append((p,handle,row,time.monotonic()))
-                    save();print(name+': started',flush=True)
+                    save();progress(name+': started')
                 while jobs:
                     require(source_hash()==digest,'source changed during long runs')
                     for job in list(jobs):
@@ -98,7 +108,7 @@ def main():
                             handle.close();jobs.remove(job)
                             row.update(status='PASS' if p.returncode==0 else 'FAIL',exit=p.returncode,seconds=time.monotonic()-start)
                             save();require(p.returncode==0,('long run failed',row['name'],row['log']))
-                            print(row['name']+': PASS',flush=True)
+                            progress(row['name']+': PASS')
                     if jobs: time.sleep(5)
             finally:
                 for p,handle,row,start in jobs:
@@ -109,7 +119,7 @@ def main():
         result['public_release']='NOT_READY'
         result['unresolved_findings']=['Historical request timeout: repeated replays are not a root-cause classification.',
                                        'Core-target timeout recorded during the interrupted campaign; investigation deferred at user request.']
-        save();print(json.dumps(dict(status=result['status'],readiness=result['readiness'],report=str(report))),flush=True)
+        save();progress(json.dumps(dict(status=result['status'],readiness=result['readiness'],report=str(report))))
     except BaseException as exn:
         result['status']='INTERRUPTED' if isinstance(exn, KeyboardInterrupt) else 'FAIL'
         result['error']=repr(exn);save();raise
