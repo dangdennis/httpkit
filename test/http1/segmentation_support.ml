@@ -70,8 +70,8 @@ let head ~step role wire cuts =
   in
   loop 0 0
 
-let body ~step meta wire cuts =
-  let decoder = body_decoder ~limits:(ok (limits ~step ())) meta in
+let body ?(configure = fun step -> ok (limits ~step ())) ~step meta wire cuts =
+  let decoder = body_decoder ~limits:(configure step) meta in
   let offered = window cuts (String.length wire) in
   let output = Buffer.create 32 in
   let trailers = ref [] in

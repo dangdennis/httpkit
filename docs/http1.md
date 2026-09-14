@@ -64,3 +64,9 @@ splits with work budgets 1, 7 and 16384. Rejected server heads must emit only on
 Closed event, preserve the protocol failure across abort, release queues and
 reject a following valid request. These cases do not close the broader smuggling,
 special-response, client sequencing or real-proxy acceptance campaigns.
+
+`test/http1/chunk_cases.ml` and `test/engine/chunk_test.ml` add explicit valid
+extension/trailer outcomes, malformed chunk/terminator/trailer rejection, exact
+and cumulative body quotas, and huge declared chunks without payload allocation.
+Normal and discard-mode engines must close on every malformed-body fixture and
+refuse an appended request under every segmentation/work schedule.

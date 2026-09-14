@@ -62,11 +62,15 @@ optimizing. WebSocket security and the remaining P1 campaigns follow P0 dependen
 P2 remains demand-gated: autonomous execution does not authorize indiscriminate
 feature expansion or change the infrastructure exclusions at the end of this plan.
 
-Completed: segmentation/EOF/terminal-error controls (`ec5a0f5`), macOS full
-validation and ordinary/coverage HTTP/1+engine regressions. CL/TE matrix and rejected-request suffix isolation are implemented in
-`test/engine/framing_test.ml`; ordinary and coverage native/bytecode HTTP/1 and
-engine regressions pass. Next: chunk/trailer
-framing and special-response cases. Each completed slice preserves its own validation logs under `_artifacts/production-slices`.
+Completed slices (each has ordinary/coverage native/bytecode HTTP/1 and engine
+regression evidence under `_artifacts/production-slices`):
+
+- Segmentation/EOF/terminal-error controls (`ec5a0f5`); full macOS validation.
+- Explicit CL/TE policy plus rejected-head isolation (`0737b76`).
+- Chunk/extensions/trailers and cumulative quotas; malformed-body isolation in
+  normal and discard modes (`test/engine/chunk_test.ml`).
+
+Next: special-response framing, then connection reuse and lifecycle slices.
 
 ## P0 — required before production confidence
 

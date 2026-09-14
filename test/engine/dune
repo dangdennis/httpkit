@@ -9,3 +9,9 @@
  (modules framing_test)
  (modes byte exe)
  (libraries http1_conformance http1_cases engine_cases httpkit-core httpkit-http1 httpkit-engine alcotest))
+
+(test
+ (name chunk_test)
+ (modules chunk_test)
+ (modes byte exe)
+ (libraries http1_conformance http1_cases engine_cases httpkit-http1 httpkit-engine alcotest))

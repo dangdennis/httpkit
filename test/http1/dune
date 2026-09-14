@@ -18,5 +18,5 @@
 (library
  (name http1_conformance)
  (wrapped false)
- (modules segmentation_support framing_cases)
+ (modules segmentation_support framing_cases chunk_cases)
  (libraries http1_cases httpkit-core httpkit-http1))
