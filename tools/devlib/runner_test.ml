@@ -91,7 +91,70 @@ let endpoint_counters () =
       ignore (Endpoint_profile.summary ~operations:4 ~seconds:0. before after));
   print_endline "PASS endpoint profile units and invalid counter rejection"
 
+let client_reads () =
+  let reader, writer = Unix.socketpair Unix.PF_UNIX Unix.SOCK_STREAM 0 in
+  let c = Network.of_fd reader in
+  Fun.protect
+    ~finally:(fun () ->
+      Network.close c;
+      Unix.close writer)
+    (fun () ->
+      let wire =
+        "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc"
+        ^ "HTTP/1.1 200 OK\r\n\
+           Transfer-Encoding: chunked\r\n\
+           \r\n\
+           3\r\n\
+           def\r\n\
+           0\r\n\
+           \r\n"
+      in
+      require
+        (Unix.write_substring writer wire 0 (String.length wire)
+        = String.length wire)
+        "Client fixture write";
+      Unix.shutdown writer Unix.SHUTDOWN_SEND;
+      let first = Network.response c "GET" in
+      let second = Network.response c "GET" in
+      require
+        (first.status = 200 && first.body = "abc" && second.status = 200
+       && second.body = "def")
+        "Buffered response suffix isolation";
+      require (Network.recv c 1 = "") "Buffered EOF";
+      require (c.read_calls <= 4)
+        (Printf.sprintf
+           "Excessive client read syscalls for two buffered heads: %d"
+           c.read_calls));
+  print_endline
+    "PASS buffered client response boundaries, EOF and syscall bound"
+
+let client_read_failure () =
+  let reader, writer = Unix.socketpair Unix.PF_UNIX Unix.SOCK_STREAM 0 in
+  let c = Network.of_fd reader in
+  Fun.protect
+    ~finally:(fun () ->
+      Network.close c;
+      Unix.close writer)
+    (fun () ->
+      ignore (Unix.write_substring writer "x" 0 1);
+      require (Network.recv c 1 = "x") "Client read-failure setup";
+      let write_only = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0 in
+      Fun.protect
+        ~finally:(fun () -> Unix.close write_only)
+        (fun () -> Unix.dup2 write_only reader);
+      let rejected () =
+        try
+          ignore (Network.recv c 1);
+          false
+        with Unix.Unix_error (Unix.EBADF, _, _) -> true
+      in
+      require (rejected ()) "Write-only descriptor read must fail";
+      require (rejected ()) "Failed refill replayed stale buffered bytes");
+  print_endline "PASS failed client refill cannot replay consumed bytes"
+
 let coordinator () =
+  client_read_failure ();
+  client_reads ();
   endpoint_counters ();
   resources ();
   let steps = Validate.personal_steps ~long:true ~skip_afl:true in

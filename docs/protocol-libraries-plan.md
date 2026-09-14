@@ -128,6 +128,11 @@ Completed slices (relevant local regression evidence is retained under
   expiry precision. Regression controls prove rejection consumes no entropy or
   capacity and failed rotation restores the previous session.
 
+- End-to-end profiling exposed an inefficient byte-at-a-time load-client read
+  path. A bounded 8 KiB buffer preserves response suffixes and EOF, with syscall
+  controls and per-operation read counts in reports. Benchmark interpretation
+  must distinguish client improvements from server improvements.
+
 Next: broader local limits and application-resource schedules; release-profile
 and Lwt benchmark parity remain open. CI work remains deferred.
 

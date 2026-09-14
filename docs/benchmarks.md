@@ -487,3 +487,13 @@ thread scheduling, laptop load and GC can limit throughput. A short run is a
 functional check, not a statistical baseline. No automatic timing threshold is
 introduced. Release-profile runs, Lwt parity, richer hardware provenance, separate
 load hosts, slow-client matrices and external framework comparisons remain open.
+
+The developer load client retains at most 8 KiB of read-ahead per connection.
+It preserves surplus response bytes across parser calls; a socket-pair control
+checks consecutive fixed/chunked responses and EOF. An injected read failure
+also checks that a retry cannot replay previously consumed buffer contents. Endpoint reports include
+`persistent_client_read_calls` and the per-operation ratio, so client syscall
+cost is visible alongside server counters. This replaced a byte-at-a-time header
+read path that took 97 read syscalls for two tiny responses. Source/workload
+identity must be checked when comparing historical reports: changing the load
+client can change measured throughput without changing httpkit's server code.

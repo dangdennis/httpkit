@@ -1,6 +1,6 @@
 # Benchmark experiments and remaining work
 
-Owner: the httpkit repository. Updated 2026-09-11. This is the persistent
+Owner: the httpkit repository. Updated 2026-09-14. This is the persistent
 benchmark backlog; checked items mean implemented and exercised, not a production
 performance or security approval. Commands and comparison boundaries live in
 [benchmarks.md](benchmarks.md). Release campaigns remain governed by the
@@ -103,3 +103,19 @@ appropriate, per-operation correctness checks, bounded runtime, retained raw
 samples, clear units and comparison exclusions. Change this file as coverage
 lands. Promote experimental optimizations only after both behavior and measured
 tradeoffs support them; benchmark prototypes are not public APIs.
+
+## Production-confidence endpoint campaign
+
+- [x] Five fixed Eio application endpoints, payload oracle, 1/4/8 concurrency,
+      warm-up/repetitions, source/binary/workload identity and explicit dev profile.
+- [x] Non-forcing server allocation/GC/CPU counters, p50/p95/p99 latency upper
+      bounds and post-epoch resource/shutdown checks.
+- [x] Bounded load-client read-ahead and reported syscall counts; preserve old
+      evidence rather than attributing client throughput changes to the server.
+- [ ] Release-profile endpoint builds and Lwt parity.
+- [ ] Separate load host, fuller hardware provenance and client CPU profiles.
+- [ ] Stable repeatable budgets, independent framework comparisons and slow-client
+      matrices. CI work is deferred under the current user instruction.
+
+See [endpoint methodology](benchmarks.md#end-to-end-application-endpoint-profile).
+No checked item above establishes production performance or release readiness.

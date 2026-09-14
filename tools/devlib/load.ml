@@ -248,7 +248,8 @@ let epoch ~port ~seconds ~concurrency ~rate ~seed ~modes operation =
         let rng = Random.State.make [| seed + index |]
         and counts = Hashtbl.create 16
         and hist = Hashtbl.create 16
-        and transferred = ref 0 in
+        and transferred = ref 0
+        and read_calls = ref 0 in
         with_connection port (fun c ->
             while (not (Atomic.get stopped)) && monotonic () < deadline do
               let start = monotonic () in
@@ -279,14 +280,17 @@ let epoch ~port ~seconds ~concurrency ~rate ~seed ~modes operation =
               if rate > 0. then
                 interruptible_sleep stopped
                   (max 0. ((float concurrency /. rate) -. elapsed))
-            done);
-        (counts, hist, !transferred))
+            done;
+            read_calls := c.read_calls);
+        (counts, hist, !transferred, !read_calls))
   in
   let counts = Hashtbl.create 16
   and hist = Hashtbl.create 16
-  and transferred = ref 0 in
+  and transferred = ref 0
+  and read_calls = ref 0 in
   List.iter
-    (fun (cs, hs, n) ->
+    (fun (cs, hs, n, reads) ->
+      read_calls := !read_calls + reads;
       transferred := !transferred + n;
       Hashtbl.iter
         (fun k v ->
@@ -341,6 +345,9 @@ let epoch ~port ~seconds ~concurrency ~rate ~seed ~modes operation =
       ("offered_operations_per_second", if rate = 0. then `Null else `Float rate);
       ("counts", `Assoc (sorted counts (fun n -> `Int n)));
       ("payload_bytes", `Int !transferred);
+      ("persistent_client_read_calls", `Int !read_calls);
+      ( "persistent_client_read_calls_per_operation",
+        `Float (float !read_calls /. float operations) );
       ( "latency_upper_ms",
         `List (Array.to_list buckets |> List.map (fun n -> `Float n)) );
       ( "latency_bucket_upper_ms",

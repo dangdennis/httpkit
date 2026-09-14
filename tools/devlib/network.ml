@@ -1,6 +1,23 @@
 open Common
 
-type connection = { fd : Unix.file_descr; mutable closed : bool }
+type connection = {
+  fd : Unix.file_descr;
+  mutable closed : bool;
+  mutable read_calls : int;
+  buffer : bytes;
+  mutable position : int;
+  mutable available : int;
+}
+
+let of_fd fd =
+  {
+    fd;
+    closed = false;
+    read_calls = 0;
+    buffer = Bytes.create 8192;
+    position = 0;
+    available = 0;
+  }
 
 type response = {
   status : int;
@@ -32,7 +49,7 @@ let connect ?(timeout = 15.) port =
        match Unix.getsockopt_error fd with
        | None -> ()
        | Some e -> raise (Unix.Unix_error (e, "connect", "loopback"))));
-    { fd; closed = false }
+    of_fd fd
   with exn ->
     Unix.close fd;
     raise exn
@@ -53,12 +70,21 @@ let send c s =
   loop 0
 
 let recv ?(timeout = 15.) c n =
-  ready c.fd false timeout;
-  let b = Bytes.create n in
-  let n =
-    try Unix.read c.fd b 0 n with Unix.Unix_error (Unix.ECONNRESET, _, _) -> 0
-  in
-  Bytes.sub_string b 0 n
+  require (n >= 0 && not c.closed) "Invalid client read";
+  if n = 0 then ""
+  else (
+    if c.position = c.available then (
+      ready c.fd false timeout;
+      c.position <- 0;
+      c.available <- 0;
+      c.read_calls <- c.read_calls + 1;
+      c.available <-
+        (try Unix.read c.fd c.buffer 0 (Bytes.length c.buffer)
+         with Unix.Unix_error (Unix.ECONNRESET, _, _) -> 0));
+    let count = min n (c.available - c.position) in
+    let result = Bytes.sub_string c.buffer c.position count in
+    c.position <- c.position + count;
+    result)
 
 let exact c n =
   require (n >= 0 && n <= 64 * 1024 * 1024) "Read size limit";
