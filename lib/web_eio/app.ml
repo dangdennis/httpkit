@@ -234,8 +234,8 @@ let connection ~peer ~body_limit ~random ~on_error ~timeout handler c =
   loop ()
 
 let serve ?(max_connections = 16) ?(body_limit = 1048576)
-    ?(output_limit = 32768) ?limits ?(request_timeout = 60.) ~clock ~random
-    ~stop ~accept ~on_error handler =
+    ?(output_limit = 32768) ?limits ?policy ?(request_timeout = 60.) ~clock
+    ~random ~stop ~accept ~on_error handler =
   if
     max_connections <= 0 || body_limit < 0 || output_limit <= 0
     || (not (Float.is_finite request_timeout))
@@ -254,7 +254,7 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
         Eio.Fiber.await_cancel ());
       (try
          let upgraded =
-           A.with_connection ~clock transport (engine ()) (fun c ->
+           A.with_connection ?policy ~clock transport (engine ()) (fun c ->
                connections := c :: !connections;
                Fun.protect
                  ~finally:(fun () ->

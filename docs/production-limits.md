@@ -44,3 +44,31 @@ Memory-session clock and TTL inputs must produce a finite, strictly future expir
 The pure store rejects addition overflow or rounding back to the current time
 before entropy consumption/insertion; rotation restores the previous session on
 failure. Native application wrappers retain their existing bounded TTL policy.
+
+## Application deadline configuration
+
+Both `Httpkit_eio.serve` and `Httpkit_lwt.serve` accept the same checked `~policy`
+from `Httpkit_engine.Timeout.policy`. The default durations above are unchanged.
+For example, an application may explicitly select:
+
+```ocaml
+let policy =
+  Result.get_ok
+    (Httpkit_engine.Timeout.policy
+       ~header:5. ~body_idle:(Some 15.) ~write_idle:(Some 15.)
+       ~keep_alive:15. ~graceful:10. ())
+```
+
+Pass `~policy` alongside the server's `~max_connections`, `~body_limit`,
+`~output_limit` and `~request_timeout`. Header time is absolute once parsing starts;
+body/write deadlines measure inactivity. The application request deadline covers
+handler and producer work independently. Disabling a body/write idle deadline
+does not disable the application deadline. Successful upgrades leave HTTP/1 and
+need the WebSocket callback/I/O policy configured separately.
+
+Controlled-clock tests in `test/production/timeouts_test.ml` exercise all five
+phases through each public application server with a two-second custom duration,
+checking timeout category and exactly one transport close. Eio can aggregate
+simultaneous native shutdown exceptions; every contained error must still match
+the expected phase. Aggregate memory acceptance and long stress evidence remain
+open; exposing these knobs does not establish a measured production budget.

@@ -150,6 +150,11 @@ Completed slices (relevant local regression evidence is retained under
   smoke evidence and longer campaigns are recorded separately. Automatic input
   minimization and release-duration acceptance remain open; AFL stays skipped.
 
+- Both application servers now expose the existing checked transport timeout
+  policy. Controlled clocks verify custom header/body/write/keep-alive/graceful
+  deadlines and single close through Eio and Lwt. Defaults and the independent
+  application request deadline are unchanged; aggregate budgets remain open.
+
 Next: broader local limits and application-resource schedules; release-profile
 and Lwt benchmark parity remain open. CI work remains deferred.
 

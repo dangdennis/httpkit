@@ -58,6 +58,7 @@ val serve :
   ?body_limit:int ->
   ?output_limit:int ->
   ?limits:Httpkit_engine.Codec.limits ->
+  ?policy:Httpkit_engine.Timeout.policy ->
   ?request_timeout:float ->
   clock:Httpkit_transport_lwt.clock ->
   random:(int -> string) ->
@@ -70,4 +71,8 @@ val serve :
     listener. Application callback deadlines cover unrelated work as well as
     body processing. A timeout or external cancellation joins owned handler and
     stream cleanup before the connection closes. Cleanup that must survive
-    cancellation should use [Lwt.no_cancel]; it must eventually finish. *)
+    cancellation should use [Lwt.no_cancel]; it must eventually finish. [policy]
+    configures absolute header and graceful-shutdown deadlines and
+    body/write/keep-alive idle deadlines; the default is
+    [Httpkit_engine.Timeout.default]. [request_timeout] independently bounds the
+    application exchange. Upgraded protocols use their own timeout policy. *)

@@ -11,14 +11,10 @@ val read : request -> string option
     100-continue. *)
 
 val body : ?limit:int -> request -> string
-
-val json :
-  ?limit:int -> request -> (Yojson.Safe.t, Httpkit.Json.error) result
+val json : ?limit:int -> request -> (Yojson.Safe.t, Httpkit.Json.error) result
 
 val form :
-  ?limit:int ->
-  request ->
-  ((string * string) list, Httpkit.Url.error) result
+  ?limit:int -> request -> ((string * string) list, Httpkit.Url.error) result
 
 val multipart : request -> Httpkit.Multipart.t -> (unit, string) result
 val request_id : request -> string
@@ -58,6 +54,7 @@ val serve :
   ?body_limit:int ->
   ?output_limit:int ->
   ?limits:Httpkit_engine.Codec.limits ->
+  ?policy:Httpkit_engine.Timeout.policy ->
   ?request_timeout:float ->
   clock:_ Eio.Time.Mono.t ->
   random:(int -> string) ->
@@ -68,4 +65,8 @@ val serve :
   unit
 (** Stops admission and drains active connections on [stop]. Callers own the
     listener. Application callback deadlines cover unrelated work as well as
-    body processing. *)
+    body processing. [policy] configures absolute header and graceful-shutdown
+    deadlines and body/write/keep-alive idle deadlines; it defaults to
+    [Httpkit_engine.Timeout.default]. The independent [request_timeout] bounds
+    each application exchange, even when a transport idle deadline is disabled.
+    Upgraded protocols use their own callback/I/O timeout policy. *)

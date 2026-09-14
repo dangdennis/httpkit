@@ -1,0 +1,3 @@
+(test
+ (name timeouts_test)
+ (libraries httpkit-eio httpkit-lwt eio.mock lwt.unix))
