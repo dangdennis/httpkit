@@ -150,8 +150,8 @@ let lwt bytes =
      Lwt.return_unit)
 
 let () =
-  Crowbar.add_test ~name:"native adapter partial I/O and cancellation"
-    [ Crowbar.bytes ] (fun bytes ->
+  Fuzz_input.add ~name:"native adapter partial I/O and cancellation"
+    (fun bytes ->
       if String.length bytes <= 1024 then (
         eio bytes;
         lwt bytes))

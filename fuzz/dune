@@ -4,23 +4,33 @@
  (libraries harness crowbar)
  (modes exe))
 
+(library
+ (name fuzz_input)
+ (modules fuzz_input)
+ (libraries crowbar unix))
+
+(test
+ (name fuzz_input_test)
+ (modules fuzz_input_test)
+ (libraries fuzz_input unix))
+
 (executable
  (name core_fuzz)
  (modules core_fuzz)
- (libraries httpkit-core crowbar)
+ (libraries httpkit-core crowbar fuzz_input)
  (modes exe))
 
 (executable
  (name http1_fuzz)
  (modules http1_fuzz)
- (libraries http1_conformance httpkit-core httpkit-http1 crowbar)
+ (libraries http1_conformance httpkit-core httpkit-http1 crowbar fuzz_input)
  (modes exe))
 
-(executable (name engine_fuzz) (modules engine_fuzz) (libraries engine_scenarios crowbar) (modes exe))
+(executable (name engine_fuzz) (modules engine_fuzz) (libraries engine_scenarios crowbar fuzz_input) (modes exe))
 
-(executable (name release_fuzz) (modules release_fuzz) (libraries httpkit-core httpkit-engine crowbar) (modes exe))
+(executable (name release_fuzz) (modules release_fuzz) (libraries httpkit-core httpkit-engine crowbar fuzz_input) (modes exe))
 
-(executable (name adapter_fuzz) (modules adapter_fuzz) (libraries httpkit-core httpkit-engine httpkit-transport-eio httpkit-transport-lwt eio.mock lwt.unix crowbar) (modes exe))
+(executable (name adapter_fuzz) (modules adapter_fuzz) (libraries httpkit-core httpkit-engine httpkit-transport-eio httpkit-transport-lwt eio.mock lwt.unix crowbar fuzz_input) (modes exe))
 
 ; Deterministic OCaml PR smoke; no AFL process or instrumentation is required.
 (rule
@@ -34,7 +44,7 @@
 (executable
  (name web_fuzz)
  (modules web_fuzz)
- (libraries http1_conformance httpkit-core httpkit httpkit-router crowbar)
+ (libraries http1_conformance httpkit-core httpkit httpkit-router crowbar fuzz_input)
  (modes exe))
 
 (rule

@@ -7,7 +7,7 @@ let () =
   List.iter
     (fun (name, run) ->
       if selected = None || selected = Some name then
-        Crowbar.add_test ~name [ Crowbar.bytes ] (bounded run))
+        Fuzz_input.add ~name (bounded run))
     [
       ("server", Engine_scenarios.run);
       ("client", Engine_scenarios.client_fragments);

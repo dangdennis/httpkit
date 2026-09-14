@@ -227,6 +227,6 @@ let () =
   List.iter
     (fun (name, f) ->
       if selected = None || selected = Some name then
-        Crowbar.add_test ~name [ Crowbar.bytes ] (fun raw ->
+        Fuzz_input.add ~name (fun raw ->
             if String.length raw <= 2048 then f raw))
     targets

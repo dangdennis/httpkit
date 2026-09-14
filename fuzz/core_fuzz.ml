@@ -4,8 +4,7 @@ let token_chars =
   "!#$%&'*+-.^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 let () =
-  Crowbar.add_test ~name:"core lexical constructors" [ Crowbar.bytes ]
-    (fun bytes ->
+  Fuzz_input.add ~name:"core lexical constructors" (fun bytes ->
       let method_valid =
         bytes <> ""
         && String.length bytes <= 64

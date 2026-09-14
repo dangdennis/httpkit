@@ -95,6 +95,6 @@ let () =
   List.iter
     (fun (name, run) ->
       if selected = None || selected = Some name then
-        Crowbar.add_test ~name [ Crowbar.bytes ] (fun bytes ->
+        Fuzz_input.add ~name (fun bytes ->
             if String.length bytes <= 1024 then run bytes))
     [ ("partial-write", partial); ("isolation", isolation) ]

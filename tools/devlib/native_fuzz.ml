@@ -6,9 +6,44 @@ let check_log log =
     (match rows with [ row ] -> ends ~suffix:": PASS" row | _ -> false)
     "Native fuzz target did not report exactly one passing property"
 
+let read_input path =
+  let fd = Unix.openfile path [ Unix.O_RDONLY; Unix.O_NONBLOCK ] 0 in
+  Fun.protect
+    ~finally:(fun () -> Unix.close fd)
+    (fun () ->
+      let stat = Unix.fstat fd in
+      require
+        (stat.st_kind = Unix.S_REG)
+        "Raw fuzz input must be a regular file";
+      require (stat.st_size <= 65536) "Raw fuzz input exceeds 64 KiB";
+      let data = Bytes.create (stat.st_size + 1) in
+      let rec loop offset =
+        require (offset <= stat.st_size) "Raw fuzz input grew while reading";
+        match Unix.read fd data offset (Bytes.length data - offset) with
+        | 0 -> Bytes.sub_string data 0 offset
+        | count -> loop (offset + count)
+        | exception Unix.Unix_error (Unix.EINTR, _, _) -> loop offset
+      in
+      loop 0)
+
 let main args =
-  let rounds = int_of_string (option args "--rounds" "10000")
-  and batches = int_of_string (option args "--batches" "3")
+  let input = option args "--input" "" in
+  let replay = input <> "" in
+  require
+    ((not replay)
+    || option args "--target" "all" <> "all"
+       && not
+            (List.exists
+               (fun flag -> List.mem flag args)
+               [ "--rounds"; "--batches"; "--seed" ]))
+    "Raw replay requires one target and cannot set generator options";
+  let input_data =
+    if not replay then None else Some (read_input (absolute input))
+  in
+  let rounds =
+    int_of_string (option args "--rounds" (if replay then "1" else "10000"))
+  and batches =
+    int_of_string (option args "--batches" (if replay then "1" else "3"))
   and seed = Int64.of_string (option args "--seed" "42")
   and timeout = float_of_string (option args "--timeout" "120")
   and selected = option args "--target" "all" in
@@ -33,6 +68,8 @@ let main args =
   Build.call ([ "build" ] @ binaries);
   let digest = Build.source_hash () in
   let directory = temp_dir ~parent:(root / "_artifacts/native-fuzz") "run-" in
+  let replay_path = directory / "replay.input" in
+  Option.iter (write replay_path) input_data;
   let rows = ref [] in
   let report status extra =
     save
@@ -44,21 +81,27 @@ let main args =
             ("source_sha256", `String digest);
             ("compiler", `String Build.version);
             ("build_profile", `String "dev");
+            ("mode", `String (if replay then "RAW_REPLAY" else "SEEDED"));
+            ( "input_sha256",
+              Option.fold ~none:`Null
+                ~some:(fun data -> `String (sha data))
+                input_data );
             ( "catalog_sha256",
               `String (sha (read (root / "toolchain/fuzz-targets.json"))) );
             ( "targets",
               strings (List.map (fun t -> string (field "name" t)) targets) );
             ("rounds_per_batch", `Int rounds);
             ("batches_per_target", `Int batches);
-            ("first_seed", `String (Int64.to_string seed));
+            ( "first_seed",
+              if replay then `Null else `String (Int64.to_string seed) );
             ("timeout_seconds_per_batch", `Float timeout);
             ("afl", `String "SKIPPED_BY_REQUEST");
             ("release_readiness", `String "NOT_EVALUATED");
             ( "note",
               `String
-                "Seeded Crowbar generator trials; length guards may skip \
-                 checks. No coverage-guided search, automatic shrinking or \
-                 total-memory proof is claimed. Reproduce with the recorded \
+                "Seeded Crowbar trials or raw-input replay; length guards may \
+                 skip checks. No coverage-guided search, automatic shrinking \
+                 or total-memory proof is claimed. Reproduce with the recorded \
                  command and selected case on matching sources." );
             ("runs", `List (List.map ( ! ) !rows));
           ]
@@ -75,7 +118,13 @@ let main args =
         let env =
           Build.environment ()
           |> List.filter (fun (key, _) ->
-              key <> "HTTP_KIT_FUZZ_CASE"
+              (not
+                 (List.mem key
+                    [
+                      "HTTP_KIT_FUZZ_CASE";
+                      "HTTP_KIT_FUZZ_INPUT";
+                      "HTTP_KIT_FUZZ_CAPTURE";
+                    ]))
               && (not (starts ~prefix:"AFL_" key))
               && not (starts ~prefix:"__AFL" key))
         in
@@ -89,19 +138,30 @@ let main args =
             (Build.source_hash () = digest)
             "Sources changed before native fuzz batch";
           let seed = Int64.add seed (Int64.of_int batch) |> Int64.to_string in
-          let command = [ binary; "-r"; string_of_int rounds; "-s"; seed ] in
+          let command =
+            if replay then [ binary ]
+            else [ binary; "-r"; string_of_int rounds; "-s"; seed ]
+          in
           let log = directory / Printf.sprintf "%s-%d.log" name batch in
+          let capture = directory / Printf.sprintf "%s-%d.input" name batch in
+          let env = set env "HTTP_KIT_FUZZ_CAPTURE" capture in
+          let env =
+            if replay then set env "HTTP_KIT_FUZZ_INPUT" replay_path else env
+          in
           let row =
             ref
               (`Assoc
                  [
                    ("target", `String name);
                    ("case", field "case" target);
-                   ("seed", `String seed);
+                   ("seed", if replay then `Null else `String seed);
                    ("rounds", `Int rounds);
                    ("command", strings command);
                    ("binary_sha256", `String (sha (read binary)));
                    ("log", `String log);
+                   ( "replay_input",
+                     if replay then `String replay_path else `Null );
+                   ("failure_input", `Null);
                    ("status", `String "RUNNING");
                  ])
           in
@@ -124,6 +184,21 @@ let main args =
                "Sources changed during native fuzz batch";
              row := Benchmarks.setj "status" (`String "PASS") !row
            with exn ->
+             (try
+                if Sys.file_exists capture then
+                  row :=
+                    Benchmarks.setj "failure_input"
+                      (`Assoc
+                         [
+                           ("path", `String capture);
+                           ("sha256", `String (sha (read_input capture)));
+                         ])
+                      !row
+              with capture_error ->
+                row :=
+                  Benchmarks.setj "capture_error"
+                    (`String (Printexc.to_string capture_error))
+                    !row);
              row := Benchmarks.setj "status" (`String "FAIL") !row;
              row :=
                Benchmarks.setj "error" (`String (Printexc.to_string exn)) !row;
@@ -132,8 +207,11 @@ let main args =
              raise exn);
           row := Benchmarks.setj "seconds" (`Float (monotonic () -. start)) !row;
           report "RUNNING" [];
-          Printf.printf "Native fuzz %s batch %d/%d seed %s: PASS\n%!" name
-            (batch + 1) batches seed
+          if replay then
+            Printf.printf "Native fuzz %s raw replay: PASS\n%!" name
+          else
+            Printf.printf "Native fuzz %s batch %d/%d seed %s: PASS\n%!" name
+              (batch + 1) batches seed
         done)
       targets;
     report "PASS" [];

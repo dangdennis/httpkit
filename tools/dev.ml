@@ -56,7 +56,15 @@ let () =
         Fuzz.campaign args
     | "native-fuzz" :: args ->
         Common.validate_options
-          ~values:[ "--rounds"; "--batches"; "--seed"; "--timeout"; "--target" ]
+          ~values:
+            [
+              "--rounds";
+              "--batches";
+              "--seed";
+              "--timeout";
+              "--target";
+              "--input";
+            ]
           ~flags:[] args;
         Native_fuzz.main args
     | [ "fuzz-smoke" ] -> Fuzz.smoke ()

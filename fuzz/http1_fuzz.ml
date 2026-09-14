@@ -82,7 +82,7 @@ let () =
   then invalid_arg "unknown fuzz case";
   let add name f =
     if selected = None || selected = Some name then
-      Crowbar.add_test ~name [ Crowbar.bytes ] (bounded f)
+      Fuzz_input.add ~name (bounded f)
   in
   add "request" (fun wire ->
       check_head Request wire;
