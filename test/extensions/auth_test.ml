@@ -119,6 +119,44 @@ let () =
   let token = sign claims in
   check "OIDC verified identity"
     ((ok (O.validate config keys tx ~now:1001. token)).subject = "user");
+  let encode =
+    Base64.encode_string ~pad:false ~alphabet:Base64.uri_safe_alphabet
+  in
+  let h, p, signature =
+    match String.split_on_char '.' token with
+    | [ h; p; signature ] -> (h, p, signature)
+    | _ -> assert false
+  in
+  let rejected label token =
+    check label
+      (O.validate config keys tx ~now:1001. token = Error O.Invalid_token)
+  in
+  let raw_signature =
+    ok (Base64.decode ~pad:false ~alphabet:Base64.uri_safe_alphabet signature)
+  in
+  for i = 0 to String.length raw_signature - 1 do
+    let altered = Bytes.of_string raw_signature in
+    Bytes.set altered i (Char.chr (Char.code (Bytes.get altered i) lxor 1));
+    rejected "every RSA signature byte authenticated"
+      (h ^ "." ^ p ^ "." ^ encode (Bytes.to_string altered))
+  done;
+  let altered_claims =
+    `Assoc (("sub", `String "attacker") :: List.remove_assoc "sub" claims)
+    |> Yojson.Safe.to_string |> encode
+  in
+  rejected "changed identity cannot reuse the original signature"
+    (h ^ "." ^ altered_claims ^ "." ^ signature);
+  List.iter
+    (fun alg ->
+      let header =
+        Yojson.Safe.to_string
+          (`Assoc [ ("alg", `String alg); ("kid", `String "test") ])
+        |> encode
+      in
+      rejected "forbidden signature algorithm"
+        (header ^ "." ^ p ^ "." ^ signature))
+    [ "none"; "HS256" ];
+  rejected "empty signature" (h ^ "." ^ p ^ ".");
   List.iter
     (fun (name, value) ->
       let claims = (name, value) :: List.remove_assoc name claims in

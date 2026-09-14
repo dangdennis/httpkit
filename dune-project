@@ -58,7 +58,7 @@
 (package
  (name httpkit-oidc)
  (synopsis "Runtime-neutral OpenID Connect client policy")
- (depends httpkit oidc jose uri yojson base64 eqaf ptime (ocaml (= 5.5.0))))
+ (depends httpkit oidc (jose (>= 0.11.0)) uri yojson base64 eqaf ptime (ocaml (= 5.5.0))))
 (package
  (name httpkit-oidc-eio)
  (synopsis "Bounded Eio OpenID Connect login flows")

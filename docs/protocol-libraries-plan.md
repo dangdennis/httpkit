@@ -165,6 +165,12 @@ Completed slices (relevant local regression evidence is retained under
   binaries cannot assert a verified profile. Stable budgets, independent load
   hosts and Lwt endpoint parity remain open.
 
+- Initial [dependency review](dependencies.md) records package responsibilities,
+  native-linkage limits and published advisory checks. JOSE 0.11.0 was already
+  locked; the public OIDC package now requires that tested minimum. Direct JWT
+  signature/payload tampering and forbidden-algorithm controls accompany it.
+  Full transitive/OS advisory review and independent approval remain open.
+
 Next: broader local limits and application-resource schedules; stable release
 baselines and Lwt benchmark parity remain open. CI work remains deferred.
 
