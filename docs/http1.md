@@ -42,3 +42,25 @@ Head scanning is linear in input bytes. Connection/trailer token validation uses
 a deterministic balanced set rather than repeated list scans. For C Connection
 and T Trailer tokens it takes O((C + T) log(C + 1)) name comparisons, each bounded
 by the compared name lengths. Header byte limits also bound the retained index.
+
+### Explicit framing matrix
+
+`test/http1/framing_cases.ml` is authored policy data derived from the strict
+profile above and RFC 9112 sections 6.1–6.3. It does not learn expected outcomes
+from a baseline parser run. `test/engine/framing_test.ml` applies it to request and
+response decoders, both encoders, and server rejection isolation.
+
+| Cases | Expected policy |
+| --- | --- |
+| Zero, positive, leading-zero, largest int64 CL | Fixed length |
+| Equal/conflicting/case-varied duplicate CL | Ambiguous framing |
+| Comma CL, empty/signed/hex/overflow/internal-space CL | Invalid length |
+| One case-insensitive chunked TE | Chunked |
+| CL with chunked TE in either order, including zero CL | Ambiguous framing |
+| Duplicate/empty TE, identity, gzip, chains, parameters, empty list member | Unsupported coding |
+
+Every wire case runs whole, bytewise, at each split and deterministic random
+splits with work budgets 1, 7 and 16384. Rejected server heads must emit only one
+Closed event, preserve the protocol failure across abort, release queues and
+reject a following valid request. These cases do not close the broader smuggling,
+special-response, client sequencing or real-proxy acceptance campaigns.

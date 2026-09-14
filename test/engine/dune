@@ -3,3 +3,9 @@
 (test (name engine_test) (modules engine_test) (libraries engine_cases harness alcotest))
 
 (test (name boundary_test) (modules boundary_test) (libraries httpkit-core httpkit-http1 httpkit-engine alcotest))
+
+(test
+ (name framing_test)
+ (modules framing_test)
+ (modes byte exe)
+ (libraries http1_conformance http1_cases engine_cases httpkit-core httpkit-http1 httpkit-engine alcotest))

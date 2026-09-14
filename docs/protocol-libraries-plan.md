@@ -38,7 +38,38 @@ results. No giant rewrite, speculative optimization or implicit API churn.
 Use reviewable commits. AFL remains skipped; deepen generated/replay/fuzz work in
 OCaml. Skipping AFL must remain visible and must not be relabeled campaign success.
 
+## Autonomous incremental delivery
+
+Continue one invariant-sized slice at a time without routine supervision. After
+focused tests, relevant regressions and a code-quality/security review, commit the
+completed slice and push `main`. Record evidence and remaining gaps here. A failing
+or unavailable external gate stays open while independent local work continues.
+Do not deploy services or invent independent approval to satisfy a release gate.
+
+| Order | Slices, executed separately | Exit invariant |
+| --- | --- | --- |
+| 1 | CL/TE policy matrix; chunk/trailer matrix; EOF/special responses | Explicit expected outcomes independent of parser behavior, segmentation parity |
+| 2 | Pipelining; unread/discarded bodies; early rejection; partial output | No suffix dispatch after rejection; no cross-exchange data |
+| 3 | Parsing/handler/stream cancellation; graceful shutdown | Eio/Lwt release and join every owned resource |
+| 4 | Exact/overflow limits; stalled uploads; slow readers; idle connections | Finite retained queues and effective deadlines |
+| 5 | Direct proxy contract; trusted metadata; optional Caddy acceptance | Untrusted metadata cannot affect identity/origins |
+| 6 | Upload cleanup; DB cancellation; session rotation | No leaked files, leases or locks |
+| 7 | Observation contracts; API cleanup; duplicated pure policy | Explicit ownership/errors and native-runtime parity |
+
+Extend OCaml generated/replay campaigns alongside each reviewed subsystem. Capture
+real endpoint baselines early, before production changes accumulate; profile before
+optimizing. WebSocket security and the remaining P1 campaigns follow P0 dependencies.
+P2 remains demand-gated: autonomous execution does not authorize indiscriminate
+feature expansion or change the infrastructure exclusions at the end of this plan.
+
+Completed: segmentation/EOF/terminal-error controls (`ec5a0f5`), macOS full
+validation and ordinary/coverage HTTP/1+engine regressions. CL/TE matrix and rejected-request suffix isolation are implemented in
+`test/engine/framing_test.ml`; ordinary and coverage native/bytecode HTTP/1 and
+engine regressions pass. Next: chunk/trailer
+framing and special-response cases. Each completed slice preserves its own validation logs under `_artifacts/production-slices`.
+
 ## P0 — required before production confidence
+
 
 | ID | Concrete deliverable | Acceptance / next boundary |
 | --- | --- | --- |

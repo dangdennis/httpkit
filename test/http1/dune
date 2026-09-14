@@ -13,4 +13,10 @@
  (name segmentation_test)
  (modules segmentation_test)
  (modes byte exe)
- (libraries http1_cases httpkit-core httpkit-http1 alcotest))
+ (libraries http1_conformance http1_cases httpkit-core httpkit-http1 alcotest))
+
+(library
+ (name http1_conformance)
+ (wrapped false)
+ (modules segmentation_support framing_cases)
+ (libraries http1_cases httpkit-core httpkit-http1))
