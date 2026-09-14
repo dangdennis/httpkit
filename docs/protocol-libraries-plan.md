@@ -330,6 +330,15 @@ paths. A successful unit test is not upload-security approval.
 | P1-06 | Broader interop and stable CI comparisons | Pinned reference matrix and reviewed disagreements; fail only clear repeatable regressions, not laptop noise |
 | P1-07 | Small static-file audit | Confined roots/traversal/hidden files, basic MIME, HEAD/ETag/If-None-Match, finite file limits and needed streaming |
 
+The first [runtime-neutral observations](observability.md) are implemented in
+both application servers: accepted/closed connection scopes, graceful-stop start,
+active counts, completed I/O byte counts, duration and explicit close outcome.
+Events carry no request data. Ordinary sink failures are isolated, cancellation
+still closes owned transports, and upgrade traffic remains in the same scope.
+Admission controls run with observations enabled and disabled. Request timing,
+response/stream/timeout/rejection categories, queue depth and exporter-overhead
+measurements remain open; enqueued output is not reported as delivered output.
+
 Observation events: accept/close, request start/finish/status/duration, measurable
 TTFB, bytes read/written, active connections, queue depth, admission/body-limit
 rejection, timeout/disconnect/handler or stream failure, WebSocket open/close and

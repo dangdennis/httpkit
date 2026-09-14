@@ -234,8 +234,8 @@ let connection ~peer ~body_limit ~random ~on_error ~timeout handler c =
   loop ()
 
 let serve ?(max_connections = 16) ?(body_limit = 1048576)
-    ?(output_limit = 32768) ?limits ?policy ?(request_timeout = 60.) ~clock
-    ~random ~stop ~accept ~on_error handler =
+    ?(output_limit = 32768) ?limits ?policy ?(request_timeout = 60.) ?observe
+    ~clock ~random ~stop ~accept ~on_error handler =
   if
     max_connections <= 0 || body_limit < 0 || output_limit <= 0
     || (not (Float.is_finite request_timeout))
@@ -244,33 +244,40 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
   let engine () = Result.get_ok (E.server ~output_limit ?limits ()) in
   ignore (engine ());
   let timeout = Eio.Time.Timeout.seconds clock request_timeout in
+  let observation =
+    Runtime_observer.create ?observe
+      ~now:(fun () ->
+        Int64.to_float (Mtime.to_uint64_ns (Eio.Time.Mono.now clock)) /. 1e9)
+      ()
+  in
   let connections = ref [] and stopping = ref false in
   let worker () =
     let rec loop () =
       if !stopping then Eio.Fiber.await_cancel ();
       let (transport : A.transport), peer = accept () in
-      if !stopping then (
-        transport.close ();
-        Eio.Fiber.await_cancel ());
-      (try
-         let upgraded =
-           A.with_connection ?policy ~clock transport (engine ()) (fun c ->
-               connections := c :: !connections;
-               Fun.protect
-                 ~finally:(fun () ->
-                   connections := List.filter (fun x -> x != c) !connections)
-                 (fun () ->
-                   connection ~peer ~body_limit ~random ~on_error ~timeout
-                     handler c))
-         in
-         match upgraded with
-         | None -> ()
-         | Some (transport, suffix, callback) ->
-             Fun.protect ~finally:transport.close (fun () ->
-                 callback transport suffix)
-       with
-      | Eio.Cancel.Cancelled _ as exn -> raise exn
-      | exn -> on_error exn);
+      Runtime_observer.connection observation transport (fun transport ->
+          if !stopping then (
+            transport.close ();
+            Eio.Fiber.await_cancel ());
+          try
+            let upgraded =
+              A.with_connection ?policy ~clock transport (engine ()) (fun c ->
+                  connections := c :: !connections;
+                  Fun.protect
+                    ~finally:(fun () ->
+                      connections := List.filter (fun x -> x != c) !connections)
+                    (fun () ->
+                      connection ~peer ~body_limit ~random ~on_error ~timeout
+                        handler c))
+            in
+            match upgraded with
+            | None -> ()
+            | Some (transport, suffix, callback) ->
+                Fun.protect ~finally:transport.close (fun () ->
+                    callback transport suffix)
+          with
+          | Eio.Cancel.Cancelled _ as exn -> raise exn
+          | exn -> on_error exn);
       loop ()
     in
     loop ()
@@ -280,6 +287,7 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
     (fun () ->
       Eio.Promise.await stop;
       stopping := true;
+      Runtime_observer.shutdown observation;
       Eio.Fiber.all
         (List.map
            (fun c () ->

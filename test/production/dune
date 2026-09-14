@@ -1,3 +1,3 @@
 (tests
- (names timeouts_test websocket_deadline_test admission_test)
+ (names timeouts_test websocket_deadline_test admission_test observation_test)
  (libraries httpkit-eio httpkit-lwt eio.mock lwt.unix))

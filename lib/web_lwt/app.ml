@@ -251,8 +251,8 @@ let connection ~peer ~body_limit ~random ~on_error ~clock ~request_timeout
   loop ()
 
 let serve ?(max_connections = 16) ?(body_limit = 1048576)
-    ?(output_limit = 32768) ?limits ?policy ?(request_timeout = 60.) ~clock
-    ~random ~stop ~accept ~on_error handler =
+    ?(output_limit = 32768) ?limits ?policy ?(request_timeout = 60.) ?observe
+    ~clock ~random ~stop ~accept ~on_error handler =
   if
     max_connections <= 0 || body_limit < 0 || output_limit <= 0
     || (not (Float.is_finite request_timeout))
@@ -260,37 +260,42 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
   then invalid_arg "server limits";
   let engine () = Result.get_ok (E.server ~output_limit ?limits ()) in
   ignore (engine ());
+  let observation = Runtime_observer.create ?observe ~now:clock.A.now () in
   let connections = ref [] and stopping = ref false in
   let rec worker () =
     if !stopping then Lwt.return_unit
     else
       accept () >>= fun ((transport : A.transport), peer) ->
-      if !stopping then transport.close ()
-      else
-        Lwt.catch
-          (fun () ->
-            A.with_connection ?policy ~clock transport (engine ()) (fun c ->
-                connections := c :: !connections;
-                Lwt.finalize
-                  (fun () ->
-                    connection ~peer ~body_limit ~random ~on_error ~clock
-                      ~request_timeout handler c)
-                  (fun () ->
-                    connections := List.filter (fun x -> x != c) !connections;
-                    Lwt.return_unit))
-            >>= function
-            | None -> Lwt.return_unit
-            | Some (transport, suffix, callback) ->
-                Lwt.finalize
-                  (fun () -> callback transport suffix)
-                  transport.close)
-          (function Lwt.Canceled as exn -> Lwt.fail exn | exn -> on_error exn)
-        >>= worker
+      Runtime_observer.connection observation transport (fun transport ->
+          if !stopping then transport.close ()
+          else
+            Lwt.catch
+              (fun () ->
+                A.with_connection ?policy ~clock transport (engine ()) (fun c ->
+                    connections := c :: !connections;
+                    Lwt.finalize
+                      (fun () ->
+                        connection ~peer ~body_limit ~random ~on_error ~clock
+                          ~request_timeout handler c)
+                      (fun () ->
+                        connections :=
+                          List.filter (fun x -> x != c) !connections;
+                        Lwt.return_unit))
+                >>= function
+                | None -> Lwt.return_unit
+                | Some (transport, suffix, callback) ->
+                    Lwt.finalize
+                      (fun () -> callback transport suffix)
+                      transport.close)
+              (function
+                | Lwt.Canceled as exn -> Lwt.fail exn | exn -> on_error exn))
+      >>= worker
   in
   let workers = List.init max_connections (fun _ -> Lwt.apply worker ()) in
   let drain =
     Lwt.protected stop >>= fun () ->
     stopping := true;
+    Runtime_observer.shutdown observation;
     Lwt_list.iter_p
       (fun c ->
         Lwt.catch

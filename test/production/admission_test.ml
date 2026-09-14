@@ -3,7 +3,32 @@ let wire = "GET / HTTP/1.1\r\nHost: x\r\n\r\n"
 
 exception Write_failed
 
-let eio capacity =
+let check_events observed events capacity =
+  let module O = Httpkit.Observation in
+  let active = ref 0 and accepted = ref [] and closed = ref [] in
+  List.iter
+    (function
+      | O.Connection_accepted x ->
+          incr active;
+          accepted := x.connection :: !accepted;
+          check "observed admission bound"
+            (!active <= capacity && x.active_connections = !active)
+      | O.Connection_closed x ->
+          decr active;
+          closed := x.connection :: !closed;
+          check "observed close count and outcome"
+            (x.active_connections = !active
+            && !active >= 0 && x.close_status = O.Closed)
+      | O.Shutdown_started _ ->
+          failwith "external cancellation is not graceful stop")
+    events;
+  check "observed scopes all retired" (!active = 0);
+  let ids = if observed then List.init (capacity + 1) Int64.of_int else [] in
+  check "observed every admitted scope once"
+    (List.sort Int64.compare !accepted = ids
+    && List.sort Int64.compare !closed = ids)
+
+let eio observed capacity =
   let module App = Httpkit_eio in
   let module A = Httpkit_transport_eio in
   Eio_mock.Backend.run_full (fun env ->
@@ -16,6 +41,11 @@ let eio capacity =
       let release, release_cleanup = Eio.Promise.create () in
       let replacement, replaced = Eio.Promise.create () in
       let accepted = ref 0 and cleaned = ref false and errors = ref 0 in
+      let events = ref [] in
+      let observe =
+        if observed then Some (fun event -> events := !events @ [ event ])
+        else None
+      in
       let released = ref false in
       let release_once () =
         if not !released then (
@@ -55,7 +85,8 @@ let eio capacity =
       in
       Eio.Fiber.first
         (fun () ->
-          App.serve ~max_connections:capacity ~output_limit:1024 ~clock ~stop
+          App.serve ?observe ~max_connections:capacity ~output_limit:1024 ~clock
+            ~stop
             ~random:(fun n -> String.make n 'x')
             ~accept
             ~on_error:(fun exn ->
@@ -97,9 +128,10 @@ let eio capacity =
               check "Eio recycled slot is retired"
                 (!cleaned && closes.(0) = 1 && !errors = 1)));
       check "Eio every admitted transport closes once"
-        (Array.for_all (( = ) 1) closes))
+        (Array.for_all (( = ) 1) closes);
+      check_events observed !events capacity)
 
-let lwt capacity =
+let lwt observed capacity =
   let open Lwt.Infix in
   let module App = Httpkit_lwt in
   let module A = Httpkit_transport_lwt in
@@ -111,6 +143,10 @@ let lwt capacity =
   let release, release_cleanup = Lwt.wait () in
   let replacement, replaced = Lwt.wait () in
   let accepted = ref 0 and cleaned = ref false and errors = ref 0 in
+  let events = ref [] in
+  let observe =
+    if observed then Some (fun event -> events := !events @ [ event ]) else None
+  in
   let closes = Array.make (capacity + 1) 0 in
   let accept () =
     let index = !accepted in
@@ -144,7 +180,7 @@ let lwt capacity =
     Lwt.return (transport, string_of_int index)
   in
   let server =
-    App.serve ~max_connections:capacity ~output_limit:1024
+    App.serve ?observe ~max_connections:capacity ~output_limit:1024
       ~clock:A.monotonic_clock ~stop
       ~random:(fun n -> String.make n 'x')
       ~accept
@@ -194,10 +230,14 @@ let lwt capacity =
         (function Lwt.Canceled -> Lwt.return_unit | exn -> Lwt.fail exn))
   >|= fun () ->
   check "Lwt every admitted transport closes once"
-    (Array.for_all (( = ) 1) closes)
+    (Array.for_all (( = ) 1) closes);
+  check_events observed !events capacity
 
 let () =
-  List.iter eio [ 1; 3 ];
+  List.iter (fun observed -> List.iter (eio observed) [ 1; 3 ]) [ false; true ];
   Lwt_main.run
-    (Lwt_unix.with_timeout 5. (fun () -> Lwt_list.iter_s lwt [ 1; 3 ]));
+    (Lwt_unix.with_timeout 5. (fun () ->
+         Lwt_list.iter_s
+           (fun observed -> Lwt_list.iter_s (lwt observed) [ 1; 3 ])
+           [ false; true ]));
   print_endline "PASS application admission waits for failed producer cleanup"

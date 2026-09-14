@@ -1,3 +1,4 @@
 (library (name httpkit_eio) (public_name httpkit-eio)
  (libraries httpkit httpkit-router httpkit-middleware httpkit-transport-eio eio base64 yojson mtime cstruct)
+ (private_modules Runtime_observer)
  (instrumentation (backend bisect_ppx)))

@@ -60,6 +60,7 @@ val serve :
   ?limits:Httpkit_engine.Codec.limits ->
   ?policy:Httpkit_engine.Timeout.policy ->
   ?request_timeout:float ->
+  ?observe:Httpkit.Observation.sink ->
   clock:Httpkit_transport_lwt.clock ->
   random:(int -> string) ->
   stop:unit Lwt.t ->
@@ -75,4 +76,7 @@ val serve :
     configures absolute header and graceful-shutdown deadlines and
     body/write/keep-alive idle deadlines; the default is
     [Httpkit_engine.Timeout.default]. [request_timeout] independently bounds the
-    application exchange. Upgraded protocols use their own timeout policy. *)
+    application exchange. Upgraded protocols use their own timeout policy.
+    [observe] optionally receives synchronous connection-scope observations; see
+    [Httpkit.Observation] for privacy, byte-count and sink behavior contracts.
+*)

@@ -56,6 +56,7 @@ val serve :
   ?limits:Httpkit_engine.Codec.limits ->
   ?policy:Httpkit_engine.Timeout.policy ->
   ?request_timeout:float ->
+  ?observe:Httpkit.Observation.sink ->
   clock:_ Eio.Time.Mono.t ->
   random:(int -> string) ->
   stop:unit Eio.Promise.t ->
@@ -69,4 +70,7 @@ val serve :
     deadlines and body/write/keep-alive idle deadlines; it defaults to
     [Httpkit_engine.Timeout.default]. The independent [request_timeout] bounds
     each application exchange, even when a transport idle deadline is disabled.
-    Upgraded protocols use their own callback/I/O timeout policy. *)
+    Upgraded protocols use their own callback/I/O timeout policy. [observe]
+    optionally receives synchronous connection-scope observations; see
+    [Httpkit.Observation] for privacy, byte-count and sink behavior contracts.
+*)
