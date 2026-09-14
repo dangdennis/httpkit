@@ -17,7 +17,7 @@ or finalizer that never yields or never terminates to clean up safely.
 | DB pool/lease/transaction | Pool scope; lease callback owns temporary use | Borrowed DB resource must not escape; cancellation requires rollback and lease release | Real backend cancellation/rollback and exhausted pool |
 | Session state | Memory store or SQL/cookie backend according to API | Backend-specific replay/revocation/rotation; no universal session-lock contract | Concurrent rotation, expiry and DB cancellation |
 | Static file handle | Confined file helper | Scoped open/read/close; returned bytes belong to caller | Concurrent filesystem changes and interrupted reads |
-| Partial upload | Confined upload helper/callback | Generated exclusive path; filename remains metadata; failed/cancelled upload removed | Disk exhaustion, partial cleanup and callback exceptions |
+| Partial upload | Confined upload helper/callback | Generated exclusive path; filename remains metadata; each completed file lives only through its callback; failed/cancelled partial upload removed | Disk exhaustion, cleanup I/O failure and cancellation interleavings |
 | Observation sink | Caller-owned integration | Must not take transport ownership or log credentials; API remains P1 | Explicit exception/backpressure contract |
 
 ## Suspended callback cleanup
@@ -40,3 +40,15 @@ disconnect with blocked output, header/body/response deadlines, body overflow,
 cancelled transactions/uploads/WebSockets and cleanup-error precedence. Existing
 unit controls are useful evidence, not proof of every interleaving or release
 approval. See [adapters](adapters.md) and [production roadmap](protocol-libraries-plan.md).
+
+## Temporary upload callback scope
+
+`test/web_eio/runtime_test.ml` checks that a completed file is readable during its
+callback and removed before the next callback. This reproduced retention of earlier
+parts until the entire request completed. `Files.with_upload` now performs protected
+removal after each callback, while outer cleanup still owns any partial file or a
+path whose earlier removal failed. Existing callback-exception and partial-upload
+cancellation controls remain in the regression suite. Successful cleanup bounds
+helper-owned temporary files to the current part; application-created durable
+copies remain the application's responsibility. Disk exhaustion and cleanup-I/O
+error precedence still need dedicated fault schedules.

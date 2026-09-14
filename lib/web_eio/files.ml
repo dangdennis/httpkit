@@ -94,7 +94,7 @@ let with_upload ~directory ~random request ~boundary callback =
           let close_current () =
             match !current with
             | None -> ()
-            | Some (_, _, flow) ->
+            | Some (_, _, _, flow) ->
                 current := None;
                 Eio.Flow.close flow
           in
@@ -123,16 +123,22 @@ let with_upload ~directory ~random request ~boundary callback =
                         Eio.Path.open_out ~sw ~create:(`Exclusive 0o600) path
                       in
                       paths := path :: !paths;
-                      current := Some (part, name, flow)
+                      current := Some (part, name, path, flow)
                   | W.Multipart.Data s -> (
                       match !current with
-                      | Some (_, _, flow) -> Eio.Flow.copy_string s flow
+                      | Some (_, _, _, flow) -> Eio.Flow.copy_string s flow
                       | None -> failwith "upload part missing")
                   | W.Multipart.End -> (
                       match !current with
-                      | Some (part, name, _) ->
+                      | Some (part, name, path, _) ->
                           close_current ();
-                          callback part name
+                          Fun.protect
+                            ~finally:(fun () ->
+                              Eio.Cancel.protect (fun () ->
+                                  Eio.Path.unlink ~missing_ok:true path;
+                                  paths :=
+                                    List.filter (fun p -> p != path) !paths))
+                            (fun () -> callback part name)
                       | None -> failwith "upload part missing"))
               in
               match App.multipart request parser with

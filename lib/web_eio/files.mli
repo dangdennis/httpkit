@@ -16,5 +16,7 @@ val with_upload :
   (Httpkit.Multipart.part -> string -> unit) ->
   unit
 (** Calls back with each completed file's generated basename. Temporary files
-    are removed on callback return, error, or cancellation. Copy durable data
-    explicitly. *)
+    are removed after each callback returns, including exceptional or cancelled
+    return, before the next part is processed. Partial files are removed when
+    parsing fails or is cancelled. The basename is valid only during its
+    callback; copy durable data explicitly. Cleanup I/O errors propagate. *)

@@ -490,3 +490,59 @@ let () =
         ]);
   print_endline
     "PASS confined static files, MIME types and size/method rejection"
+
+let () =
+  let directory = Filename.temp_file "httpkit-upload-scope-" "" in
+  Sys.remove directory;
+  Unix.mkdir directory 0o700;
+  Fun.protect
+    ~finally:(fun () -> Unix.rmdir directory)
+    (fun () ->
+      let endpoint = ref (fun _ -> assert false) in
+      let seen = ref [] and created = ref 0 and scope_ok = ref true in
+      let errors =
+        run ~request_timeout:1.
+          (fun request -> !endpoint request)
+          (fun env peer ->
+            (endpoint :=
+               fun request ->
+                 let root = Eio.Path.(Eio.Stdenv.fs env / directory) in
+                 App.Files.with_upload ~directory:root
+                   ~random:(fun n ->
+                     incr created;
+                     String.make n (Char.chr (64 + !created)))
+                   request ~boundary:"scope"
+                   (fun _ basename ->
+                     scope_ok :=
+                       !scope_ok
+                       && Array.to_list (Sys.readdir directory) = [ basename ];
+                     check "completed upload readable during callback"
+                       (Eio.Path.load Eio.Path.(root / basename) = "contents");
+                     seen := basename :: !seen);
+                 check "last upload retired before helper returns"
+                   (Sys.readdir directory = [||]);
+                 App.reply (W.Reply.text "ok"));
+            let part =
+              "--scope\r\n\
+               Content-Disposition: form-data; name=f; filename=ignored\r\n\
+               \r\n\
+               contents\r\n"
+            in
+            let body = part ^ part ^ "--scope--\r\n" in
+            let response =
+              raw peer
+                ("POST / HTTP/1.1\r\n\
+                  Host: localhost\r\n\
+                  Connection: close\r\n\
+                  Content-Length: "
+                ^ string_of_int (String.length body)
+                ^ "\r\n\r\n" ^ body)
+            in
+            check "multipart callback scope response"
+              (String.starts_with ~prefix:"HTTP/1.1 200" response);
+            check "multipart scope cleanup" (Sys.readdir directory = [||]))
+      in
+      check "multipart callbacks" (List.length !seen = 2);
+      check "completed upload retired before next callback" !scope_ok;
+      check "multipart scope errors" (errors = []));
+  print_endline "PASS temporary upload files live only through their callback"

@@ -108,6 +108,11 @@ Completed slices (relevant local regression evidence is retained under
   application controls cover spoofing/duplicates/chains and profile selection.
   Live deployment trust/topology acceptance remains open.
 
+- Temporary upload callback scope now matches the public ownership contract:
+  each file is removed before processing the next part. A two-part regression
+  reproduced excessive lifetime; callback errors and partial cancellation remain
+  covered. Disk exhaustion and cleanup-I/O fault schedules stay open.
+
 Next: broader local limits and application-resource schedules.
 
 ## P0 — required before production confidence
