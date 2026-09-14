@@ -25,8 +25,9 @@ requirements remain unchanged. Use `tools/dev personal-validate --long --skip-af
 4. Measure routed requests, uploads and downloads at increasing concurrency.
    Keep correctness checks and report latency, throughput and memory. Only adopt
    optimizations supported by equivalent alternating baseline/candidate runs.
-5. Freeze code, then run 1,800 seconds per each of the nine fuzz targets and a
-   7,200-second Eio mixed-load soak. Preserve source hashes, corpora and failures.
+5. Historical acceptance budget: 1,800 seconds per catalog fuzz target and a
+   7,200-second Eio mixed-load soak. AFL remains skipped; see the active production
+   roadmap for non-AFL campaign work. Preserve source hashes, corpora and failures.
    Require correct responses, no untriaged findings, bounded resources and clean
    shutdown. Smoke runs cannot substitute for these budgets.
 6. Verify a separately installed Eio consumer, document measured limits and tag a

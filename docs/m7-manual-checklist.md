@@ -1,5 +1,10 @@
 # M7 manual completion checklist
 
+Historical M7 procedure: the active [production roadmap](protocol-libraries-plan.md)
+and [release inventory](release.md) supersede its package/target counts and work
+ownership. AFL remains skipped; the commands below are historical instructions,
+not authorization to resume AFL or evidence that its gates passed.
+
 M7 is the release-evidence milestone, not another implementation package. It is
 complete only when every required gate passes for one frozen candidate. The seven
 packages exist; CI smoke success alone does not establish release readiness.

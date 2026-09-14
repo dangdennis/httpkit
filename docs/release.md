@@ -20,11 +20,11 @@ The standalone release command returns exit 3 and `NOT_READY` whenever a require
 
 Both `tools/harness readiness --release` and `tools/harness readiness --milestone M7` run the same detailed assessment and preserve exit 3 for incomplete evidence. See the [manual M7 completion checklist](m7-manual-checklist.md) for ownership, commands, and required review artifacts.
 
-Nine separately selected fuzz targets cover core values; request, response and chunked codecs; server and client lifecycles; partial writes; native adapter schedules; and connection isolation. `toolchain/fuzz-targets.json` records their executable and selector. The optional AFL runner (currently skipped by request) assigns a time budget, retains its corpus and logs, and replays every retained queue entry without instrumentation. The native adapter target checks partial I/O and cancellation with both runtimes. It sends no network traffic.
+Fourteen separately selected fuzz targets cover core values; request, response and chunked codecs; server and client lifecycles; partial writes; native adapter schedules; connection isolation; URL/forms, routing, multipart and WebSockets. `toolchain/fuzz-targets.json` records their executable and selector. The optional AFL runner (currently skipped by request) assigns a time budget, retains its corpus and logs, and replays every retained queue entry without instrumentation. The native adapter target checks partial I/O and cancellation with both runtimes. It sends no network traffic.
 
 The existing AFL-oriented policy remains unsatisfied while AFL is skipped; P0-04
 requires an explicitly reviewed non-AFL campaign/evidence design, not a waiver.
-For historical runner interpretation, a release-duration command is `tools/dev fuzz --seconds 28800`. That schedules eight hours **per target**, up to 72 hours of fuzz CPU across all nine. Use `--target request` (or another catalog name) to run one independently. Run this only against a frozen release candidate: any source change makes evidence stale. Historical 30-second campaigns are smoke evidence and do not satisfy that gate. Campaign completion also does not remove the need to triage findings or review generator depth.
+For historical runner interpretation, a release-duration command is `tools/dev fuzz --seconds 28800`. That schedules eight hours **per target**, up to 112 hours of fuzz CPU across all fourteen. Use `--target request` (or another catalog name) to run one independently. Run this only against a frozen release candidate: any source change makes evidence stale. Historical 30-second campaigns are smoke evidence and do not satisfy that gate. Campaign completion also does not remove the need to triage findings or review generator depth.
 
 ## Coverage and mutation evidence
 

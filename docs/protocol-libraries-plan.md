@@ -88,6 +88,11 @@ regression evidence under `_artifacts/production-slices`):
   Lwt transport teardown now joins handler finalizers before close; regression
   reproduced early teardown before the fix, with matching Eio control.
 
+- URL/forms/router/multipart/WebSocket generated targets are registered in the
+  shared fuzz catalog and native seeded smoke; accepted multipart/WebSocket streams
+  must agree across segmentation, with explicit event/limit invariants. WebSockets
+  remain experimental; this is smoke evidence, not the complete security campaign.
+
 Next: broaden cancellation/limits and application-resource schedules.
 
 ## P0 — required before production confidence

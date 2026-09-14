@@ -166,3 +166,19 @@ Protocol references: [JSON](https://www.rfc-editor.org/rfc/rfc8259),
 [WebSockets](https://www.rfc-editor.org/rfc/rfc6455),
 [SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html), and
 [Caqti](https://github.com/paurkedal/ocaml-caqti).
+
+## Generated input controls
+
+`fuzz/web_fuzz.ml` adds seeded OCaml targets for URL decoding, forms, raw routing,
+multipart and WebSocket frames/reassembly. The shared catalog contains the target
+selectors; `dune runtest` runs 200 rounds per target without AFL. A larger local
+smoke run is `tools/dune-pkg exec -- fuzz/web_fuzz.exe -r 5000 -s 42`.
+
+Properties cover URL/form round trips and duplicate preservation, raw captures and
+router limits, multipart callback order/part budgets/retained parser state, and
+WebSocket fragmentation with interleaved ping and close. Complete accepted streams
+must agree under whole/byte/random segmentation. Rejections must remain terminal;
+partial events preceding a later failure are not required to batch identically.
+Generated multipart filenames remain metadata, including traversal-looking names.
+These controls do not certify file-system cleanup, network cancellation, total RSS
+or WebSocket security; those campaigns remain separate release gates.

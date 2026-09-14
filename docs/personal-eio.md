@@ -105,8 +105,8 @@ Inspect the retained trends as well. Engine queue bounds have separate exact
 checks. The initial reference observation precedes warmup; the first two
 observations are excluded from growth comparisons.
 
-AFL work is currently deferred at user request. If resumed separately, the nine
-30-minute fuzz targets run sequentially (about 4.5 hours plus setup and
+AFL work is currently deferred at user request. If resumed separately, the catalog's
+14 targets at 30 minutes each run sequentially (about seven hours plus setup and
 corpus replay). They retain the original 512 MiB and 2-second execution limits.
 Source changes invalidate final evidence. Neither these budgets nor the personal
 profile replaces the [public-release requirements](release.md).

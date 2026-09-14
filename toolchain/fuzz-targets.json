@@ -7,5 +7,10 @@
   {"name":"client","binary":"engine_fuzz","case":"client","seed":"abc"},
   {"name":"partial-write","binary":"release_fuzz","case":"partial-write","seed":"abc"},
   {"name":"adapter","binary":"adapter_fuzz","case":null,"seed":"abc"},
-  {"name":"isolation","binary":"release_fuzz","case":"isolation","seed":"abc"}
+  {"name":"isolation","binary":"release_fuzz","case":"isolation","seed":"abc"},
+  {"name":"url","binary":"web_fuzz","case":"url","seed":"abc"},
+  {"name":"forms","binary":"web_fuzz","case":"forms","seed":"abc"},
+  {"name":"router","binary":"web_fuzz","case":"router","seed":"abc"},
+  {"name":"multipart","binary":"web_fuzz","case":"multipart","seed":"abc"},
+  {"name":"websocket","binary":"web_fuzz","case":"websocket","seed":"abc"}
 ]

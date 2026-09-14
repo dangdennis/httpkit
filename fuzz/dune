@@ -30,3 +30,19 @@
    (setenv HTTP_KIT_FUZZ_CASE request (run ./http1_fuzz.exe -r 200 -s 42))
    (setenv HTTP_KIT_FUZZ_CASE response (run ./http1_fuzz.exe -r 200 -s 42))
    (setenv HTTP_KIT_FUZZ_CASE chunked (run ./http1_fuzz.exe -r 200 -s 42)))))
+
+(executable
+ (name web_fuzz)
+ (modules web_fuzz)
+ (libraries http1_conformance httpkit-core httpkit httpkit-router crowbar)
+ (modes exe))
+
+(rule
+ (alias runtest)
+ (action
+  (progn
+   (setenv HTTP_KIT_FUZZ_CASE url (run ./web_fuzz.exe -r 200 -s 42))
+   (setenv HTTP_KIT_FUZZ_CASE forms (run ./web_fuzz.exe -r 200 -s 42))
+   (setenv HTTP_KIT_FUZZ_CASE router (run ./web_fuzz.exe -r 200 -s 42))
+   (setenv HTTP_KIT_FUZZ_CASE multipart (run ./web_fuzz.exe -r 200 -s 42))
+   (setenv HTTP_KIT_FUZZ_CASE websocket (run ./web_fuzz.exe -r 200 -s 42)))))

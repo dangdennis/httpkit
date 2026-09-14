@@ -312,7 +312,7 @@ Run independent connections on 1, 2, and 4 domains in stress jobs. Do not concur
 
 ## 13. Fuzzing plan
 
-Provide nine separately invocable targets:
+The shared catalog now provides fourteen separately invocable targets:
 
 1. Core value constructors and serializer validation.
 2. Incremental request codec.
@@ -323,6 +323,16 @@ Provide nine separately invocable targets:
 7. Partial writes, acknowledgements, and buffer lifecycle.
 8. Deterministic adapter transport/cancellation schedules.
 9. Cross-connection isolation and retained-resource accounting.
+10. URL decoding and safe path segments.
+11. Forms and duplicate-preserving round trips.
+12. Raw router paths and captures.
+13. Multipart parsing, event order and retained state.
+14. WebSocket frames and message reassembly.
+
+Native seeded OCaml smoke runs for the parser and application targets are included
+in `dune runtest`. AFL remains skipped. The instrumentation requirements below
+are historical release gates awaiting explicit non-AFL policy reconciliation;
+ordinary smoke is not relabeled as a completed instrumented campaign.
 
 Use both arbitrary bytes and grammar-aware generation. Structure-aware mutations vary lengths, delimiters, header duplication, targets, and command dependencies. Avoid a generator dominated by trivially rejected first bytes. Track valid-header and completed-message rates, maximum reached lifecycle phases, and capability coverage to make shallow exploration visible.
 
@@ -653,7 +663,7 @@ source-matched fuzz smoke. Broader release campaigns remain separate gates.
 
 M6 provides the [direct/Nginx interop and streaming evidence](interop-performance.md).
 M7 adds [executable release assessment](release.md), a separate coverage lock,
-curated source mutations, nine selectable local fuzz targets and retained campaign
+curated source mutations, catalog-selected local fuzz targets and retained campaign
 artifacts. Capability implementation and release approval remain separate: full
 release readiness stays false until every required source-matched gate completes.
 The original broad differential, long-soak and independent-review requirements
