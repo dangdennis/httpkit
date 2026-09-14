@@ -33,3 +33,9 @@ locks, per-process native allocations and aggregate per-connection/per-request
 memory. Test zero/exact/one-over limits, overflow, cancellation and combinations.
 A logical queue count is not a total-RSS guarantee. This document centralizes
 review visibility without claiming all runtime limits have been reconciled.
+
+`test/web/multipart_limits_test.ml` checks header, part, total and count limits
+at exact/one-over boundaries, empty zero-byte parts and near-max_int header
+configuration across segmentation schedules. Multipart's partial delimiter
+allowance uses subtraction so a large configured header limit cannot wrap and
+reject a fragmented request that succeeds in one chunk. Defaults are unchanged.

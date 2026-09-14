@@ -195,8 +195,12 @@ let rec advance t =
   | Headers -> (
       match locate "\r\n\r\n" t.pending 0 with
       | None ->
-          if String.length t.pending > t.max_header + 3 then
-            invalid "multipart headers limit"
+          (* Keep the partial CRLFCRLF allowance without adding to a caller
+             supplied limit, which may be max_int. *)
+          if
+            String.length t.pending > 3
+            && String.length t.pending - 3 > t.max_header
+          then invalid "multipart headers limit"
       | Some n ->
           if n > t.max_header || t.parts >= t.max_parts then
             invalid "multipart part limit";

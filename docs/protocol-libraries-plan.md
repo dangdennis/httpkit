@@ -93,6 +93,10 @@ regression evidence under `_artifacts/production-slices`):
   must agree across segmentation, with explicit event/limit invariants. WebSockets
   remain experimental; this is smoke evidence, not the complete security campaign.
 
+- Multipart limit regression reproduced segmentation-dependent rejection near
+  `max_int`; header delimiter allowance now uses overflow-safe arithmetic. Exact,
+  one-over, zero and extreme limits run under every segmentation schedule.
+
 Next: broaden cancellation/limits and application-resource schedules.
 
 ## P0 — required before production confidence

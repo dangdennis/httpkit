@@ -1,1 +1,7 @@
-(test (name web_test) (libraries httpkit httpkit-core qcheck-core))
+(test (name web_test) (modules web_test) (libraries httpkit httpkit-core qcheck-core))
+
+(test
+ (name multipart_limits_test)
+ (modules multipart_limits_test)
+ (modes byte exe)
+ (libraries httpkit http1_conformance alcotest))
