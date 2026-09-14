@@ -232,9 +232,7 @@ let exchange ~body_limit ~random ~on_error handler c id head peer =
       alive := false;
       Lwt.return_unit)
 
-let within clock seconds f =
-  Lwt.pick
-    [ f (); (clock.A.sleep seconds >>= fun () -> Lwt.fail Lwt_unix.Timeout) ]
+let within = Deadline.within
 
 let connection ~peer ~body_limit ~random ~on_error ~clock ~request_timeout
     handler c =

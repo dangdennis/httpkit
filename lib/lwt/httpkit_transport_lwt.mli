@@ -19,6 +19,8 @@ type transport = {
 val of_fd : Lwt_unix.file_descr -> transport
 
 type clock = { now : unit -> float; sleep : float -> unit Lwt.t }
+(** Monotonic time and cancellable delay. [sleep] must release its timer on
+    cancellation; any asynchronous cleanup must eventually finish. *)
 
 val monotonic_clock : clock
 

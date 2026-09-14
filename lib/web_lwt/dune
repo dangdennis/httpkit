@@ -1,3 +1,4 @@
 (library (name httpkit_lwt) (public_name httpkit-lwt)
  (libraries httpkit httpkit-router httpkit-middleware httpkit-transport-lwt lwt.unix base64 yojson)
+ (private_modules Deadline)
  (instrumentation (backend bisect_ppx)))

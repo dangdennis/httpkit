@@ -21,10 +21,7 @@ let websocket ?max_frame ?max_message ~(clock : Httpkit_transport_lwt.clock)
   let parser = W.Websocket.server ?max_frame ?max_message ()
   and closed = ref false
   and closing_since = ref None in
-  let within seconds f =
-    Lwt.pick
-      [ f (); (clock.sleep seconds >>= fun () -> Lwt.fail Lwt_unix.Timeout) ]
-  in
+  let within seconds f = Deadline.within clock seconds f in
   let write event =
     let data =
       match W.Websocket.encode event with Ok s -> s | Error e -> invalid_arg e

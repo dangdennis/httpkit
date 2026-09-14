@@ -12,4 +12,6 @@ val websocket :
   (Httpkit.Websocket.event -> Httpkit.Websocket.event option Lwt.t) ->
   unit Lwt.t
 (** Bounded server loop with ping/pong, close handshake and cancellation. The
-    enclosing application owns transport closure. *)
+    enclosing application owns transport closure. Deadlines join cancelled
+    callback and I/O work before returning; cleanup must eventually finish.
+    Protect cleanup that must survive cancellation with [Lwt.no_cancel]. *)

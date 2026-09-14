@@ -52,3 +52,21 @@ cancellation controls remain in the regression suite. Successful cleanup bounds
 helper-owned temporary files to the current part; application-created durable
 copies remain the application's responsibility. Disk exhaustion and cleanup-I/O
 error precedence still need dedicated fault schedules.
+
+## Lwt application deadlines
+
+A request deadline must not finish while its handler or response producer still
+owns resources. The same rule applies to WebSocket callbacks and I/O. Controlled
+clock tests in `test/extensions/lwt_app_test.ml` reproduced early transport closure
+and error reporting while a cancelled finalizer was suspended. A shared private
+Lwt deadline helper now races without automatically abandoning the losing branch,
+then cancels and joins both branches while preserving the winning outcome. Tests
+cover handler/stream deadlines, external server cancellation and WebSocket callback
+timeout. These complement the lower-level transport cleanup controls above.
+
+Finalizers that must survive cancellation should use `Lwt.no_cancel`; Eio cleanup
+uses `Eio.Cancel.protect`. Cleanup must eventually finish: the deadline starts
+cancellation but cannot safely impose a second hard cutoff on resource release.
+The extra promise bookkeeping is outside the parser/encoder; its application-path
+allocation cost remains part of the end-to-end profiling campaign. WebSocket
+support remains experimental despite this specific lifecycle correction.

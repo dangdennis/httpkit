@@ -113,7 +113,13 @@ Completed slices (relevant local regression evidence is retained under
   reproduced excessive lifetime; callback errors and partial cancellation remain
   covered. Disk exhaustion and cleanup-I/O fault schedules stay open.
 
-Next: broader local limits and application-resource schedules.
+- Lwt request and WebSocket deadlines now join owned work after cancellation.
+  Controlled-clock regressions reproduced early closure while finalizers were
+  suspended; handler, stream and external-cancellation schedules are covered.
+  Nonterminating cleanup and remaining fault interleavings stay explicit limits.
+
+Next: broader local limits and application-resource schedules, followed by
+source-matched endpoint profiling. CI work remains deferred.
 
 ## P0 — required before production confidence
 

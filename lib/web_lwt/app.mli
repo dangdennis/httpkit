@@ -68,4 +68,6 @@ val serve :
   unit Lwt.t
 (** Stops admission and drains active connections on [stop]. Callers own the
     listener. Application callback deadlines cover unrelated work as well as
-    body processing. *)
+    body processing. A timeout or external cancellation joins owned handler and
+    stream cleanup before the connection closes. Cleanup that must survive
+    cancellation should use [Lwt.no_cancel]; it must eventually finish. *)

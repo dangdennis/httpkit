@@ -398,3 +398,211 @@ let () =
          ^ frame (Httpkit.Websocket.Close (None, ""))));
   print_endline
     "PASS Lwt WebSocket partial writes, echo, ping and close handshake"
+
+let () =
+  run
+    (Lwt_list.iter_s
+       (fun (streaming, cancel) ->
+         let entered, enter = Lwt.wait () in
+         let cleanup_started, start_cleanup = Lwt.wait () in
+         let cleanup_gate, finish_cleanup = Lwt.wait () in
+         let deadline, expire = Lwt.task () in
+         let stopped, _ = Lwt.wait () in
+         let reported, report = Lwt.wait () in
+         let closed = ref 0 and cleaned = ref false and reads = ref 0 in
+         let head = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n" in
+         let transport : A.transport =
+           {
+             read =
+               (fun bytes off _ ->
+                 incr reads;
+                 if !reads = 1 then (
+                   Bytes.blit_string head 0 bytes off (String.length head);
+                   Lwt.return (String.length head))
+                 else fst (Lwt.task ()));
+             write = (fun _ _ len -> Lwt.return len);
+             close =
+               (fun () ->
+                 incr closed;
+                 Lwt.return_unit);
+           }
+         in
+         let clock : A.clock =
+           {
+             now = (fun () -> 0.);
+             sleep =
+               (fun seconds ->
+                 if seconds = 7. then deadline else fst (Lwt.task ()));
+           }
+         in
+         let owned_work () =
+           Lwt.wakeup_later enter ();
+           Lwt.finalize
+             (fun () -> fst (Lwt.task ()))
+             (fun () ->
+               Lwt.wakeup_later start_cleanup ();
+               cleanup_gate >|= fun () -> cleaned := true)
+         in
+         let accepted = ref false in
+         let server =
+           App.serve ~max_connections:1 ~request_timeout:7. ~clock
+             ~random:Mirage_crypto_rng.generate ~stop:stopped
+             ~accept:(fun () ->
+               if !accepted then fst (Lwt.task ())
+               else (
+                 accepted := true;
+                 Lwt.return (transport, "local")))
+             ~on_error:(fun exn ->
+               Lwt.wakeup_later report exn;
+               Lwt.return_unit)
+             (fun _ ->
+               if streaming then
+                 Lwt.return (App.stream (fun _ -> owned_work ()))
+               else
+                 owned_work () >|= fun () ->
+                 App.reply (Httpkit.Reply.text "unreachable"))
+         in
+         Lwt.finalize
+           (fun () ->
+             entered >>= fun () ->
+             if cancel then Lwt.cancel server else Lwt.wakeup_later expire ();
+             cleanup_started >>= fun () ->
+             Lwt.pause () >>= fun () ->
+             let premature_close = !closed <> 0 in
+             let premature_report =
+               if cancel then not (Lwt.is_sleeping server)
+               else not (Lwt.is_sleeping reported)
+             in
+             Lwt.wakeup_later finish_cleanup ();
+             (if cancel then
+                Lwt.catch
+                  (fun () ->
+                    server >>= fun () -> Lwt.fail_with "missing cancellation")
+                  (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
+              else
+                reported >|= fun exn ->
+                check "deadline preserves timeout" (exn = Lwt_unix.Timeout))
+             >>= fun () ->
+             check "deadline joins suspended finalizer before transport close"
+               (not premature_close);
+             check "deadline joins suspended finalizer before reporting"
+               (not premature_report);
+             check "deadline cleanup and exactly one close"
+               (!cleaned && !closed = 1);
+             Lwt.return_unit)
+           (fun () ->
+             if Lwt.is_sleeping cleanup_gate then
+               Lwt.wakeup_later finish_cleanup ();
+             Lwt.cancel server;
+             Lwt.catch (fun () -> server) (fun _ -> Lwt.return_unit)))
+       [ (false, false); (true, false); (false, true); (true, true) ]);
+  print_endline
+    "PASS Lwt deadlines and cancellation join handler and stream finalizers"
+
+let () =
+  run
+    (let entered, enter = Lwt.wait () in
+     let cleanup_started, start_cleanup = Lwt.wait () in
+     let gate, release = Lwt.wait () in
+     let deadline, expire = Lwt.task () in
+     let closed = ref 0 and cleaned = ref false in
+     let clock : A.clock =
+       { now = (fun () -> 0.); sleep = (fun _ -> deadline) }
+     in
+     let transport : A.transport =
+       {
+         read = (fun _ _ _ -> fst (Lwt.task ()));
+         write = (fun _ _ n -> Lwt.return n);
+         close =
+           (fun () ->
+             incr closed;
+             Lwt.return_unit);
+       }
+     in
+     (* One masked text frame containing x. *)
+     let suffix = "\x81\x81abcd\x19" in
+     let work =
+       Lwt.finalize
+         (fun () ->
+           App.Realtime.websocket ~clock ~idle_timeout:7. transport suffix
+             (fun _ ->
+               Lwt.wakeup_later enter ();
+               Lwt.finalize
+                 (fun () -> fst (Lwt.task ()))
+                 (fun () ->
+                   Lwt.wakeup_later start_cleanup ();
+                   gate >|= fun () -> cleaned := true)))
+         transport.close
+     in
+     Lwt.finalize
+       (fun () ->
+         entered >>= fun () ->
+         Lwt.wakeup_later expire ();
+         cleanup_started >>= fun () ->
+         Lwt.pause () >>= fun () ->
+         let premature = !closed <> 0 || not (Lwt.is_sleeping work) in
+         Lwt.wakeup_later release ();
+         Lwt.catch
+           (fun () ->
+             work >>= fun () -> Lwt.fail_with "missing websocket timeout")
+           (function Lwt_unix.Timeout -> Lwt.return_unit | e -> Lwt.fail e)
+         >>= fun () ->
+         check "websocket deadline joins suspended callback" (not premature);
+         check "websocket deadline cleanup and close" (!cleaned && !closed = 1);
+         Lwt.return_unit)
+       (fun () ->
+         if Lwt.is_sleeping gate then Lwt.wakeup_later release ();
+         Lwt.cancel work;
+         Lwt.catch (fun () -> work) (fun _ -> Lwt.return_unit)));
+  print_endline "PASS Lwt WebSocket callback deadline joins suspended cleanup"
+
+let () =
+  run
+    (let cleanup_started, start_cleanup = Lwt.wait () in
+     let gate, release = Lwt.wait () in
+     let cleaned = ref false and closed = ref 0 in
+     let clock : A.clock =
+       {
+         now = (fun () -> 0.);
+         sleep =
+           (fun _ ->
+             Lwt.finalize
+               (fun () -> fst (Lwt.task ()))
+               (fun () ->
+                 Lwt.wakeup_later start_cleanup ();
+                 gate >|= fun () -> cleaned := true));
+       }
+     in
+     let transport : A.transport =
+       {
+         read = (fun _ _ _ -> Lwt.fail_with "unexpected read after close");
+         write = (fun _ _ n -> Lwt.return n);
+         close =
+           (fun () ->
+             incr closed;
+             Lwt.return_unit);
+       }
+     in
+     (* Empty masked close: its immediate reply wins the write deadline. *)
+     let work =
+       Lwt.finalize
+         (fun () ->
+           App.Realtime.websocket ~clock transport "\x88\x80abcd" (fun _ ->
+               Lwt.fail_with "unexpected application callback"))
+         transport.close
+     in
+     Lwt.finalize
+       (fun () ->
+         cleanup_started >>= fun () ->
+         Lwt.pause () >>= fun () ->
+         let premature = !closed <> 0 || not (Lwt.is_sleeping work) in
+         Lwt.wakeup_later release ();
+         work >>= fun () ->
+         check "successful operation joins losing timer cleanup" (not premature);
+         check "timer cleanup completed before close" (!cleaned && !closed = 1);
+         Lwt.return_unit)
+       (fun () ->
+         if Lwt.is_sleeping gate then Lwt.wakeup_later release ();
+         Lwt.cancel work;
+         Lwt.catch (fun () -> work) (fun _ -> Lwt.return_unit)));
+  print_endline "PASS Lwt successful deadline race joins timer cleanup"
