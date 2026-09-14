@@ -215,6 +215,85 @@ let () =
                       Eio.Promise.resolve release_notify ()));
               check "close drains outstanding checkout" (D.size queued = 0);
               D.close queued;
+              let draining =
+                D.create ~max_connections:1 ~max_waiters:0 ~sw
+                  ~stdenv:(env :> Caqti_eio.stdenv)
+                  uri
+              in
+              let entered, notify_entered = Eio.Promise.create ()
+              and cleaning, notify_cleaning = Eio.Promise.create ()
+              and release, notify_release = Eio.Promise.create () in
+              let finalized = ref false
+              and retired = ref false
+              and closed = ref false in
+              Eio.Fiber.both
+                (fun () ->
+                  Eio.Fiber.first
+                    (fun () ->
+                      D.transaction draining
+                        (fun (module C : Caqti_eio.CONNECTION) ->
+                          ok (C.exec Queries.insert 4);
+                          Fun.protect
+                            ~finally:(fun () ->
+                              Eio.Cancel.protect (fun () ->
+                                  Eio.Promise.resolve notify_cleaning ();
+                                  Eio.Promise.await release;
+                                  check "lease remains usable during cleanup"
+                                    (ok (C.find Queries.count ()) = 2);
+                                  finalized := true))
+                            (fun () ->
+                              Eio.Promise.resolve notify_entered ();
+                              Eio.Fiber.await_cancel ())))
+                    (fun () -> Eio.Promise.await entered);
+                  retired := true)
+                (fun () ->
+                  Eio.Promise.await cleaning;
+                  check "cleanup still owns the only lease"
+                    (try
+                       D.use draining ignore;
+                       false
+                     with D.Busy -> true);
+                  Eio.Fiber.both
+                    (fun () ->
+                      D.close draining;
+                      closed := true)
+                    (fun () ->
+                      Eio.Fiber.yield ();
+                      check "close waits for callback finalizer and rollback"
+                        ((not !closed) && (not !retired) && not !finalized);
+                      invalid (fun () -> D.use draining ignore);
+                      Eio.Promise.resolve notify_release ()));
+              check "cancellation joins transaction cleanup"
+                (!finalized && !retired && !closed && D.size draining = 0);
+              let verifier =
+                D.create ~max_connections:1 ~sw
+                  ~stdenv:(env :> Caqti_eio.stdenv)
+                  uri
+              in
+              D.use verifier (fun (module C : Caqti_eio.CONNECTION) ->
+                  check "shutdown waits for cancelled transaction rollback"
+                    (ok (C.find Queries.count ()) = 1));
+              D.close verifier;
+              D.close draining;
+              let interrupted_close =
+                D.create ~max_connections:1 ~sw
+                  ~stdenv:(env :> Caqti_eio.stdenv)
+                  uri
+              in
+              D.use interrupted_close (fun _ ->
+                  check "close is cancellable while lease remains owned"
+                    (try
+                       Eio.Time.Timeout.run_exn
+                         (Eio.Time.Timeout.seconds
+                            (Eio.Stdenv.mono_clock env)
+                            0.02)
+                         (fun () -> D.close interrupted_close);
+                       false
+                     with Eio.Time.Timeout -> true);
+                  invalid (fun () -> D.use interrupted_close ignore));
+              D.close interrupted_close;
+              check "interrupted close can be retried"
+                (D.size interrupted_close = 0);
               if Uri.scheme uri <> Some "sqlite3" then (
                 let timed =
                   D.create ~statement_timeout:0.05 ~sw

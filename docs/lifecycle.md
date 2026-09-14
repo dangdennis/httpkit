@@ -81,3 +81,18 @@ cancellation but cannot safely impose a second hard cutoff on resource release.
 The extra promise bookkeeping is outside the parser/encoder; its application-path
 allocation cost remains part of the end-to-end profiling campaign. WebSocket
 support remains experimental despite this specific lifecycle correction.
+
+## Database shutdown and cancellation
+
+Real SQLite/PostgreSQL controls in `test/db_eio/db_test.ml` cancel a transaction
+after an insert and suspend its protected callback finalizer while it retains
+the pool's only lease. The lease remains usable by that finalizer, capacity stays
+occupied, and concurrent close waits. Once released, rollback completes before
+close returns; a separate pool verifies that the inserted row did not commit.
+New borrowers are rejected once close starts. Repeated close is harmless.
+
+Closing while a lease is still owned is cancellable. Cancellation does not reopen
+admission; the owner must retry close after the lease retires or finish the pool's
+switch. Calling close inside that pool's own lease callback would wait for itself
+and is explicitly unsupported. Backend I/O faults and disconnect-error precedence
+remain separate acceptance boundaries.

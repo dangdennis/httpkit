@@ -138,6 +138,12 @@ Completed slices (relevant local regression evidence is retained under
   cleanup is joined before unlink and connection EOF. Persistent filesystem
   failure and simultaneous-error precedence remain open.
 
+- Database lifecycle controls suspend a cancelled transaction's finalizer while
+  closing the pool, then verify rollback from a separate pool. Admission closes
+  immediately, shutdown joins cleanup, and interrupted close remains terminal
+  but retryable. These controls run against SQLite and disposable PostgreSQL;
+  backend I/O and disconnect-failure schedules remain open.
+
 Next: broader local limits and application-resource schedules; release-profile
 and Lwt benchmark parity remain open. CI work remains deferred.
 

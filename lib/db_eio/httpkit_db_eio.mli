@@ -28,7 +28,12 @@ val transaction : t -> (connection -> 'a) -> 'a
 val size : t -> int
 
 val close : t -> unit
-(** Terminal for this wrapper; drains checked-out connections. *)
+(** Stops admission immediately, then waits for every lease callback, including
+    cancellation cleanup and transaction rollback, before disconnecting idle
+    resources. Repeated calls are harmless. The wait is cancellable: after an
+    interrupted close the pool remains terminal, and the owner must retry close
+    or finish its switch. Do not call close from inside this pool's own lease
+    callback, as it would wait for itself. *)
 
 type migration = {
   version : int;
