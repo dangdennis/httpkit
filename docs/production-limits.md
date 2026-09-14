@@ -34,6 +34,51 @@ memory. Test zero/exact/one-over limits, overflow, cancellation and combinations
 A logical queue count is not a total-RSS guarantee. This document centralizes
 review visibility without claiming all runtime limits have been reconciled.
 
+## Admission and combined byte budgets
+
+Both application servers use a fixed number of workers. A worker accepts one
+transport and retains that slot through the HTTP exchange, protocol handoff,
+callback cleanup and transport close. It then accepts again. There is no additional
+application queue of already accepted connections. The listener's kernel backlog
+and any queue implemented by the caller's `accept` callback are separate resources;
+`max_connections` does not configure or bound them. Handlers that create their own
+detached work also fall outside this admission bound.
+
+`test/production/admission_test.ml` checks capacities one and three in both Eio
+and Lwt. A blocked writer fails while the producer is backpressured. Its protected
+cleanup is then suspended: no replacement is admitted and no close/error callback
+runs until cleanup is released. Exactly one slot becomes available afterwards,
+and cancelling the server closes every admitted transport once. This is a
+deterministic ownership test, not a large-connection soak or an RSS measurement.
+
+For the default 16 application connections, selected logical byte budgets add up
+as follows. These terms describe different owners; they are not a total allocation
+or resident-memory ceiling.
+
+| Term | Per connection | At 16 connections |
+| --- | --- | --- |
+| Engine output queue | 32 KiB | 512 KiB |
+| Adapter read buffer | 16 KiB | 256 KiB |
+| Adapter retained input string | At most 16 KiB | At most 256 KiB |
+| Pending engine body-data event at default codec step limit | At most 16 KiB | At most 256 KiB |
+| Eio `of_flow` read scratch | 16 KiB | 256 KiB |
+| Application body collection limit | 1 MiB of body content | 16 MiB of body content |
+
+The body collector may temporarily hold both its accumulation buffer and returned
+string. HTTP heads, parser buffers, queue nodes, runtime stacks, GC capacity, native
+socket/DB buffers and write conversion temporaries add overhead. A handler may
+retain older bodies or arbitrarily large response strings. `send` breaks output
+into bounded queue chunks, but its caller still owns the complete supplied string
+until the call returns. Producers should construct finite chunks rather than
+first materializing an unbounded response. These application retention choices
+must be part of any measured deployment budget.
+
+These byte counts follow the current adapter read loops, `of_flow`, engine pending
+event and output accounting. Custom codec limits/transports change the inventory.
+Finite defaults and bounded admission are necessary evidence; an aggregate
+production profile still requires long-running RSS/native-resource measurements
+with representative handlers and database usage.
+
 `test/web/multipart_limits_test.ml` checks header, part, total and count limits
 at exact/one-over boundaries, empty zero-byte parts and near-max_int header
 configuration across segmentation schedules. Multipart's partial delimiter

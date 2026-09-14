@@ -278,6 +278,14 @@ sources for new runtime paths; preserve failures and exact budgets.
 The [current defaults inventory](production-limits.md) records source owners and
 known gaps; it is not yet an aggregate production profile.
 
+Application admission controls now cover capacities one and three in both
+runtimes: a failed backpressured producer retains its slot until protected cleanup
+and close finish; only then is a replacement accepted. All admitted transports
+close once on cancellation. The inventory separates worker admission from the
+external listener backlog and itemizes selected combined byte budgets, including
+caller-retained bodies/responses that queue limits do not bound. Large-connection
+soak and measured aggregate RSS/native-resource acceptance remain open.
+
 Document actual request/status/header-line, aggregate-header/count, body, response
 buffer, multipart parts/per-part/total/header, JSON depth/bytes, URL/form, WebSocket
 frame/message, active/queued connections, engine queues, read/write/header/body/
