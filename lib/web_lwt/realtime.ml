@@ -22,6 +22,15 @@ let websocket ?max_frame ?max_message ~(clock : Httpkit_transport_lwt.clock)
   and closed = ref false
   and closing_since = ref None in
   let within seconds f = Deadline.within clock seconds f in
+  let remaining () =
+    match !closing_since with
+    | None -> idle_timeout
+    | Some started -> idle_timeout -. (clock.now () -. started)
+  in
+  let within_remaining f =
+    let seconds = remaining () in
+    if seconds <= 0. then Lwt.fail Lwt_unix.Timeout else within seconds f
+  in
   let write event =
     let data =
       match W.Websocket.encode event with Ok s -> s | Error e -> invalid_arg e
@@ -34,7 +43,7 @@ let websocket ?max_frame ?max_message ~(clock : Httpkit_transport_lwt.clock)
           Lwt.fail_with "invalid websocket write"
         else loop (i + n)
     in
-    within idle_timeout (fun () -> loop 0)
+    within_remaining (fun () -> loop 0)
   in
   let consume input =
     match W.Websocket.feed parser input with
@@ -76,22 +85,15 @@ let websocket ?max_frame ?max_message ~(clock : Httpkit_transport_lwt.clock)
   let rec loop () =
     if !closed then Lwt.return_unit
     else
-      let remaining =
-        match !closing_since with
-        | None -> idle_timeout
-        | Some started -> idle_timeout -. (clock.now () -. started)
-      in
-      if remaining <= 0. then Lwt.fail Lwt_unix.Timeout
-      else
-        within remaining (fun () -> transport.read bytes 0 (Bytes.length bytes))
-        >>= fun n ->
-        if n = 0 then (
-          closed := true;
-          match W.Websocket.eof parser with
-          | Ok () -> Lwt.return_unit
-          | Error e -> Lwt.fail (Protocol_error e))
-        else if n < 0 || n > Bytes.length bytes then
-          Lwt.fail_with "invalid websocket read"
-        else consume (Bytes.sub_string bytes 0 n) >>= loop
+      within_remaining (fun () -> transport.read bytes 0 (Bytes.length bytes))
+      >>= fun n ->
+      if n = 0 then (
+        closed := true;
+        match W.Websocket.eof parser with
+        | Ok () -> Lwt.return_unit
+        | Error e -> Lwt.fail (Protocol_error e))
+      else if n < 0 || n > Bytes.length bytes then
+        Lwt.fail_with "invalid websocket read"
+      else consume (Bytes.sub_string bytes 0 n) >>= loop
   in
   initial 0 >>= loop

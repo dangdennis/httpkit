@@ -14,4 +14,6 @@ val websocket :
 (** Bounded server loop with ping/pong, close handshake and cancellation. The
     enclosing application owns transport closure. Deadlines join cancelled
     callback and I/O work before returning; cleanup must eventually finish.
-    Protect cleanup that must survive cancellation with [Lwt.no_cancel]. *)
+    Protect cleanup that must survive cancellation with [Lwt.no_cancel]. After
+    sending Close, reads and writes share one absolute [idle_timeout] budget for
+    the peer's reply; ping/pong cannot extend it. *)

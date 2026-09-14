@@ -96,3 +96,13 @@ admission; the owner must retry close after the lease retires or finish the pool
 switch. Calling close inside that pool's own lease callback would wait for itself
 and is explicitly unsupported. Backend I/O faults and disconnect-error precedence
 remain separate acceptance boundaries.
+
+## WebSocket closing deadline
+
+`test/production/websocket_deadline_test.ml` reproduced an extended close wait
+in both runtimes: after sending Close, a Ping arriving one second into a
+two-second closing budget let a blocked Pong write run until three seconds.
+Reads and writes now use the same remaining absolute closing budget. Both native
+controls expire at two seconds and join cancelled write cleanup. Ordinary open
+connection callback/I/O budgets are unchanged. This closes one deadline defect;
+WebSockets remain experimental and the broader security campaign stays open.

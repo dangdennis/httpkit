@@ -155,6 +155,11 @@ Completed slices (relevant local regression evidence is retained under
   deadlines and single close through Eio and Lwt. Defaults and the independent
   application request deadline are unchanged; aggregate budgets remain open.
 
+- Eio/Lwt WebSocket closing reads and writes share the remaining absolute
+  deadline. Controlled tests reproduced a blocked Pong extending a two-second
+  close wait to three seconds; both now expire at two seconds and join cleanup.
+  WebSocket support remains experimental.
+
 Next: broader local limits and application-resource schedules; release-profile
 and Lwt benchmark parity remain open. CI work remains deferred.
 

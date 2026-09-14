@@ -19,6 +19,19 @@ let websocket ?max_frame ?max_message ~clock ?(idle_timeout = 30.)
   let parser = W.Websocket.server ?max_frame ?max_message ()
   and closed = ref false
   and closing_since = ref None in
+  let remaining () =
+    let seconds =
+      match !closing_since with
+      | None -> idle_timeout
+      | Some started ->
+          idle_timeout
+          -. Mtime.Span.to_float_ns
+               (Mtime.span started (Eio.Time.Mono.now clock))
+             /. 1e9
+    in
+    if seconds <= 0. then raise Eio.Time.Timeout;
+    seconds
+  in
   let write event =
     let data =
       match W.Websocket.encode event with Ok s -> s | Error e -> invalid_arg e
@@ -30,7 +43,8 @@ let websocket ?max_frame ?max_message ~clock ?(idle_timeout = 30.)
           failwith "invalid websocket write";
         loop (i + n))
     in
-    Eio.Time.Timeout.run_exn (Eio.Time.Timeout.seconds clock idle_timeout)
+    Eio.Time.Timeout.run_exn
+      (Eio.Time.Timeout.seconds clock (remaining ()))
       (fun () -> loop 0)
   in
   let consume input =
@@ -74,18 +88,9 @@ let websocket ?max_frame ?max_message ~clock ?(idle_timeout = 30.)
   initial 0;
   let bytes = Bytes.create 8192 in
   while not !closed do
-    let remaining =
-      match !closing_since with
-      | None -> idle_timeout
-      | Some started ->
-          idle_timeout
-          -. Mtime.Span.to_float_ns
-               (Mtime.span started (Eio.Time.Mono.now clock))
-             /. 1e9
-    in
-    if remaining <= 0. then raise Eio.Time.Timeout;
     let n =
-      Eio.Time.Timeout.run_exn (Eio.Time.Timeout.seconds clock remaining)
+      Eio.Time.Timeout.run_exn
+        (Eio.Time.Timeout.seconds clock (remaining ()))
         (fun () -> transport.read bytes 0 (Bytes.length bytes))
     in
     if n = 0 then (
