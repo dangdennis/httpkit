@@ -53,6 +53,17 @@ helper-owned temporary files to the current part; application-created durable
 copies remain the application's responsibility. Disk exhaustion and cleanup-I/O
 error precedence still need dedicated fault schedules.
 
+Additional native controls wrap real confined filesystem operations to inject
+ENOSPC during a write, a close error after descriptor retirement, and a first
+unlink failure. All three propagate failure and remove the temporary file; the
+unlink failure is retried by outer cleanup. Incomplete files never reach the
+callback. A cancelled completed-file callback suspends its protected finalizer:
+the file remains available until that finalizer finishes, no next part starts,
+and removal finishes before connection EOF. These controls validate helper
+ownership, not the behavior of a full disk or a filesystem that permanently
+refuses deletion. Persistent cleanup failure and simultaneous-error precedence
+remain explicit acceptance gaps; applications must observe cleanup I/O errors.
+
 ## Lwt application deadlines
 
 A request deadline must not finish while its handler or response producer still

@@ -546,3 +546,166 @@ let () =
       check "completed upload retired before next callback" !scope_ok;
       check "multipart scope errors" (errors = []));
   print_endline "PASS temporary upload files live only through their callback"
+
+(* Wrap real confined filesystem operations, injecting faults at the I/O
+   boundary without changing the production helper's API. *)
+let fault_directory ~write ~close:on_close ~unlink:on_unlink (directory, path) =
+  let wrap_file (Eio.Resource.T (state, ops)) =
+    let module Raw = (val Eio.Resource.get ops Eio.File.Pi.Write) in
+    let module File = struct
+      include Raw
+
+      let copy state ~src =
+        write ();
+        Raw.copy state ~src
+
+      let close state =
+        Raw.close state;
+        on_close ()
+    end in
+    Eio.Resource.T (state, Eio.File.Pi.rw (module File))
+  in
+  let rec wrap_directory :
+      'a. ([> `Dir ] as 'a) Eio.Resource.t -> 'a Eio.Resource.t =
+   fun (Eio.Resource.T (state, ops)) ->
+    let module Raw = (val Eio.Resource.get ops Eio.Fs.Pi.Dir) in
+    let module Dir = struct
+      include Raw
+
+      let open_out state ~sw ~append ~create path =
+        wrap_file (Raw.open_out state ~sw ~append ~create path)
+
+      let open_subtree state ~sw path =
+        wrap_directory (Raw.open_subtree state ~sw path)
+
+      let unlink state path =
+        on_unlink ();
+        Raw.unlink state path
+    end in
+    Eio.Resource.T
+      ( state,
+        Eio.Resource.handler
+          (Eio.Resource.H (Eio.Fs.Pi.Dir, (module Dir))
+          :: Eio.Resource.bindings ops) )
+  in
+  (wrap_directory directory, path)
+
+let upload_wire body =
+  "POST / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: "
+  ^ string_of_int (String.length body)
+  ^ "\r\n\r\n" ^ body
+
+let upload_part =
+  "--fault\r\nContent-Disposition: form-data; name=f\r\n\r\ncontents\r\n"
+
+let () =
+  List.iter
+    (fun fault ->
+      let directory = Filename.temp_file "httpkit-upload-fault-" "" in
+      Sys.remove directory;
+      Unix.mkdir directory 0o700;
+      Fun.protect
+        ~finally:(fun () -> Unix.rmdir directory)
+        (fun () ->
+          let endpoint = ref (fun _ -> assert false) in
+          let callbacks = ref 0
+          and writes = ref 0
+          and closes = ref 0
+          and unlinks = ref 0
+          and failed = ref false in
+          let errors =
+            run ~request_timeout:1.
+              (fun request -> !endpoint request)
+              (fun env peer ->
+                let root = Eio.Path.(Eio.Stdenv.fs env / directory) in
+                let root =
+                  fault_directory root
+                    ~write:(fun () ->
+                      incr writes;
+                      if fault = `Write then
+                        raise (Unix.Unix_error (Unix.ENOSPC, "write", "")))
+                    ~close:(fun () ->
+                      incr closes;
+                      if fault = `Close then failwith "injected close")
+                    ~unlink:(fun () ->
+                      incr unlinks;
+                      if fault = `Unlink && !unlinks = 1 then
+                        failwith "injected unlink")
+                in
+                (endpoint :=
+                   fun request ->
+                     (try
+                        App.Files.with_upload ~directory:root
+                          ~random:(fun n -> String.make n 'f')
+                          request ~boundary:"fault"
+                          (fun _ _ -> incr callbacks)
+                      with exn ->
+                        failed := true;
+                        raise exn);
+                     App.reply (W.Reply.text "unexpected"));
+                let response =
+                  raw peer (upload_wire (upload_part ^ "--fault--\r\n"))
+                in
+                check "upload I/O failure yields 500"
+                  (String.starts_with ~prefix:"HTTP/1.1 500" response);
+                check "upload I/O fault removes temporary file"
+                  (Sys.readdir directory = [||]))
+          in
+          check "upload I/O failure propagated" (!failed && errors <> []);
+          check "upload write exercised" (!writes > 0);
+          check "upload explicitly closed once" (!closes = 1);
+          check "unlink retried after failure"
+            (!unlinks = if fault = `Unlink then 2 else 1);
+          check "incomplete file never delivered"
+            (!callbacks = if fault = `Unlink then 1 else 0)))
+    [ `Write; `Close; `Unlink ];
+  print_endline "PASS upload write, close and retryable unlink fault cleanup"
+
+let () =
+  let directory = Filename.temp_file "httpkit-upload-finalizer-" "" in
+  Sys.remove directory;
+  Unix.mkdir directory 0o700;
+  Fun.protect
+    ~finally:(fun () -> Unix.rmdir directory)
+    (fun () ->
+      let endpoint = ref (fun _ -> assert false) in
+      let callbacks = ref 0 and completed = ref false in
+      let cleaning, notify_cleaning = Eio.Promise.create ()
+      and release, notify_release = Eio.Promise.create () in
+      let errors =
+        run ~request_timeout:0.05
+          (fun request -> !endpoint request)
+          (fun env peer ->
+            (endpoint :=
+               fun request ->
+                 App.Files.with_upload
+                   ~directory:Eio.Path.(Eio.Stdenv.fs env / directory)
+                   ~random:(fun n -> String.make n 'g')
+                   request ~boundary:"fault"
+                   (fun _ _ ->
+                     incr callbacks;
+                     Fun.protect
+                       ~finally:(fun () ->
+                         Eio.Cancel.protect (fun () ->
+                             Eio.Promise.resolve notify_cleaning ();
+                             Eio.Promise.await release;
+                             check
+                               "upload exists until callback cleanup finishes"
+                               (Array.length (Sys.readdir directory) = 1);
+                             completed := true))
+                       Eio.Fiber.await_cancel);
+                 App.reply (W.Reply.text "unexpected"));
+            Eio.Flow.copy_string
+              (upload_wire (upload_part ^ upload_part ^ "--fault--\r\n"))
+              peer;
+            Eio.Promise.await cleaning;
+            check "callback cleanup suspended" (not !completed);
+            Eio.Promise.resolve notify_release ();
+            ignore (raw peer "");
+            check "callback cleanup joined before connection EOF" !completed;
+            check "cancelled completed upload removed"
+              (Sys.readdir directory = [||]))
+      in
+      check "cancelled callback never starts next part" (!callbacks = 1);
+      check "cancelled callback error reported" (errors <> []));
+  print_endline "PASS cancelled upload callback cleanup joined before unlink"

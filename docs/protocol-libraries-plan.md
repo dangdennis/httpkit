@@ -133,6 +133,11 @@ Completed slices (relevant local regression evidence is retained under
   controls and per-operation read counts in reports. Benchmark interpretation
   must distinguish client improvements from server improvements.
 
+- Upload I/O fault controls now inject disk-full writes, close failure and a
+  retryable unlink failure against real confined files. Cancelled callback
+  cleanup is joined before unlink and connection EOF. Persistent filesystem
+  failure and simultaneous-error precedence remain open.
+
 Next: broader local limits and application-resource schedules; release-profile
 and Lwt benchmark parity remain open. CI work remains deferred.
 
