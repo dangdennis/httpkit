@@ -171,6 +171,11 @@ Completed slices (relevant local regression evidence is retained under
   signature/payload tampering and forbidden-algorithm controls accompany it.
   Full transitive/OS advisory review and independent approval remain open.
 
+- `httpkit-eio` depends on Eio interfaces rather than choosing `eio_main`.
+  An isolated installed native/bytecode consumer proves application composition
+  works without backend packages; examples retain explicit backend selection.
+  Independent package boundaries otherwise remain unchanged.
+
 Next: broader local limits and application-resource schedules; stable release
 baselines and Lwt benchmark parity remain open. CI work remains deferred.
 

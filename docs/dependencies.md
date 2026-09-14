@@ -24,10 +24,12 @@ The development harness also installs comparison, test and profiling packages;
 its entire lock inventory is not the dependency set of every production package.
 Review installed package closures separately from the all-packages workspace.
 
-The application library currently names `eio_main` although its implementation
-uses Eio interfaces, not backend selection. Examples already select `eio_main`
-explicitly. Removing that unnecessary application dependency is a bounded package
-cleanup; it does not justify merging independent database/authentication packages.
+The application library depends on `eio` interfaces. Backend selection belongs
+to the executable; examples select `eio_main` explicitly. An isolated installed
+consumer reproduced the old unnecessary `eio_main` requirement, and now builds
+and runs application composition in native and bytecode modes without
+`eio_main`, `eio_posix`, `eio_linux` or Lwt installed. This bounded package cleanup
+does not justify merging independent database/authentication packages.
 
 ## Published advisory review
 

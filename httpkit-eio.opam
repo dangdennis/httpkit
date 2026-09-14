@@ -9,7 +9,7 @@ depends: [
   "httpkit-router"
   "httpkit-middleware"
   "httpkit-transport-eio"
-  "eio_main"
+  "eio"
   "base64"
   "yojson"
   "mtime"

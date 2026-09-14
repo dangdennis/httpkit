@@ -351,6 +351,38 @@ let framework_deps =
   ]
 
 let framework () =
+  with_install
+    (List.filter (( <> ) "db_eio") framework_layers)
+    [
+      "eio";
+      "ipaddr";
+      "yojson";
+      "base64";
+      "digestif";
+      "eqaf";
+      "mtime";
+      "cstruct";
+    ]
+    (fun t ->
+      List.iter
+        (fun backend ->
+          require
+            (not (Sys.file_exists (t.dir / "deps" / backend)))
+            ("Application library unexpectedly requires " ^ backend))
+        [ "eio_main"; "eio_posix"; "eio_linux"; "lwt" ];
+      let c = t.dir / "backend-independent" in
+      project c;
+      write (c / "consumer.ml")
+        "let () =\n\
+         let handler _ = Httpkit_eio.reply (Httpkit.Reply.text \"ok\") in\n\
+         let _application = Httpkit_eio.routes\n\
+         [Httpkit_eio.route Httpkit_core.Method.get \"/\" handler] in\n\
+         print_endline \"Application composition without backend selection\"\n";
+      write (c / "dune") (stanza "consumer" "httpkit-eio");
+      require
+        (execute t c "consumer"
+       = "Application composition without backend selection\n")
+        "Backend-independent application composition");
   with_install framework_layers framework_deps (fun t ->
       require
         (not (Sys.file_exists (t.dir / "deps/lwt")))

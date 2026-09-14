@@ -38,7 +38,7 @@
 (package
  (name httpkit-eio)
  (synopsis "Composable Eio web application server")
- (depends httpkit httpkit-router httpkit-middleware httpkit-transport-eio eio_main base64 yojson mtime cstruct (ocaml (= 5.5.0))))
+ (depends httpkit httpkit-router httpkit-middleware httpkit-transport-eio eio base64 yojson mtime cstruct (ocaml (= 5.5.0))))
 (package
  (name httpkit-db-eio)
  (synopsis "Eio database transactions and migrations")
