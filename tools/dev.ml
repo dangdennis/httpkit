@@ -18,9 +18,9 @@ let () =
           "httpkit developer tools: validate, consumer, framework-test, \
            routing-test, databases, coverage, mutations, interop, performance, \
            bench, profile-bodies, endpoint-profile, framework-load, \
-           personal-load, framework-validate, personal-validate, fuzz, \
-           fuzz-smoke, triage-timeout, release, selftest, protocol-spikes, \
-           fingerprint, packages"
+           personal-load, framework-validate, personal-validate, native-fuzz, \
+           fuzz, fuzz-smoke, triage-timeout, release, selftest, \
+           protocol-spikes, fingerprint, packages"
     | [ "validate" ]
     | [ "validate"; "5.5.0" ]
     | [ "evidence"; "validate"; "5.5.0" ] ->
@@ -54,6 +54,11 @@ let () =
           ~values:[ "--seconds"; "--target" ]
           ~flags:[] args;
         Fuzz.campaign args
+    | "native-fuzz" :: args ->
+        Common.validate_options
+          ~values:[ "--rounds"; "--batches"; "--seed"; "--timeout"; "--target" ]
+          ~flags:[] args;
+        Native_fuzz.main args
     | [ "fuzz-smoke" ] -> Fuzz.smoke ()
     | "triage-timeout" :: args ->
         Common.validate_options

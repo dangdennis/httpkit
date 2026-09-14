@@ -2,3 +2,8 @@
  (name dev)
  (modules dev)
  (libraries devlib))
+
+(test
+ (name native_fuzz_test)
+ (modules native_fuzz_test)
+ (libraries devlib))

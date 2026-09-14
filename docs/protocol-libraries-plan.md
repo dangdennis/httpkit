@@ -144,6 +144,12 @@ Completed slices (relevant local regression evidence is retained under
   but retryable. These controls run against SQLite and disposable PostgreSQL;
   backend I/O and disconnect-failure schedules remain open.
 
+- [Native generated-input campaigns](native-fuzz.md) run the full shared target
+  catalog with explicit seed batches, timeouts, source/binary identity and durable
+  per-process logs. Failures remain failed reports, including timeout/interruption;
+  smoke evidence and longer campaigns are recorded separately. Automatic input
+  minimization and release-duration acceptance remain open; AFL stays skipped.
+
 Next: broader local limits and application-resource schedules; release-profile
 and Lwt benchmark parity remain open. CI work remains deferred.
 
