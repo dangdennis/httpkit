@@ -197,3 +197,18 @@ exceptions, and verify Eio cancellation during input suspension and Lwt
 cancellation after a decoded chunk. These prove lifecycle behavior, not native
 allocation accounting. A supported close API, instrumented native-memory checks,
 additional cancellation boundaries and system-zlib review remain release gates.
+
+## Bounded HPACK core experiment
+
+The private `bounded_hpack` test library derives the hpack 0.13.0 decoder and
+retains upstream licensing and tables. It checks integer overflow, encoded
+literal lengths before allocation, Huffman output before each emitted byte,
+and field count/decoded bytes before constructing records or updating the table.
+A whole-block wrapper caps wire length and makes all failures terminal; the
+caller must close the connection after rejection. Successful blocks retain
+compression state for the next block.
+
+This is not integrated into h2. The caller already holds a complete input string,
+so bounded incremental assembly and CONTINUATION-frame work remain outstanding.
+The prototype conservatively applies the decoded-string budget to encoded
+literal lengths too. See its README for allocation and API limitations.

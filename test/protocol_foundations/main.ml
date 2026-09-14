@@ -16,6 +16,7 @@ let () =
         ("runtime_close", Runtime_close_probe.run ());
         ("tls", Tls_probe.run ());
         ("http2", H2_probe.run ());
+        ("hpack_bounds", Hpack_bounds_probe.run ());
       ]
   in
   print_endline (Yojson.Basic.pretty_to_string result)
