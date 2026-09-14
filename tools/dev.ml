@@ -73,7 +73,7 @@ let () =
         Personal.main args
     | "endpoint-profile" :: args ->
         Common.validate_options
-          ~values:[ "--seconds"; "--repetitions"; "--binary" ]
+          ~values:[ "--seconds"; "--repetitions"; "--binary"; "--profile" ]
           ~flags:[] args;
         Endpoint_profile.main args
     | "framework-load" :: args ->

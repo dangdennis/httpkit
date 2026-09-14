@@ -26,14 +26,14 @@ let close app =
           try Some (Yojson.Basic.from_string last) with _ -> None)
       | [] -> None))
 
-let with_app ?database_uri ~binary ~directory f =
+let with_app ?(env = environment ()) ?database_uri ~binary ~directory f =
   let public = directory / "public" in
   mkdir public;
   write (public / "hello.txt") "static contents\n";
   write (directory / "private.txt") "PRIVATE SENTINEL";
   Unix.symlink (directory / "private.txt") (public / "escape.txt");
   let env =
-    environment ()
+    env
     |> List.filter (fun (k, _) ->
         (not (starts ~prefix:"PG" k)) && k <> "DATABASE_URL")
   in

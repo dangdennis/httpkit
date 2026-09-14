@@ -35,6 +35,14 @@ let environment () =
   set e "HARNESS_COMPILER" version |> fun e ->
   set e "XDG_CACHE_HOME" (root / ".toolchain/cache")
 
+let measurement_override key =
+  List.exists (fun prefix -> starts ~prefix key) [ "BISECT_"; "AFL_" ]
+  || List.mem key
+       [ "OCAMLPARAM"; "OCAMLRUNPARAM"; "CAMLRUNPARAM"; "DUNE_INSTRUMENT_WITH" ]
+
+let measurement_environment () =
+  environment () |> List.filter (fun (key, _) -> not (measurement_override key))
+
 let command ?(coverage = false) args =
   let args =
     if args = [ "pkg"; "lock" ] then args @ [ "dune.lock" ] else args

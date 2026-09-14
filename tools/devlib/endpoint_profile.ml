@@ -116,9 +116,30 @@ let main args =
    && repetitions > 0 && repetitions <= 100)
     "Invalid endpoint profile duration/repetitions";
   let binary = option args "--binary" "" in
-  if binary = "" then Build.call [ "build"; "examples/framework/server.exe" ];
+  let profile = option args "--profile" "dev" in
+  require
+    (List.mem profile [ "dev"; "release" ])
+    "Invalid endpoint build profile";
+  require
+    (binary = "" || not (List.mem "--profile" args))
+    "An external binary cannot assert a build profile";
+  let env = Build.measurement_environment () in
+  let build_dir =
+    if profile = "release" then "_build-bench-" ^ Build.version
+    else "_build-pkg-" ^ Build.version
+  in
+  if binary = "" then
+    Process.call ~env
+      (Build.command
+         [
+           "build";
+           "--profile=" ^ profile;
+           "--build-dir=" ^ build_dir;
+           "examples/framework/server.exe";
+         ]);
   let binary =
-    if binary = "" then Build.binary "examples/framework/server.exe"
+    if binary = "" then
+      root / build_dir / "default/examples/framework/server.exe"
     else absolute binary
   in
   let digest = Build.source_hash () in
@@ -133,8 +154,15 @@ let main args =
            ("runtime", `String "eio");
            ( "build_profile",
              `String
-               (if option args "--binary" "" = "" then "dev"
+               (if option args "--binary" "" = "" then profile
                 else "external-unverified") );
+           ( "server_environment",
+             `String "OCaml tuning and instrumentation overrides cleared" );
+           ( "client_runtime_tuning_present",
+             `Bool
+               (List.exists
+                  (fun key -> Sys.getenv_opt key <> None)
+                  [ "OCAMLRUNPARAM"; "CAMLRUNPARAM" ]) );
            ("source_sha256", `String digest);
            ("binary_sha256", `String (sha (read binary)));
            ( "workload_sha256",
@@ -168,7 +196,7 @@ let main args =
   let save_report () = save (directory / "report.json") !report in
   save_report ();
   try
-    Framework.with_app ~binary ~directory (fun app ->
+    Framework.with_app ~env ~binary ~directory (fun app ->
         Framework.exercise app;
         List.iter
           (fun case ->

@@ -447,6 +447,8 @@ a paused runtime does not change the configured transport fragmentation.
 
 ```sh
 tools/dev endpoint-profile --seconds 10 --repetitions 3
+# Explicit optimized server build, isolated from ordinary development builds:
+tools/dev endpoint-profile --profile release --seconds 10 --repetitions 3
 # Functional check of every endpoint/concurrency combination:
 tools/dev endpoint-profile --seconds 0.1 --repetitions 1
 ```
@@ -454,8 +456,14 @@ tools/dev endpoint-profile --seconds 0.1 --repetitions 1
 This local OCaml runner starts the Eio framework example with no database and
 measures one endpoint at a time over persistent HTTP/1.1 connections. It retains
 the example's routing, request IDs, security headers and CORS middleware. The
-default binary uses the ordinary development build; the report records that
-profile. A supplied `--binary` has external/unverified build provenance and must
+default binary uses the ordinary development build; `--profile release` builds
+the same server in `_build-bench-5.5.0` with the release profile. The report records
+the selected profile. Both builds and server launches clear inherited OCaml
+tuning and instrumentation overrides using the same policy as microbenchmarks.
+The already-running load client cannot have its startup runtime settings reset;
+the report flags whether runtime-tuning variables were inherited. A supplied
+`--binary` has external/unverified build provenance, cannot combine with an
+explicit `--profile`, and must
 expose the same Eio/compiler/counter contract. This is an application workload,
 not a minimal codec or release-optimized framework comparison.
 
@@ -485,7 +493,8 @@ allocation results have a small sampling overhead. Resource checks force GC only
 outside those intervals. The client and server share a host; client byte checking,
 thread scheduling, laptop load and GC can limit throughput. A short run is a
 functional check, not a statistical baseline. No automatic timing threshold is
-introduced. Release-profile runs, Lwt parity, richer hardware provenance, separate
+introduced. Release builds are runnable; stable release-profile baselines, Lwt
+parity, richer hardware provenance, separate
 load hosts, slow-client matrices and external framework comparisons remain open.
 
 The developer load client retains at most 8 KiB of read-ahead per connection.

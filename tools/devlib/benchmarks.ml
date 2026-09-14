@@ -560,14 +560,8 @@ let main args =
        && not (List.mem family [ "body"; "exchange"; "router-experiment" ]))
     "Unsupported external/family selection";
   let before = Build.environment () in
-  let clear key =
-    List.exists (fun prefix -> starts ~prefix key) [ "BISECT_"; "AFL_" ]
-    || List.mem key
-         [
-           "OCAMLPARAM"; "OCAMLRUNPARAM"; "CAMLRUNPARAM"; "DUNE_INSTRUMENT_WITH";
-         ]
-  in
-  let env = List.filter (fun (k, _) -> not (clear k)) before in
+  let clear = Build.measurement_override in
+  let env = List.filter (fun (key, _) -> not (clear key)) before in
   let digest = Build.source_hash () and workload = workload_hash () in
   Process.call ~env
     (Build.command

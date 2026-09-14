@@ -160,8 +160,13 @@ Completed slices (relevant local regression evidence is retained under
   close wait to three seconds; both now expire at two seconds and join cleanup.
   WebSocket support remains experimental.
 
-Next: broader local limits and application-resource schedules; release-profile
-and Lwt benchmark parity remain open. CI work remains deferred.
+- Endpoint profiling accepts an explicit release build, records its provenance,
+  and clears server build/runtime tuning and instrumentation overrides. External
+  binaries cannot assert a verified profile. Stable budgets, independent load
+  hosts and Lwt endpoint parity remain open.
+
+Next: broader local limits and application-resource schedules; stable release
+baselines and Lwt benchmark parity remain open. CI work remains deferred.
 
 ## P0 — required before production confidence
 
