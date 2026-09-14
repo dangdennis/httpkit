@@ -64,6 +64,16 @@ let () =
                  | Ok None -> App.reply (Httpkit.Reply.text "ignored")
                  | Error _ ->
                      App.reply (Httpkit.Reply.text ~status:400 "invalid")));
+           App.route Method.get "/proxy-real" (fun r ->
+               Lwt.return
+                 (match
+                    App.Common.proxy ~ip_header:Httpkit.Proxy.Real_ip
+                      ~trusted_peer:(fun p -> p = "local")
+                      r
+                  with
+                 | Ok (Some info) ->
+                     App.reply (Httpkit.Reply.text info.client_ip)
+                 | _ -> App.reply (Httpkit.Reply.text ~status:400 "invalid")));
            App.route Method.get "/csrf"
              (App.Sessions.require sessions (fun s _ ->
                   Lwt.return
@@ -255,6 +265,17 @@ let () =
              >>= fun (head, _) ->
              check "proxy chain denied" (status head = 400);
              request
+               ~headers:
+                 [
+                   ("x-forwarded-proto", "https");
+                   ("x-forwarded-for", "192.0.2.1");
+                   ("x-real-ip", "192.0.2.2");
+                 ]
+               Method.get "/proxy-real" ""
+             >>= fun (_, body) ->
+             check "explicit real-IP profile" (body = "192.0.2.2");
+
+             request
                ~headers:[ ("content-type", "application/json") ]
                Method.post "/json" {|{"x":1}|}
              >>= fun (_, body) ->
@@ -277,7 +298,7 @@ let () =
          >>= fun () ->
          Lwt.wakeup_later wake ();
          server >>= fun () ->
-         check "access records" (List.length !logs = 27);
+         check "access records" (List.length !logs = 28);
          Lwt.return_unit)
        (fun () ->
          Lwt.cancel server;

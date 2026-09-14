@@ -79,10 +79,24 @@ Default behavior is to ignore forwarding headers unless the immediate peer is
 explicitly trusted. Public documentation of a header name does not authenticate
 its contents. Do not infer trust from a private IP range or an existing header.
 
-The current `Common.proxy` helper requires one X-Forwarded-For IP and one
-X-Forwarded-Proto value, rejects RFC Forwarded, and does not expose forwarded host.
-Railway's documented edge headers include X-Real-IP, X-Forwarded-Proto and
-X-Forwarded-Host; that is not proof the current helper is a drop-in Railway profile.
+Both runtime `Common.proxy` helpers use the pure `Httpkit.Proxy.resolve` policy.
+The default remains one X-Forwarded-For IP and one X-Forwarded-Proto value. For a
+peer verified to normalize X-Real-IP, select it explicitly:
+
+```ocaml
+Httpkit_eio.Common.proxy ~ip_header:Httpkit.Proxy.Real_ip ~trusted_peer request
+(* Httpkit_lwt.Common.proxy has the same synchronous policy API. *)
+```
+
+Duplicate selected fields, chains and RFC Forwarded are rejected. There is no
+fallback between IP headers. The unselected IP field and X-Forwarded-Host never
+supply client identity or application origin. Configure canonical origins
+separately. The caller-supplied `trusted_peer` authenticates the immediate peer;
+this example does not establish that trust or declare a topology verified.
+
+Railway documents X-Real-IP, X-Forwarded-Proto and X-Forwarded-Host. Explicit
+header selection addresses the parsing mismatch, while deployment isolation and
+header sanitization still need observed acceptance evidence.
 [Edge header contract](https://docs.railway.com/networking/public-networking/specs-and-limits).
 
 | Topology | Required acceptance before enabling forwarded identity |

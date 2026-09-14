@@ -10,7 +10,6 @@ depends: [
   "httpkit-middleware"
   "httpkit-transport-eio"
   "eio_main"
-  "ipaddr"
   "base64"
   "yojson"
   "mtime"

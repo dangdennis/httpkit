@@ -21,10 +21,14 @@ val cors :
   App.middleware
 (** Exact origins only; credentials never pair with a wildcard. *)
 
-type proxy = { scheme : string; client_ip : string }
+type proxy = Httpkit.Proxy.t = { scheme : string; client_ip : string }
 
 val proxy :
-  trusted_peer:(string -> bool) -> App.request -> (proxy option, string) result
-(** Untrusted peers' forwarding headers are ignored. Trusted peers must supply
-    one X-Forwarded-Proto and one IP in X-Forwarded-For; chains and Forwarded
-    are rejected. *)
+  ?ip_header:Httpkit.Proxy.ip_header ->
+  trusted_peer:(string -> bool) ->
+  App.request ->
+  (proxy option, string) result
+(** Shared {!Httpkit.Proxy.resolve} policy. Default remains X-Forwarded-For;
+    select [Real_ip] explicitly for a peer that normalizes X-Real-IP. The caller
+    must establish immediate-peer trust; no deployment is trusted automatically.
+*)

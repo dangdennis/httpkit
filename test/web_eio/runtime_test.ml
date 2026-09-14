@@ -319,6 +319,19 @@ let () =
       ("X-Forwarded-Proto: https\r\nX-Forwarded-For: bad\r\n", false);
       ("Forwarded: for=127.0.0.1\r\n", false);
     ];
+  request_case
+    ~headers:
+      "X-Forwarded-Proto: https\r\n\
+       X-Forwarded-For: 192.0.2.1\r\n\
+       X-Real-IP: 192.0.2.2\r\n"
+    (fun _ request ->
+      check "explicit real-IP profile"
+        (App.Common.proxy ~ip_header:W.Proxy.Real_ip
+           ~trusted_peer:(fun _ -> true)
+           request
+        = Ok (Some { W.Proxy.scheme = "https"; client_ip = "192.0.2.2" }));
+      App.reply (W.Reply.text "ok"))
+    (response_status 200);
   List.iter
     (fun (meth, headers, status) ->
       request_case ~meth ~headers

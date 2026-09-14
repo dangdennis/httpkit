@@ -11,3 +11,4 @@ module Auth = Auth
 module Sse = Sse
 module Multipart = Multipart
 module Websocket = Websocket
+module Proxy = Proxy

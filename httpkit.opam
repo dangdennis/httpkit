@@ -10,6 +10,7 @@ depends: [
   "base64"
   "digestif"
   "eqaf"
+  "ipaddr"
   "ocaml" {= "5.5.0"}
   "odoc" {with-doc}
 ]

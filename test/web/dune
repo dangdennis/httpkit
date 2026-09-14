@@ -5,3 +5,9 @@
  (modules multipart_limits_test)
  (modes byte exe)
  (libraries httpkit http1_conformance alcotest))
+
+(test
+ (name proxy_test)
+ (modules proxy_test)
+ (modes byte exe)
+ (libraries httpkit httpkit-core http1_conformance alcotest))

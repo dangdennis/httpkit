@@ -12,7 +12,6 @@ depends: [
   "lwt"
   "base64"
   "yojson"
-  "ipaddr"
   "ocaml" {= "5.5.0"}
   "odoc" {with-doc}
 ]

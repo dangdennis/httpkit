@@ -40,7 +40,9 @@ OCaml. Skipping AFL must remain visible and must not be relabeled campaign succe
 
 ## Autonomous incremental delivery
 
-Continue one invariant-sized slice at a time without routine supervision. After
+Continue one invariant-sized slice at a time without routine supervision.
+CI work is explicitly deferred by user instruction: do not inspect, modify or
+wait on hosted CI; use local tests and keep hosted evidence unclaimed. After
 focused tests, relevant regressions and a code-quality/security review, commit the
 completed slice and push `main`. Record evidence and remaining gaps here. A failing
 or unavailable external gate stays open while independent local work continues.
@@ -62,8 +64,8 @@ optimizing. WebSocket security and the remaining P1 campaigns follow P0 dependen
 P2 remains demand-gated: autonomous execution does not authorize indiscriminate
 feature expansion or change the infrastructure exclusions at the end of this plan.
 
-Completed slices (each has ordinary/coverage native/bytecode HTTP/1 and engine
-regression evidence under `_artifacts/production-slices`):
+Completed slices (relevant local regression evidence is retained under
+`_artifacts/production-slices`):
 
 - Segmentation/EOF/terminal-error controls (`ec5a0f5`); full macOS validation.
 - Explicit CL/TE policy plus rejected-head isolation (`0737b76`).
@@ -101,7 +103,12 @@ regression evidence under `_artifacts/production-slices`):
   smoke remains in correctness validation; missing long-campaign evidence is
   still NOT_READY, and this change does not waive release policy.
 
-Next: Linux regression evidence, then broader cancellation/limits and application-resource schedules.
+- Shared pure proxy policy replaces duplicate Eio/Lwt parsing, preserves the
+  X-Forwarded-For default and permits explicit X-Real-IP selection. Pure and native
+  application controls cover spoofing/duplicates/chains and profile selection.
+  Live deployment trust/topology acceptance remains open.
+
+Next: broader local limits and application-resource schedules.
 
 ## P0 — required before production confidence
 

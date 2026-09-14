@@ -130,20 +130,8 @@ let cors ~origins ~methods ~headers ?(credentials = false) () =
             "Access-Control-Request-Headers";
           ]
 
-type proxy = { scheme : string; client_ip : string }
+type proxy = W.Proxy.t = { scheme : string; client_ip : string }
 
-let proxy ~trusted_peer request =
-  if not (trusted_peer (App.peer request)) then Ok None
-  else
-    let headers = Request.headers (App.head request) in
-    match
-      ( W.Reply.header_values "x-forwarded-proto" headers,
-        W.Reply.header_values "x-forwarded-for" headers,
-        W.Reply.header_values "forwarded" headers )
-    with
-    | [ scheme ], [ client_ip ], [] when List.mem scheme [ "http"; "https" ]
-      -> (
-        match Ipaddr.of_string client_ip with
-        | Ok _ -> Ok (Some { scheme; client_ip })
-        | Error _ -> Error "invalid forwarded IP")
-    | _ -> Error "ambiguous forwarding metadata"
+let proxy ?ip_header ~trusted_peer request =
+  W.Proxy.resolve ?ip_header ~trusted_peer ~peer:(App.peer request)
+    (Request.headers (App.head request))

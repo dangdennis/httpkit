@@ -182,3 +182,10 @@ partial events preceding a later failure are not required to batch identically.
 Generated multipart filenames remain metadata, including traversal-looking names.
 These controls do not certify file-system cleanup, network cancellation, total RSS
 or WebSocket security; those campaigns remain separate release gates.
+
+`Httpkit.Proxy.resolve` owns the shared pure forwarding policy. Eio/Lwt
+`Common.proxy` preserve the existing X-Forwarded-For default and accept an explicit
+`~ip_header:Httpkit.Proxy.Real_ip`. Both require authenticated immediate-peer trust,
+reject ambiguous selected metadata and never derive origins from forwarded host.
+The existing pure `ipaddr` dependency now belongs to this shared implementation;
+no new external package version or runtime dependency is introduced.

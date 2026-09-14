@@ -34,11 +34,11 @@
 (package
  (name httpkit)
  (synopsis "Bounded web application primitives")
- (depends httpkit-core yojson base64 digestif eqaf (ocaml (= 5.5.0))))
+ (depends httpkit-core yojson base64 digestif eqaf ipaddr (ocaml (= 5.5.0))))
 (package
  (name httpkit-eio)
  (synopsis "Composable Eio web application server")
- (depends httpkit httpkit-router httpkit-middleware httpkit-transport-eio eio_main ipaddr base64 yojson mtime cstruct (ocaml (= 5.5.0))))
+ (depends httpkit httpkit-router httpkit-middleware httpkit-transport-eio eio_main base64 yojson mtime cstruct (ocaml (= 5.5.0))))
 (package
  (name httpkit-db-eio)
  (synopsis "Eio database transactions and migrations")
@@ -66,7 +66,7 @@
 (package
  (name httpkit-lwt)
  (synopsis "Composable Lwt web application server")
- (depends httpkit httpkit-router httpkit-middleware httpkit-transport-lwt lwt base64 yojson ipaddr (ocaml (= 5.5.0))))
+ (depends httpkit httpkit-router httpkit-middleware httpkit-transport-lwt lwt base64 yojson (ocaml (= 5.5.0))))
 (package
  (name httpkit-harness)
  (synopsis "Development-only contract harness for httpkit")
