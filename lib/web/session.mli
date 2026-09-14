@@ -13,7 +13,9 @@ val create :
   unit ->
   'a t
 (** [now] must be monotonic; [random] must provide cryptographic random bytes.
-*)
+    Issuance requires a finite expiry strictly later than [now]. Unrepresentable
+    clock-plus-TTL values raise [Invalid_argument] before consuming entropy or
+    inserting a session. Failed rotation restores the previous session. *)
 
 val issue : 'a t -> 'a -> ('a session, string) result
 val find : 'a t -> string -> 'a session option

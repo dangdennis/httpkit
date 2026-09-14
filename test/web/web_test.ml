@@ -566,3 +566,39 @@ let () =
   let ws = Websocket.server () in
   check "abnormal EOF" (Result.is_error (Websocket.eof ws));
   check "EOF failure is terminal" (Result.is_error (Websocket.feed ws ""))
+
+let () =
+  let entropy_calls = ref 0 in
+  let random n =
+    incr entropy_calls;
+    String.make n (Char.chr !entropy_calls)
+  in
+  List.iter
+    (fun (now, ttl) ->
+      let store =
+        Session.create ~capacity:1 ~ttl ~now:(fun () -> now) ~random ()
+      in
+      let before = !entropy_calls in
+      check "unrepresentable session expiry rejected"
+        (bad (fun () -> ignore (Session.issue store ())));
+      check "rejected expiry does not consume entropy" (!entropy_calls = before);
+      check "rejected expiry does not consume capacity" (Session.count store = 0))
+    [ (Float.max_float, Float.max_float); (Float.max_float, 1.) ];
+  let now = ref 0. in
+  let store =
+    Session.create ~capacity:1 ~ttl:Float.max_float
+      ~now:(fun () -> !now)
+      ~random ()
+  in
+  let old = Result.get_ok (Session.issue store "old") in
+  now := Float.max_float /. 2.;
+  check "overflowing rotation rejected"
+    (bad (fun () -> ignore (Session.rotate store old "new")));
+  check "overflowing rotation restores previous session"
+    (Option.map Session.value (Session.find store (Session.token old))
+     = Some "old"
+    && Session.count store = 1);
+  now := Float.max_float;
+  check "finite extreme expiry still expires" (Session.count store = 0);
+  print_endline
+    "PASS finite future session expiry and rotation failure recovery"

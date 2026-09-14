@@ -39,3 +39,8 @@ at exact/one-over boundaries, empty zero-byte parts and near-max_int header
 configuration across segmentation schedules. Multipart's partial delimiter
 allowance uses subtraction so a large configured header limit cannot wrap and
 reject a fragmented request that succeeds in one chunk. Defaults are unchanged.
+
+Memory-session clock and TTL inputs must produce a finite, strictly future expiry.
+The pure store rejects addition overflow or rounding back to the current time
+before entropy consumption/insertion; rotation restores the previous session on
+failure. Native application wrappers retain their existing bounded TTL policy.

@@ -124,6 +124,10 @@ Completed slices (relevant local regression evidence is retained under
   Reports retain source/binary/workload identity and build-profile limits. This
   is the first application matrix, not release thresholds or Lwt parity.
 
+- Pure session issuance rejects clock-plus-TTL overflow and loss of positive
+  expiry precision. Regression controls prove rejection consumes no entropy or
+  capacity and failed rotation restores the previous session.
+
 Next: broader local limits and application-resource schedules; release-profile
 and Lwt benchmark parity remain open. CI work remains deferred.
 

@@ -32,10 +32,13 @@ let issue t value =
   let now = prune t in
   if Hashtbl.length t.entries >= t.capacity then Error "session capacity"
   else
+    let expires = now +. t.ttl in
+    if (not (Float.is_finite expires)) || expires <= now then
+      invalid_arg "session expiry";
     let token = fresh t in
     if Hashtbl.mem t.entries (key token) then Error "random token collision"
     else
-      let session = { token; csrf = fresh t; value; expires = now +. t.ttl } in
+      let session = { token; csrf = fresh t; value; expires } in
       Hashtbl.add t.entries (key token) session;
       Ok session
 
