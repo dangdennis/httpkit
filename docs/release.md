@@ -1,13 +1,17 @@
 # Release evidence and remaining gates
 
-The code now contains seven independently usable production packages: core values, HTTP/1 codecs, a sans-I/O engine, native Eio/Lwt drivers, middleware, and routing. M7 makes release assessment executable. It does not manufacture independent approval or replace long campaigns with smoke runs.
+The repository includes the application/auth/session/database/realtime packages
+as well as core, codecs and transports; see the [package map](design.md) and
+[audit](production-audit.md). Release predicates originated with the lower layers
+and must be extended to cover every supported capability. No package is declared
+production-ready by this document. The [production roadmap](protocol-libraries-plan.md)
+contains the complete human checklist; it does not silently amend machine gates.
 
 ## Commands
 
 ```sh
 tools/dev coverage
 tools/dev mutations
-tools/dev fuzz --seconds 30
 tools/dev selftest release
 tools/dev release --output _artifacts/release.json
 ```
@@ -16,9 +20,11 @@ The standalone release command returns exit 3 and `NOT_READY` whenever a require
 
 Both `tools/harness readiness --release` and `tools/harness readiness --milestone M7` run the same detailed assessment and preserve exit 3 for incomplete evidence. See the [manual M7 completion checklist](m7-manual-checklist.md) for ownership, commands, and required review artifacts.
 
-Nine separately selected fuzz targets cover core values; request, response and chunked codecs; server and client lifecycles; partial writes; native adapter schedules; and connection isolation. `toolchain/fuzz-targets.json` records their executable and selector. Each target receives an AFL time budget, retains its corpus and logs, and replays every retained queue entry without instrumentation. The native adapter target checks partial I/O and cancellation with both runtimes. It sends no network traffic.
+Nine separately selected fuzz targets cover core values; request, response and chunked codecs; server and client lifecycles; partial writes; native adapter schedules; and connection isolation. `toolchain/fuzz-targets.json` records their executable and selector. The optional AFL runner (currently skipped by request) assigns a time budget, retains its corpus and logs, and replays every retained queue entry without instrumentation. The native adapter target checks partial I/O and cancellation with both runtimes. It sends no network traffic.
 
-A release-duration command is `tools/dev fuzz --seconds 28800`. That schedules eight hours **per target**, up to 72 hours of fuzz CPU across all nine. Use `--target request` (or another catalog name) to run one independently. Run this only against a frozen release candidate: any source change makes evidence stale. Current 30-second campaigns are smoke evidence and do not satisfy that gate. Campaign completion also does not remove the need to triage findings or review generator depth.
+The existing AFL-oriented policy remains unsatisfied while AFL is skipped; P0-04
+requires an explicitly reviewed non-AFL campaign/evidence design, not a waiver.
+For historical runner interpretation, a release-duration command is `tools/dev fuzz --seconds 28800`. That schedules eight hours **per target**, up to 72 hours of fuzz CPU across all nine. Use `--target request` (or another catalog name) to run one independently. Run this only against a frozen release candidate: any source change makes evidence stale. Historical 30-second campaigns are smoke evidence and do not satisfy that gate. Campaign completion also does not remove the need to triage findings or review generator depth.
 
 ## Coverage and mutation evidence
 

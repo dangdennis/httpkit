@@ -15,7 +15,7 @@ Established decisions:
 - Protocol code has no sockets, clocks, scheduler, global event loop, or application callbacks that can suspend.
 - Request and response types are polymorphic in their bodies. Actual effectful body readers and writers belong to adapters.
 - Codecs and engines must be independently usable. No common monad is required to implement another adapter.
-- Application extensions and outbound client acceptance are tracked in the Caddy-first library plan. Caddy owns public ingress; do not add backend protocol suites outside the HTTP/1 scope.
+- Application extensions and outbound client acceptance are tracked in the production-confidence roadmap. Railway owns public ingress, with optional Caddy; do not add backend protocol suites outside the HTTP/1 scope.
 - A hand-written codec, a parser-library implementation, or selectively reused OCaml code can all implement the same harness subject. This plan does not silently settle that remaining implementation choice.
 
 Success means reproducible evidence with explicit limits. A harness self-test passing is not evidence that an absent HTTP implementation is secure. Every report distinguishes harness health, implemented capability coverage, missing release capabilities, and actual subject results.

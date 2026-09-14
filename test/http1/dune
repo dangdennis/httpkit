@@ -8,3 +8,9 @@
  (libraries http1_cases harness alcotest))
 
 (test (name boundary_test) (modules boundary_test) (libraries httpkit-core httpkit-http1 alcotest))
+
+(test
+ (name segmentation_test)
+ (modules segmentation_test)
+ (modes byte exe)
+ (libraries http1_cases httpkit-core httpkit-http1 alcotest))

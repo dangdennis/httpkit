@@ -1,9 +1,9 @@
 # Application and client dependency experiments
 
-The [Caddy-first roadmap](protocol-libraries-plan.md) owns the active scope.
+The [production-confidence roadmap](protocol-libraries-plan.md) owns the active scope.
 Private TLS and gzip probes remain relevant to outbound HTTPS, body decoding and
-WebSocket compression. They expose no new production packages. Public ingress,
-response compression and public assets are delegated to Caddy.
+WebSocket compression. They expose no new production packages. Railway owns public ingress; Caddy is optional for edge concerns. Existing
+small application static helpers remain supported.
 
 ## Run and interpret
 
@@ -66,6 +66,6 @@ References: [decompress](https://github.com/mirage/decompress),
 
 ## Next boundary
 
-Build Caddy integration and trusted-proxy acceptance first. Continue TLS/codec
-experiments only to support the outbound client, body and realtime phases in the
-roadmap. Do not delay application work on retired transport expansion experiments.
+Prioritize HTTP/1 correctness and lifecycle evidence in the production roadmap.
+These experiments are isolated research, not a package delivery commitment or a
+prerequisite for Railway deployment. Resume them only for a demonstrated app need.

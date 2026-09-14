@@ -18,4 +18,27 @@ Include the affected revision, package/runtime/compiler, a minimal request or sc
 4. Run the affected compiler/platform, install/API, interop, resource, and fuzz gates. Rerun the full affected release campaign after a fix; an engine-wide change invalidates engine-dependent campaigns.
 5. Arrange independent review of the patch and prepare a coordinated advisory and patched release. Keep the issue private while an effective fix is being prepared. The owner decides publication and any advisory/CVE coordination.
 
-The initial release scope is strict HTTP/1.1 on the declared OCaml/Linux/macOS matrix. TLS, application authentication and authorization, routing normalization and WebSocket framing are outside this implementation's security claims. Dependency updates must refresh committed locks deliberately and rerun the affected evidence.
+## Supported claims and experimental features
+
+All packages are pre-release; none has completed the production-confidence gates.
+Strict HTTP/1.1 parsing/encoding and engine ownership are the primary security
+review target, supported by executable controls rather than independent approval.
+Application routing, middleware, cookies/sessions, uploads, DB and OIDC/password
+wrappers are implemented, but their feature-specific release evidence remains
+incomplete. Presence of a wrapper does not certify upstream dependencies.
+
+**WebSockets are experimental.** Framing, message reassembly and realtime helpers
+exist; do not treat them as production-security supported until masking, UTF-8,
+fragmentation, limits, concurrent sends, upgrade and cancellation campaigns pass
+and independent review is recorded. Multipart/uploads also require their own
+confinement, disk-failure and cancellation acceptance.
+
+Railway normally terminates public TLS; Caddy is optional. Edge deployment never
+waives backend HTTP/1 framing, proxy-trust or resource limits. Forwarding metadata
+is untrusted unless the immediate peer is explicitly trusted. No WAF/DDoS service
+or public certificate manager is part of httpkit.
+
+See [production roadmap](docs/protocol-libraries-plan.md), [audit](docs/production-audit.md)
+and [deployment contracts](docs/deployment.md). Dependency changes must refresh
+locks and rerun affected evidence. Skipped AFL, missing hosted CI, stale source
+hashes or absent independent review must not be represented as passing gates.

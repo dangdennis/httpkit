@@ -7,6 +7,9 @@ for streaming clients and servers.
 Core has no dependencies beyond the OCaml standard library. Each adapter uses its
 runtime's native concurrency and cancellation model.
 
+Current focus: [production confidence](docs/protocol-libraries-plan.md) behind
+[Railway, with optional Caddy](docs/deployment.md).
+
 ## Get started
 
 Requires **OCaml 5.5.0**. To work from this repository, install mise, a C build

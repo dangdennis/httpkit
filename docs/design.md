@@ -71,35 +71,19 @@ Bodies are generic values. `map_body` invokes the caller's function once and can
 
 The isolated staging project disables package mode solely to use Dune 3.24's install command, which is unavailable in package mode. The main workspace remains locked; this test performs no dependency resolution and uses the selected compiler from that lock.
 
-`fuzz/core_fuzz.ml` exercises real constructors through Crowbar and native OCaml AFL instrumentation. The smoke budget is five seconds after validating instrumentation against planted failures. This is an infrastructure/early-regression check; long release campaigns and full protocol fuzz targets remain future work.
+`fuzz/core_fuzz.ml` exercises real constructors through Crowbar; the optional AFL campaign path is currently skipped by request. Historical instrumentation controls are not current campaign evidence. This is an infrastructure/early-regression check; long release campaigns and full protocol fuzz targets remain future work.
 
 `bench/core_bench.ml` reports time and allocated bytes per operation for valid and late-rejected targets at 16/256/8192 bytes and header workloads at 1/10/100 fields. Fixture setup is outside measured work; an opaque identity keeps results observable to the optimizer. Results include compiler and source fingerprints through `tools/devlib/evidence.ml`. There are no pass/fail timing thresholds on developer laptops; stable-runner baselines and repeated statistical comparison are M6 work.
 
 odoc 3.2.1 is pinned in the normal and coverage locks as a development dependency. First-party documentation warnings are fatal. The API reference is authored beside the code in `.mli` files; this document explains cross-module decisions rather than duplicating every signature.
 
-## Next implementation boundary
+## Current implementation boundary
 
-1. Specify HTTP/1 head decoding/encoding as independently callable operations, with explicit consumed-prefix counts, incomplete input versus EOF, and bounded output/work. Decide the codec implementation strategy against the same public conformance cases.
-2. Implement start lines and field lines with exact limits and all split points, including malformed terminators and OWS. Convert to core values only after recognizing wire syntax. Check target forms and Host at this boundary.
-3. Add one strict framing decision for Content-Length, Transfer-Encoding, no-body semantics, and early errors. Test request-smuggling discrepancies before exposing a server adapter. Validate outbound combinations as well as inbound bytes.
-4. Add fixed/chunked body and trailer primitives, with retained-buffer ownership and progress accounting. Compare instrumented and ordinary behavior on the same corpus.
-5. Build client/server sans-I/O lifecycles, then native Eio and Lwt adapters against shared observable conformance contracts. Adapters own clocks, cancellation, transport cleanup, and stream lifetimes.
-
-Each step needs positive controls, adversarial cases, public consumers, explicit bounds, and appropriate measured hot paths. M2 passing does not imply any M3–M7 protocol or release gate is satisfied.
-
-M3 now implements the codec steps above; see [the HTTP/1 policy](http1.md) for exact contracts and evidence. M4 is the next active boundary.
-
-M4 implements the [engine ownership contract](engine.md); M5 native adapters are now the next boundary.
-
-M5 implements [native adapter ownership and deadlines](adapters.md), independent
-runtime installation, shared pure-handler examples, bounded admission and bounded
-body collection. M6 interop/performance evidence is the next boundary. Routing and
-TLS remain caller-supplied; no common promise abstraction enters production.
-
-M6 adds [real intermediary lanes and streaming measurements](interop-performance.md).
-The next boundary is M7 release reporting: source-matched evidence must distinguish
-implemented capabilities from independent review, sustained campaigns and stable
-performance infrastructure that have actually completed.
+Core, codecs, engine, adapters and application extensions are implemented. The
+active work is the [production-confidence roadmap](protocol-libraries-plan.md),
+starting with HTTP/1 adversarial evidence and lifecycle/resource ownership.
+See the [architectural audit](production-audit.md) for source paths and concrete
+gaps. Historical milestones are not the current feature backlog.
 
 ## Consolidation decisions
 
