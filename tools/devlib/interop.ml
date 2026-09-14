@@ -205,8 +205,8 @@ let main () =
       ( "limitations",
         strings
           [
-            "One pinned intermediary; TLS, HTTP/2 translation and long soak \
-             are not covered.";
+            "One pinned intermediary; Caddy ingress, forwarded identity and \
+             long soak are not covered.";
           ] );
     ];
   print_endline "PASS six direct/Nginx interop lanes"

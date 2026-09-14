@@ -10,7 +10,7 @@ TCP half-close is a separate observed policy test. Direct subjects complete thei
 
 A seeded native socket workload then runs 200 requests per adapter at concurrency four, mixing fixed/chunked bodies of 0, 17, 4096 and 262144 bytes. Every response is checked; reports include p50/p99 end-to-end latency, transferred bytes, elapsed time and sampled process RSS. Applications retain at most one generated request body per worker in this workload. Runtime heaps, socket buffers, and application retention are distinct from engine queue accounting.
 
-Timing is advisory. Same-source repetitions report noise; they are not a paired before/after baseline. No reserved, calibrated performance runner exists yet, so the release performance gate remains `NOT_READY`. This smoke workload also does not satisfy the planned two-hour soak. Nginx is one intermediary: TLS, HTTP/2 translation, additional proxies and a broader differential corpus remain release-review scope.
+Timing is advisory. Same-source repetitions report noise; they are not a paired before/after baseline. No reserved, calibrated performance runner exists yet, so the release performance gate remains `NOT_READY`. This smoke workload also does not satisfy the planned two-hour soak. Nginx is one intermediary: Caddy ingress, forwarded identity, additional proxies and a broader differential corpus remain release-review scope.
 
 Run:
 

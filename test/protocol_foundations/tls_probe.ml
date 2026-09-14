@@ -16,13 +16,13 @@ let handshake ~host ~trusted ~chunk =
     ok
       (Tls.Config.client ~authenticator
          ~peer_name:(Domain_name.host_exn (Domain_name.of_string_exn host))
-         ~alpn_protocols:[ "h2"; "http/1.1" ] ())
+         ~alpn_protocols:[ "http/1.1" ] ())
   in
   let server_config =
     ok
       (Tls.Config.server
          ~certificates:(`Single ([ Lazy.force cert ], Lazy.force key))
-         ~alpn_protocols:[ "h2"; "http/1.1" ] ())
+         ~alpn_protocols:[ "http/1.1" ] ())
   in
   let client, hello = Tls.Engine.client client_config in
   let client = ref client and server = ref (Tls.Engine.server server_config) in
@@ -60,7 +60,7 @@ let handshake ~host ~trusted ~chunk =
       | Ok x -> x
       | Error () -> failwith "TLS epoch"
     in
-    require (epoch.alpn_protocol = Some "h2") "TLS ALPN";
+    require (epoch.alpn_protocol = Some "http/1.1") "TLS ALPN";
     Ok (client, server))
 
 let run () =
@@ -99,7 +99,7 @@ let run () =
   `Assoc
     [
       ("status", `String "PASS");
-      ("alpn", `String "h2");
+      ("alpn", `String "http/1.1");
       ("negative_controls", `Int 2);
       ("production_ready", `Bool false);
     ]

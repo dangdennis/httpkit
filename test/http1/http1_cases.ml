@@ -123,7 +123,7 @@ let invalid_requests =
     ("bare-lf", "GET / HTTP/1.1\nHost: x\n\n");
     ("extra-space", "GET  / HTTP/1.1\r\nHost: x\r\n\r\n");
     ("http10", "GET / HTTP/1.0\r\nHost: x\r\n\r\n");
-    ("h2-preface", "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n");
+    ("unsupported-version", "GET / HTTP/9.0\r\nHost: x\r\n\r\n");
     ("obs-fold", "GET / HTTP/1.1\r\nHost: x\r\n x: y\r\n\r\n");
     ("colon-space", "GET / HTTP/1.1\r\nHost : x\r\n\r\n");
     ("nul", "GET / HTTP/1.1\r\nHost: x\000y\r\n\r\n");

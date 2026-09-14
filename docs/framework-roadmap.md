@@ -5,9 +5,11 @@ PostgreSQL and SQLite. Keep runtime-neutral protocol helpers independent of the
 server and database packages. Existing APIs remain available. README stays brief.
 AFL execution and its two unresolved timeout findings remain deferred by request.
 
-The [protocol library plan](protocol-libraries-plan.md) covers the next libraries:
-headers, compression, files, TLS, clients, HTTP/2, WebSocket additions and HTTP/3.
-It specifies package boundaries, reuse decisions, staged delivery and acceptance.
+The [Caddy-first library plan](protocol-libraries-plan.md) covers proxy integration,
+application headers, outbound HTTPS clients, bounded body decoding, private
+downloads and WebSocket completeness. Public ingress, response compression and
+public static files are Caddy responsibilities. Existing framework features stay
+available; new work extends and validates them rather than rebuilding them.
 
 ## Delivery sequence
 

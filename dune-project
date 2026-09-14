@@ -92,7 +92,6 @@
   (routes (= 2.0.0))
   (httpaf (= 0.7.1))
   (httpun (= 0.2.0))
-  (h2 (= 0.13.0))
   (tls (= 2.1.2))
   (decompress (= 1.6.0))
   (bytesrw (= 0.4.0))

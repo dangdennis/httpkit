@@ -15,7 +15,7 @@ Established decisions:
 - Protocol code has no sockets, clocks, scheduler, global event loop, or application callbacks that can suspend.
 - Request and response types are polymorphic in their bodies. Actual effectful body readers and writers belong to adapters.
 - Codecs and engines must be independently usable. No common monad is required to implement another adapter.
-- Routers, cookies, middleware frameworks, compression, TLS implementations, HTTP/2, and HTTP/3 are later work. Reserve test extension points, but do not build their suites now.
+- Application extensions and outbound client acceptance are tracked in the Caddy-first library plan. Caddy owns public ingress; do not add backend protocol suites outside the HTTP/1 scope.
 - A hand-written codec, a parser-library implementation, or selectively reused OCaml code can all implement the same harness subject. This plan does not silently settle that remaining implementation choice.
 
 Success means reproducible evidence with explicit limits. A harness self-test passing is not evidence that an absent HTTP implementation is secure. Every report distinguishes harness health, implemented capability coverage, missing release capabilities, and actual subject results.
@@ -209,7 +209,7 @@ These are project policy choices to encode explicitly, including stricter reject
 | Expectations | Continue accepted/rejected, early final response, body arriving before continue, unsupported expectation, repeated informational responses |
 | Persistence | Close tokens, half-close, next request before previous response completes, shutdown while idle/active |
 | CONNECT/upgrade | Acceptance/refusal, unsolicited switching response, buffered post-handshake bytes, output flush before handoff |
-| Wrong protocol | HTTP/2 preface, TLS bytes, arbitrary binary bytes; no accidental request dispatch |
+| Wrong protocol | Unsupported HTTP versions, TLS bytes, arbitrary binary bytes; no accidental request dispatch |
 | Outbound misuse | Conflicting framing, body length mismatch, invalid trailer, second final response, stale message ID |
 
 Each rejection fixture checks more than the error code: accepted-byte prefix, whether application headers/body were exposed, whether output was committed, whether connection reuse is forbidden, and whether trailing bytes can ever be dispatched.

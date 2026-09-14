@@ -1,6 +1,6 @@
 (test
  (name main)
  (modes byte exe)
- (libraries httpkit-core h2 hpack faraday bigstringaf angstrom tls x509 domain-name
-  mirage-crypto-rng.unix decompress.gz bytesrw.zlib closeable_zlib bounded_hpack eio_main lwt.unix yojson)
+ (libraries bigstringaf tls x509 domain-name
+  mirage-crypto-rng.unix decompress.gz bytesrw.zlib closeable_zlib eio_main lwt.unix yojson)
  (deps (glob_files fixtures/*)))

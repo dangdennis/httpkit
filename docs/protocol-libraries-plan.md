@@ -1,435 +1,221 @@
-# Protocol and transport library implementation plan
+# Caddy-first application and client library roadmap
 
-Status: proposed implementation plan, 2026-09-13. Baseline: `c47c624` on `main`.
-No new protocol support is implemented by this document. Estimates below are
-engineering effort, not delivery promises or evidence of security.
+Updated 2026-09-14. This replaces the previous protocol expansion plan.
+The backend remains HTTP/1.1. Proposed packages below are not yet published.
+Existing application APIs remain supported; this roadmap fills their gaps.
 
-Implementation has started with the private [Phase 0 experiments](protocol-foundations.md).
-That status page records measured results and unresolved dependency gates.
+## Deployment and ownership
 
-## Outcome and constraints
+Browser -> Caddy -> local socket or loopback HTTP/1.1 -> httpkit application.
+Caddy owns public ingress, certificate automation, response compression, public
+static assets and edge routing/load balancing. We build application semantics,
+trusted proxy integration, outbound clients and bounded resource ownership.
+Remote unencrypted backend links are not the default deployment profile.
 
-Deliver independently usable HTTP semantics, compression, TLS integration,
-clients, HTTP/2, WebSocket additions and eventually HTTP/3. “Fast” means both
-shorter implementation time through reuse and measured runtime efficiency.
+Caddy's [reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
+supports local upstreams and WebSocket tunnelling. Its
+[encode handler](https://caddyserver.com/docs/caddyfile/directives/encode) and
+[file server](https://caddyserver.com/docs/caddyfile/directives/file_server)
+cover response compression and public assets. These are deployment capabilities,
+not evidence that our application has passed an integration test.
 
-- Keep pure policy and protocol logic independent of Eio and Lwt. Runtime adapters
-  own sockets, clocks, cancellation, worker admission and resource cleanup.
-- Do not implement cryptographic algorithms, TLS, certificate validation or QUIC
-  packet protection ourselves. Use existing maintained implementations.
-- Reuse compression codecs and initially prefer an existing HTTP/2 engine.
-  Write the bounded HTTP policy and integration that make them fit our contracts.
-- Keep the current HTTP/1 engine working; do not replace it with a universal
-  engine before another protocol demonstrates the required abstraction.
-- Use OCaml development tools and small shell launchers. AFL remains skipped.
-  Keep deterministic generators, corpus replay, shrinking and fault controls.
-- Keep README concise; detailed contracts, examples and evidence belong in docs
-  and per-library artifacts. No deployment or publication is part of this plan.
+No public server TLS package, automatic certificate manager, public asset server,
+or response-compression middleware is scheduled. Existing static helpers remain
+available for compatibility. Outbound HTTPS, response decoding, private downloads
+and WebSocket message handling still belong to the application side.
 
-## Current boundaries that constrain the design
+Keep pure modules independent of runtimes. Eio and Lwt own their native I/O,
+clocks, cancellation and cleanup. Reuse maintained crypto, TLS, certificate,
+URI, database and compression libraries. Never implement crypto ourselves.
+Use OCaml tooling; skip AFL; keep README concise and review each delivered slice.
 
-`Httpkit_core.Version` represents HTTP/1.0 and HTTP/1.1, and request construction
-currently defaults to HTTP/1.1. `Httpkit_engine` explicitly admits one exchange at
-a time. Consequently, HTTP/2 cannot be implemented by changing a version flag.
+## Existing baseline and gaps
 
-The existing transports already supply low-level HTTP/1 client/server operations.
-Application packages supply routing, middleware, bodies, sessions, SSE and a
-server WebSocket profile. Eio static files currently collect bounded content for
-ETags; ranges, compression and Last-Modified are absent. Lwt lacks filesystem
-helper parity. OIDC takes a caller-supplied HTTPS client. These APIs remain usable
-throughout the work; new integrations must not silently change their defaults.
+Already implemented: strict HTTP/1 transport, Eio/Lwt application APIs, routing,
+middleware, bounded forms/JSON/multipart, cookies, sessions/CSRF, password and
+OIDC wrappers, Eio database integration, SSE and server WebSocket helpers.
+Their final release evidence remains separate from implementation status; see
+[framework roadmap](framework-roadmap.md). Do not rebuild these as new packages.
 
-## Package map
+Remaining work: prove Caddy deployment behavior; extend typed representation
+semantics; provide a usable outbound HTTPS client for OIDC and application calls;
+complete bounded codec ownership; stream authorized downloads; finish WebSocket
+client/subprotocol/compression behavior and native runtime parity. Existing
+[dependency experiments](protocol-foundations.md) support only some of these gates.
 
-Names below are proposed opam and Dune public library names, not installed or
-published packages. Implementation directories may use underscores. Modules use
-`Httpkit_` plus the same suffix with underscores.
+## Package and ownership map
 
-| Package | Entry module | Ownership and dependency boundary |
+| Deliverable | Proposed package / existing home | Implementation boundary |
 | --- | --- | --- |
-| `httpkit-headers` | `Httpkit_headers` | Own pure typed HTTP date, validator, range and negotiation helpers; depends on core and a date library if justified |
-| `httpkit-compress` | `Httpkit_compress` | Own bounded incremental compression interface and HTTP encoding policy; wrap a selected codec |
-| `httpkit-files-eio` | `Httpkit_files_eio` | Own confined streaming file serving; compose headers, Eio and the application API |
-| `httpkit-files-lwt` | `Httpkit_files_lwt` | Same file contract using native Lwt cancellation and I/O |
-| `httpkit-tls` | `Httpkit_tls` | Shared validated TLS policy and ALPN selection; wrap upstream TLS types/validation |
-| `httpkit-tls-eio` | `Httpkit_tls_eio` | Eio handshake and transport adapter using upstream TLS |
-| `httpkit-tls-lwt` | `Httpkit_tls_lwt` | Lwt handshake and transport adapter using upstream TLS |
-| `httpkit-client` | `Httpkit_client` | Own pure origin, redirect, retry and pool admission policy; no connections or scheduler |
-| `httpkit-client-eio` | `Httpkit_client_eio` | Eio connection establishment, bounded pooling, scoped response bodies and protocol backends |
-| `httpkit-client-lwt` | `Httpkit_client_lwt` | Equivalent client with native Lwt promises |
-| `httpkit-http2` | `Httpkit_http2` | Runtime-neutral HTTP/2 backend facade and bounded integration; initially wrap `h2`/HPACK |
-| `httpkit-http2-eio` | `Httpkit_http2_eio` | Eio stream admission, reader/writer ownership and application/client integration |
-| `httpkit-http2-lwt` | `Httpkit_http2_lwt` | Equivalent HTTP/2 integration with Lwt cancellation |
-| `httpkit-ws` | `Httpkit_ws` | Own extracted client/server WebSocket codec and handshake policy; no runtime |
-| `httpkit-ws-deflate` | `Httpkit_ws_deflate` | Optional per-message DEFLATE policy/state over a reused codec |
-| `httpkit-http3` | `Httpkit_http3` | Wrap an upstream QUIC + HTTP/3 stack; own safe OCaml bindings and HTTP mapping |
-| `httpkit-http3-eio` | `Httpkit_http3_eio` | Eio UDP/timer/stream integration |
-| `httpkit-http3-lwt` | `Httpkit_http3_lwt` | Lwt UDP/timer/stream integration |
+| Trusted proxy identity and deployment lifecycle | Existing middleware, Eio/Lwt adapters and integration harness | Extend existing policy; no Caddy-specific core dependency |
+| Typed application headers | `httpkit-headers` / `Httpkit_headers` | Own pure bounded parsing and conditional-request decisions |
+| Outbound TLS | Private client backend first | Wrap upstream TLS; publish separate TLS packages only if an independent consumer needs them |
+| Client policy | `httpkit-client` / `Httpkit_client` | Own origin, redirect, retry and admission decisions |
+| Client runtime | `httpkit-client-eio`, `httpkit-client-lwt` | HTTP/1 connections, resolver, verified TLS, pools and scoped bodies |
+| Body codecs | `httpkit-compress` / `Httpkit_compress` | Wrap upstream codecs for outbound decoding, explicit inbound decoding and message compression |
+| Authorized file streaming | `httpkit-files-eio`, `httpkit-files-lwt` | Confined descriptors and bounded reads after application authorization |
+| WebSocket codec and handshake | `httpkit-ws` / `Httpkit_ws` | Extract existing codec compatibly; add client role and subprotocols |
+| Optional WebSocket compression | `httpkit-ws-deflate` | Reuse DEFLATE; own negotiation, message limits and lifetime |
+| Sessions/authentication/database parity | Existing extension packages | Close demonstrated gaps and validate integration; reuse upstream crypto and SQL drivers |
 
-Keep backend bindings private initially; publish a separate backend package only
-if an independent consumer needs it. In particular, do not invent a QUIC library
-merely to complete this table. The shared TLS/client packages must earn their
-existence with meaningful pure contracts, not empty forwarding modules.
-`Httpkit_core.Headers` remains the checked generic header container;
-`Httpkit_headers` adds typed field syntax and decisions on top of it.
-
-Once these packages are published, selection would look like:
+Publish each package only when its contract and an independently installed
+consumer are useful. Examples after publication:
 
 ```sh
-opam install httpkit-client-eio httpkit-http2-eio
+opam install httpkit-client-eio httpkit-headers
 ```
 
 ```lisp
-(libraries httpkit-client-eio httpkit-http2-eio)
+(libraries httpkit-client-eio httpkit-headers)
 ```
 
 ```ocaml
 module Client = Httpkit_client_eio
-module Http2 = Httpkit_http2_eio
+module Headers = Httpkit_headers
 ```
 
-These demonstrate naming only. Final functions and dependency closures are Phase
-0 deliverables; no speculative API call here should be mistaken for usable code.
+## Phase 1: Caddy integration and application boundary
 
-No dependency cycles: headers/compression/WS depend downward on core, while new
-file packages depend on the application packages. Keep existing `Files` working;
-deprecate or delegate only when a cycle-free migration is available. Extract
-WebSocket code into `httpkit-ws`, then let `Httpkit.Websocket` retain a compatible
-alias. Runtime protocol packages adapt handlers supplied by the applications;
-application packages need not depend on every optional protocol.
+Extend existing proxy policy before adding a new public helper. Bind backend
+listeners locally and explicitly trust the actual proxy peer. Define one canonical
+forwarded-header profile: bound chain length/bytes, handle duplicate/conflicting
+fields, validate the original host against application policy and derive external
+scheme/client address only from trusted input. Never trust a private-range source
+merely because it is private. Specify Unix-socket trust separately from IP trust.
 
-## Phase 0 — prove dependencies and settle the cross-protocol seam
+Build a pinned, disposable Caddy fixture with a local test CA and versions in the
+report. No real domain or public deployment is needed. Exercise both application
+runtimes through the proxy: spoofed forwarding headers, HTTPS-aware redirects and
+secure cookies, CORS/CSRF origin checks, raw target/Host preservation, body limits,
+streaming uploads/downloads, SSE flushing and disconnects, WebSocket upgrade/close,
+keep-alive timeout alignment, graceful reload/drain and backend unavailability.
+Ensure proxy retries cannot silently duplicate non-replayable application writes.
 
-Budget: 1–2 engineer-weeks. This is the first implementation milestone.
+Document edge/application timeout and body-budget interaction. Client disconnect
+must cancel owned work. Health/readiness endpoints must not leak credentials or
+report readiness before dependencies are usable. Test shutdown with active requests,
+database work and realtime connections. Preserve independent direct HTTP/1 tests.
 
-1. Capture baseline build/docs, installed consumers, current allocations,
-   throughput and retained-memory results with one source hash. Record any
-   existing validation gaps separately from new failures.
-2. Build small independent spikes for TLS, compression and `h2` against OCaml
-   5.5.0 and both Dune locks. Test macOS and Linux, native and ordinary bytecode.
-3. For every dependency record license, release/revision, maintenance activity,
-   advisories, transitive/native dependencies, build reproducibility, streaming
-   API, ownership, resource controls and cancellation behavior. Pin only versions
-   actually exercised. Upstream existence is not proof of suitability.
-4. Define a narrow protocol backend interface: request metadata, scoped body
-   input/output, trailers, completion, cancellation and connection shutdown.
-   Keep protocol stream identifiers private and connection-owned. No promise
-   abstraction shared between Eio and Lwt.
-5. Prototype metadata conversion. Preserve methods, authority, scheme, path,
-   repeated headers and trailers. Add an additive protocol-neutral metadata view
-   rather than pretending HTTP/2 messages are HTTP/1.1. Document a version-type
-   migration if needed; adding constructors can break exhaustive matches.
-6. Establish a threat model and resource accounting model before API freeze:
-   hostile peers, slow readers/writers, malformed compressed headers/bodies,
-   malicious redirects, cancellation races and native-resource misuse.
+Exit: real Caddy integration on both runtimes, explicit trust failure controls,
+bounded buffers/queues and task cleanup. This is the next implementation slice.
 
-Deliverables: dependency decision records, runnable spikes, proposed `.mli`
-interfaces, compatibility notes and benchmark fixtures. Reject a backend that
-cannot bound memory before allocation; post-hoc limits are insufficient. If `h2`
-fails this gate, assess upstream fixes first. A new HTTP/2 implementation is a
-separate, explicitly re-estimated option, not an automatic fallback.
+## Phase 2: typed application representation semantics
 
-## Phase 1 — headers and representation policy
+Build `httpkit-headers`: entity tags, HTTP dates, conditional requests, media-type
+negotiation, cache directives and single byte ranges for private representations.
+Application state determines validators; Caddy cannot infer database preconditions.
+Separate parsers from proceed/not-modified/precondition-failed/range decisions.
 
-Packages: `httpkit-headers`. Budget: 1–2 engineer-weeks.
+Implement weak/strong comparison and precondition ordering, If-Range and HEAD
+semantics. Limit field bytes, list items and arithmetic before allocation. Test
+wildcards, duplicate fields, q=0, conflicting preconditions, suffix/unsatisfiable
+ranges, overflow and date boundaries. Multiple ranges are outside the first profile.
+Encoding helpers serve client/codec needs, not a new response-compression layer.
 
-Own bounded parsing/printing for entity tags, HTTP dates, byte ranges and weighted
-content negotiation. Separate parsing from decisions. Return typed outcomes such
-as proceed, not-modified, precondition-failed, full representation or partial
-representation; applications choose the response construction.
+Exit: normative vectors, generated round trips and decisions, bounded allocations,
+and an installed consumer without either runtime. Use RFC 9110 as the reference.
 
-Implement validators and precondition ordering together, then single byte ranges
-and If-Range. Preserve weak/strong comparison rules. Define malformed and
-unsupported-range handling explicitly; multiple ranges are outside the first
-serving profile. Keep syntax acceptance distinct from local resource limits.
-Implement Accept-Encoding first; add Accept/media-type negotiation as a separate
-slice. Cache directives can be represented without building a shared cache.
-[HTTP semantics](https://www.rfc-editor.org/rfc/rfc9110.html) is the conformance reference.
+## Phase 3: outbound HTTPS and HTTP/1 clients
 
-Security controls: checked integer arithmetic, bounded tokens/items/bytes, no
-locale-dependent parsing, no stringly typed injection points, and no unbounded
-sorting or expansion. Test empty/suffix/unsatisfiable ranges, overflow, duplicate
-fields, date boundaries, wildcard/q=0 cases and contradictory preconditions.
+Build the pure client policy and Eio/Lwt adapters over existing HTTP/1 transports.
+Keep TLS integration private initially. Reuse upstream identity verification,
+randomness and records; use maintained URI/resolver facilities rather than writing
+DNS wire handling. Separate requested host, vetted address, SNI and trust policy.
+Advertise only the backend protocol we implement; reject incompatible negotiation.
+No verification-disable environment switch, HTTPS downgrade or early data.
 
-Performance: scan once where possible; allocations scale with bounded input,
-not numeric range length. Benchmark valid and hostile fields at geometric sizes.
-Exit: table-driven normative vectors, generated round trips and decision tests,
-negative controls and an installed consumer without Eio/Lwt dependencies.
+Bound resolution/connect/handshake time, handshake input, active connections,
+per-origin pools, waiters, idle leases and total request deadline. Response bodies
+are scoped: completion, bounded drain or close determines reuse. Never return an
+aborted body connection to a pool. Collection helpers require finite byte caps.
 
-## Phase 2 — compression and file serving
+Default retries/redirects off, no ambient proxy configuration or cookie jar.
+Enabled retries need replayable bodies, attempt/backoff caps and the same deadline.
+Redirects need hop limits and credential stripping across origins. Egress policy is
+checked for every resolved address and redirect, without globally banning legitimate
+private service addresses. Connect only to the address that passed the policy.
 
-Packages: `httpkit-compress`, `httpkit-files-eio`, `httpkit-files-lwt`.
-Budget: 3–5 engineer-weeks including both runtimes.
+Supply this client to existing OIDC adapters: bounded discovery/JWKS/token/userinfo
+reads, provider-independent configuration, refresh concurrency and key-rotation
+controls. Use a generic local standards-compliant provider for tests. Review auth
+failure recovery, session expiry/revocation/rotation, cookie flags and CSRF through
+Caddy; do not add new authentication algorithms.
 
-Compression codec spike: compare [decompress](https://github.com/mirage/decompress)
-with [Bytesrw](https://erratique.ch/software/bytesrw/index.html) and its native
-filters. Choose by bounded incremental operation, build footprint and measurements;
-do not select a synchronous abstraction that requires blocking Lwt. Start with
-identity/gzip; add Brotli/Zstd only after the initial profile is stable and their
-native/dependency costs are justified.
+Exit: independent HTTPS peer, expired/untrusted/wrong-host tests, fragmented input,
+EOF/cancellation at each stage, pool exhaustion, redirect credential controls,
+retry duplication controls and real OIDC flows. Prove Eio/Lwt dependency isolation.
 
-We own feed/drain/finish/abort and explicit output credits. No helper may eagerly
-inflate a body and only then check its length. Bound compressed input, decoded
-output, pending buffers, codec window and processing work. A ratio limit is an
-additional signal, never the only decompression-bomb defense. Reject truncation,
-checksum errors and unsupported coding chains; specify concatenated-member policy.
-Make request decompression opt-in and enforce decoded limits before application
-parsing. Treat transparent client decoding as a documented representation change.
+## Phase 4: bounded body decoding and private downloads
 
-HTTP middleware owns negotiation and representation metadata. Merge `Vary`
-correctly, remove invalid content lengths and avoid reusing a strong ETag across
-different encoded bytes. Default dynamic compression off for secret-bearing
-responses mixed with attacker-controlled input. No automatic compression of SSE.
+Codec work serves application/client needs: optional compressed request bodies,
+upstream response decoding and WebSocket compression. Caddy response encoding
+does not replace these. Reuse a codec with explicit finish/abort/close semantics;
+current native-close experiments are not a supported production backend decision.
 
-File packages compose the representation decisions with confined filesystem I/O.
-Stream large files with bounded chunks; implement HEAD without body production,
-Last-Modified, validators and single-range responses. Require descriptor-relative
-confinement or an equivalently proven capability strategy, and test replacement,
-symlink and rename races. A file descriptor does not make contents immutable:
-strong content ETags require immutable/versioned files or a bounded snapshot.
-Mutable streamed files use an explicitly documented weaker strategy and abort
-on inconsistent reads. No unbounded hash-then-reopen workflow.
+Bound encoded input, decoded output, pending chunks, windows and work per step.
+Enforce limits before retaining output; ratio alone is insufficient. Specify
+checksum, truncation, concatenated members, coding chains and representation-header
+changes. Input decoding is opt-in. Do not compress secret-bearing messages mixed
+with attacker-controlled data by default. Do not automatically compress SSE.
 
-Initially range requests use identity representations when acceptable; define a
-full-response fallback otherwise. Avoid on-the-fly compressed byte ranges. Keep
-upload cleanup behavior, and add equivalent Lwt helpers without importing Eio.
+Private downloads require authorization before opening/streaming. Use descriptor-
+relative confinement or an equivalent proven capability boundary. Do not trust
+upload filenames as paths. Implement bounded reads, cancellation cleanup, HEAD,
+validators and single ranges; test symlink/replacement/rename races. Strong ETags
+require immutable/versioned data or a bounded snapshot; mutable files use documented
+weaker semantics. Do not hash an unbounded file and reopen it for transmission.
+Retain bounded upload cleanup and implement missing Lwt filesystem parity here.
 
-Exit: independent codec interoperability; compressed-bomb and fragmented-input
-controls; file mutation/traversal tests; cancellation during read/write/codec
-operations; memory independent of total streamed body size; both runtime consumers.
-Benchmark compressible/incompressible payloads, tiny chunks, large files and slow
-readers. Native codec CPU work must not monopolize an event loop: cap work per
-step or use bounded workers if the backend cannot yield within that budget.
+Exit: independent gzip fixtures, malicious expansion/fragmentation, deterministic
+native close and native-memory accounting, event-loop fairness, confined-file race
+tests and streaming memory independent of total body length. Public file hosting
+and dynamic response encoding remain Caddy configuration, not new library work.
 
-## Phase 3 — HTTPS integration
+## Phase 5: WebSocket and realtime completeness
 
-Packages: `httpkit-tls`, `httpkit-tls-eio`, `httpkit-tls-lwt`.
-Budget: 2–3 engineer-weeks.
+Extract existing framing/handshake code into `httpkit-ws` without breaking old
+module aliases. Add client masking using upstream secure randomness, handshake
+verification and offered-subprotocol selection. Preserve explicit browser Origin
+policy. Caddy tunnels the connection; the endpoint still owns message semantics.
 
-First candidate: [ocaml-tls](https://github.com/mirleft/ocaml-tls), whose core is
-I/O-independent and has Eio/Lwt integrations. We wrap configuration, identity,
-ALPN, handshake lifetime and transport ownership. Upstream owns TLS records,
-cryptography, randomness and certificate verification. Confirm cancellation and
-partial-I/O behavior experimentally rather than wrapping incompatible channels.
+Add opt-in `httpkit-ws-deflate` only after codec ownership passes. Implement RFC
+7692 negotiation with an initial no-context-takeover profile, bounded decoded
+messages and interleaved control-frame handling. Never assemble unlimited messages.
+Keep SSE queue/backpressure/disconnect behavior explicit in both runtimes.
 
-Client defaults require chain and hostname/IP verification with explicit trust
-configuration. Keep peer address, SNI and expected identity distinct. No ambient
-“disable verification” environment switch. Test CAs are scoped test fixtures.
-Delegate certificate time checks and supported algorithm policy upstream; record
-trust-store and certificate revocation limitations rather than promising more.
+Exit: role/masking violations, split UTF-8, fragmented messages, control frames,
+subprotocol mismatches, close races and independent peers through Caddy and direct
+HTTP/1. Replay corpora with OCaml tooling. Test slow consumers and cancellation.
 
-Bound concurrent handshakes, handshake bytes/time, buffers and shutdown time.
-Distinguish clean TLS closure from truncation. Verify server/client ALPN results
-before selecting a protocol; never downgrade from failed HTTPS to cleartext.
-Use current upstream secure protocol defaults with a documented minimum version.
-Keep early data disabled initially. Certificate reload is atomic for new
-connections and does not invalidate ownership of active sessions.
+## Delivery estimates and acceptance
 
-Exit: local CA tests for trusted/untrusted, expired, wrong-host and malformed
-certificates, ALPN mismatch, fragmented handshakes, EOF and cancellation. Run
-independent TLS client/server interoperability. Benchmark handshake latency,
-concurrent-handshake pressure, reuse and steady-state encrypted throughput.
+| Order | Deliverable | Initial engineer-weeks |
+| --- | --- | --- |
+| 1 | Caddy integration and application boundary | 1–2 |
+| 2 | Application headers | 1–2 |
+| 3 | Outbound HTTPS clients and OIDC integration | 4–7 |
+| 4 | Body codecs and private downloads on both runtimes | 3–5 |
+| 5 | WebSocket/realtime completeness | 2–4 |
 
-## Phase 4 — usable HTTP clients
+Roughly 11–20 engineer-weeks for one engineer, excluding independent audit, blocked
+upstream fixes and final release findings. Re-estimate after each dependency gate;
+these are planning ranges, not measured delivery predictions. Phases 2 and 3 can
+progress independently after deployment contracts settle. No automated scheduling
+or deployment is implied by this plan.
 
-Packages: `httpkit-client`, `httpkit-client-eio`, `httpkit-client-lwt`.
-Budget: 3–5 engineer-weeks for HTTP/1 plus the backend seam.
+Each slice: contract/limits/ownership first, one useful path plus hostile controls,
+code-quality review, targeted tests, installed consumer, measured optimization.
+Review parsing/arithmetic separately from runtime cancellation and FFI ownership.
+Retain deterministic replay/shrinking and fault controls; AFL remains skipped.
 
-Pure policy owns normalized origin keys, redirect decisions, retry eligibility
-and admission accounting. Runtime packages own resolver/connect/TLS operations,
-connection pools and structured lifetime. Reuse a maintained URI parser; do not
-write DNS wire handling. Add HTTP/2/3 backends later without forcing them into the
-HTTP/1 engine. Supply a bounded HTTPS client to the existing OIDC adapter.
+Release gates: build/docs; native and ordinary bytecode consumers; runtime isolation;
+macOS/Linux; real peers/Caddy; generated and negative tests; coverage gap review;
+mutation controls; CPU/allocation/RSS/descriptor/task accounting; a 30-minute canary
+and two-hour soak for new runtime paths. Source/workload hashes and platform/native
+versions belong in reports. Noisy timing is diagnostic, not a security claim.
+Hosted CI and independent security review are separate, explicitly recorded gates.
 
-Expose a scoped streaming request API. A response body cannot silently escape
-its connection lease. Complete, bounded-drain or close determines reuse; aborted
-HTTP/1 bodies cannot put a poisoned connection back into the pool. Collecting a
-body is a separate helper with a mandatory finite cap.
-
-Defaults: bounded total/per-origin connections and waiters, finite idle expiry,
-monotonic end-to-end deadline, no automatic retries, no redirects unless enabled,
-no cookie jar, no ambient proxy configuration, no cross-origin connection
-coalescing. Body replayability is explicit; idempotent method alone does not
-prove that a consumed body can be resent. Use bounded attempts/backoff only when
-caller policy enables retries. Honor retry hints within the same deadline.
-
-For enabled redirects, enforce a hop cap, clear cross-origin credentials, rebuild
-Host/authority and forbid HTTPS downgrade by default. SSRF-sensitive consumers
-supply an egress policy checked for every redirect and every resolved address;
-connect only to a vetted address and bind TLS identity to the requested host.
-Do not globally ban private addresses for legitimate internal-service clients.
-
-Exit: pool exhaustion, lease leak, cancellation at each stage, stale connections,
-partial writes, redirect loops, credential leakage, DNS/address-policy races and
-retry duplication tests. Compare connection reuse and allocation with direct
-transport calls. OIDC tests must show limits enforced while reading, not after
-an oversized provider response has already been allocated.
-
-## Phase 5 — HTTP/2
-
-Packages: `httpkit-http2`, `httpkit-http2-eio`, `httpkit-http2-lwt`.
-Budget: 4–7 engineer-weeks if the selected upstream passes Phase 0.
-
-Evaluate [ocaml-h2](https://github.com/anmonteiro/ocaml-h2) first. It includes HPACK
-and runtime integrations. Prefer adapting its core to our ownership contract;
-reuse upstream runtime adapters only when their semantics satisfy our limits.
-Do not duplicate HPACK or frame parsing around the same backend. Record supported
-features against [RFC 9113](https://www.rfc-editor.org/rfc/rfc9113.html), not merely
-an older conformance tool's pass count.
-
-Our wrapper owns checked metadata conversion, explicit stream handles, admission,
-backpressure, error mapping and scoped body lifetime. Connection failure and
-stream failure are different outcomes. ALPN dispatch selects a separate HTTP/2
-engine. Start with HTTPS; explicit prior-knowledge cleartext may be a test/internal
-option. No implicit protocol guessing, server push or cross-origin coalescing.
-
-Validate pseudo-header order/uniqueness and required values, authority consistency,
-forbidden connection-specific fields, body lengths and trailer restrictions.
-Bound decoded header bytes/count and HPACK state before allocation. Bound streams,
-queued output, aggregate body retention, frame/control processing and scheduling
-work; DATA flow-control windows alone do not bound headers or control frames.
-Protect against rapid creation/reset cycles, SETTINGS/PING floods and pathological
-CONTINUATION sequences. Use the current normative spec and adversarial traces.
-
-Replenish receive credit as the application consumes or safely discards data.
-A slow stream must not retain unlimited memory or starve ready streams. Separate
-stream timeout/reset from connection timeout/shutdown. GOAWAY drains eligible
-streams and communicates retry eligibility without resending implicitly.
-
-Exit: reference client/server tests, fragmentation at every boundary, stateful
-sequence generation, flow-control deadlock tests, stream cancellation races and
-fairness under mixed large/small responses. Verify native/bytecode consumers and
-both application/client integrations. Measure latency distributions, throughput,
-allocations and RSS across stream concurrency, slow consumers and reset floods.
-
-## Phase 6 — WebSocket completeness
-
-Packages: `httpkit-ws`, optional `httpkit-ws-deflate`; integrate with existing Eio
-and Lwt realtime APIs. Budget: 2–4 engineer-weeks.
-
-Extract existing server code without behavior changes and retain its old module
-alias. Add client-role framing/masking, handshake verification and deterministic
-subprotocol selection. Use upstream secure randomness for masks. Keep explicit
-Origin policy for browser servers. Bind selected subprotocols to the offered
-set; reject conflicting/duplicate handshake fields. Do not imply WebSocket-over-
-HTTP/2 or HTTP/3 merely because the underlying HTTP protocol is available: extended
-CONNECT is a separate later integration with its own acceptance tests.
-
-Compression remains a separate opt-in dependency. Reuse the chosen DEFLATE codec;
-implement [RFC 7692](https://www.rfc-editor.org/rfc/rfc7692.html) negotiation and
-message state. Start with an explicit no-context-takeover profile. Apply limits
-after inflation, preserve fragmentation/control-frame behavior and retain the
-policy against compressing secrets with attacker-controlled data.
-
-Exit: role/masking violations, UTF-8 split boundaries, oversized messages,
-fragment/control interleavings, handshake/subprotocol mismatches and close races.
-Replay an independent interoperability corpus with an OCaml runner; do not add a
-Python tool dependency. Benchmark tiny messages, large fragmented messages,
-compression and slow consumers. Never retain an unbounded complete message.
-
-## Phase 7 — HTTP/3, staged separately
-
-Packages: `httpkit-http3`, `httpkit-http3-eio`, `httpkit-http3-lwt`.
-Budget: 2–3 engineer-weeks for a binding spike, then 6–10 for integration if viable.
-
-Start only after the stream/lifetime model has proved useful in HTTP/2. Evaluate
-[quiche](https://github.com/cloudflare/quiche) as a QUIC + HTTP/3 backend, including
-its supported C ABI, licensing, native toolchain and TLS backend. Compare other
-maintained backends if portability or ownership cannot be satisfied. Do not claim
-an existing OCaml binding has been found or is compatible until the spike proves it.
-
-Upstream owns QUIC recovery/congestion, packet protection, transport parameters,
-QPACK and HTTP/3 protocol state. Our work is binding safety, bounded UDP/timer
-integration, HTTP metadata and scoped streams. HTTP/3 uses QPACK rather than
-HPACK; see [RFC 9114](https://www.rfc-editor.org/rfc/rfc9114.html).
-
-Audit every FFI lifetime: roots, copying/pinning, callbacks, exceptions, native
-handles, explicit close, domain affinity and finalizer fallback. Native memory
-must be counted with OCaml heap memory. Test ordinary bytecode dynamic loading.
-Reject a backend whose native queues cannot be bounded by configuration/admission.
-
-Initially disable 0-RTT, active migration, datagrams, WebTransport and extended
-CONNECT. Model loss, reorder, duplicate datagrams, handshake timeout, address
-validation and stream shutdown. Bound connections, streams, datagrams, timers,
-QPACK tables/blocked streams and amplification before address validation. Leave
-anti-amplification and cryptographic enforcement upstream and test their integration.
-
-Exit: independent HTTP/3 peers under a reproducible network impairment harness,
-FFI sanitizer runs, packet/timer replay, cancellation, shutdown and long memory
-plateaus. Benchmark against upstream directly to isolate wrapper cost. Shipping
-HTTP/1 and HTTP/2 must not wait for this phase if its backend gate fails.
-
-## Common security, performance and review gates
-
-Every library follows the same small delivery cycle:
-
-1. Write the contract, limits, ownership and error taxonomy before implementation.
-2. Deliver one complete positive path plus adversarial tests and an installed
-   example. Avoid scaffolding many empty packages at once.
-3. Review parsing, arithmetic, state transitions and resource cleanup; then review
-   cancellation/race paths and dependencies. Refactor before adding features.
-4. Run generated cases, fixed regression corpora, shrink/replay and targeted
-   compiled fault mutations. Use an independent implementation where available.
-5. Measure and review; optimize the demonstrated bottleneck without weakening
-   bounds. Re-run only the affected gates during iteration, then the full matrix.
-
-Initial configurable budgets to validate in spikes: 64 KiB application chunks,
-64 KiB decoded header sections, 100 fields, 100 admitted HTTP/2/3 streams per
-connection, 1 MiB aggregate queued application output, and finite global admission
-and wait queues. These are proposed policies, not protocol maxima or a total-RSS
-guarantee. Backend buffers, TLS/codec windows, native allocations and active
-handlers need separate bounds. Derive an aggregate memory budget before accepting
-those defaults; protocols may require a different internal frame/window size.
-
-Hard properties: no unbounded queue/allocation on peer-controlled lengths; bounded
-per-step processing; no descriptor/task/lease leaks; cancellation joins owned work;
-no duplicate application operation from implicit retries; no credentials in logs.
-Core remains independent of runtimes, TLS and test tooling.
-
-Performance reports include workload/source hashes, compiler/dependency versions,
-CPU/OS, repetitions, distributions, allocations and RSS. Exercise geometric sizes,
-concurrency, fragmented I/O, slow peers, cancellation and hostile inputs. Streaming
-memory must plateau as total body size grows. Use stable-runner baselines to set
-regression budgets after the spike; do not invent universal requests/second goals.
-As an initial review trigger, investigate repeatable >10% throughput/p95 regression
-or >10% allocation growth against the same workload, including variance and causes.
-Do not turn noisy measurements into automatic correctness failures.
-
-Release evidence per phase: build/docs; native and ordinary bytecode isolated
-consumers; Eio without Lwt and vice versa; macOS/Linux; relevant real peer tests;
-positive and negative controls; line/point coverage with an uncovered-branch review;
-mutation results; resource/performance results; 30-minute adverse-load canary and
-two-hour soak for new runtime paths. Coverage is a test-gap signal, not a security
-score. Preserve all failures, source hashes and exact commands. AFL stays recorded
-as skipped; no fuzzing claim may imply otherwise. Hosted CI and independent
-security review are separate gates, and must not be marked passed when unavailable.
-
-## Delivery sequence, effort and stop conditions
-
-| Order | Deliverable | Engineer-weeks | Required predecessor |
-| --- | --- | --- | --- |
-| 0 | Dependency spikes, threat model and metadata seam | 1–2 | Current baseline |
-| 1 | Headers and representation policy | 1–2 | Phase 0 contracts |
-| 2 | Compression and files on both runtimes | 3–5 | Headers, codec selection |
-| 3 | TLS on both runtimes | 2–3 | TLS spike |
-| 4 | HTTP/1 client facade and OIDC integration | 3–5 | TLS and backend seam |
-| 5 | HTTP/2 client/server integration | 4–7 | HTTP/2 spike, TLS, seam |
-| 6 | WebSocket client/subprotocols/compression | 2–4 | Extraction and codec selection |
-| 7 | HTTP/3 spike and integration | 8–13 | Stream model and backend gate |
-
-Phases 0–6 total roughly 16–28 engineer-weeks for one engineer; HTTP/3 brings the
-whole scope to roughly 24–41. These include focused implementation, tests and docs;
-allow additional capacity for upstream changes, failed experiments, independent
-review, stable performance infrastructure and release findings. Some phases are
-independent, but concurrency is a staffing decision, not assumed in this estimate.
-A from-scratch HTTP/2 implementation would invalidate the Phase 5 estimate.
-
-Stop or narrow a phase when bounds require unsafe assumptions, a dependency lacks
-required controls, OCaml 5.5/native/bytecode cannot be supported, or measured wrapper
-cost cannot be explained. Record the result and a concrete alternative. Do not
-replace external crypto with local implementations to work around incompatibility.
-
-The first actionable slice is Phase 0: a dependency compatibility report and
-three bounded echo/streaming spikes. Then ship headers, one codec and one file
-path before expanding the runtime matrix. This document does not implement these
-libraries or schedule execution.
+Never mark a prototype or old evidence as acceptance for changed code. Stop when
+pre-allocation bounds, native cleanup, compatibility or event-loop fairness cannot
+be demonstrated. Narrow scope or change the dependency; never write custom crypto
+to bypass a dependency failure.

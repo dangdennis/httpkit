@@ -18,4 +18,4 @@ Include the affected revision, package/runtime/compiler, a minimal request or sc
 4. Run the affected compiler/platform, install/API, interop, resource, and fuzz gates. Rerun the full affected release campaign after a fix; an engine-wide change invalidates engine-dependent campaigns.
 5. Arrange independent review of the patch and prepare a coordinated advisory and patched release. Keep the issue private while an effective fix is being prepared. The owner decides publication and any advisory/CVE coordination.
 
-The initial release scope is strict HTTP/1.1 on the declared OCaml/Linux/macOS matrix. TLS, application authentication and authorization, routing normalization, HTTP/2 and WebSocket framing are outside this implementation's security claims. Dependency updates must refresh committed locks deliberately and rerun the affected evidence.
+The initial release scope is strict HTTP/1.1 on the declared OCaml/Linux/macOS matrix. TLS, application authentication and authorization, routing normalization and WebSocket framing are outside this implementation's security claims. Dependency updates must refresh committed locks deliberately and rerun the affected evidence.
