@@ -608,6 +608,68 @@ let configured_admission () =
        = "engine: invalid engine command");
      Lwt.return_unit)
 
+let suspended_handler_cleanup () =
+  Lwt_main.run
+    (Lwt_list.iter_s
+       (fun cancel ->
+         let entered, enter = Lwt.wait () in
+         let cleanup_started, start_cleanup = Lwt.wait () in
+         let cleanup_gate, finish_cleanup = Lwt.wait () in
+         let failed_read, fail_read = Lwt.task () in
+         let reads = ref 0 and closed = ref 0 and cleaned = ref false in
+         let head = "POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 1\r\n\r\n" in
+         let transport : A.transport =
+           {
+             read =
+               (fun dst off _ ->
+                 incr reads;
+                 if !reads = 1 then (
+                   Bytes.blit_string head 0 dst off (String.length head);
+                   Lwt.return (String.length head))
+                 else failed_read);
+             write = (fun _ _ len -> Lwt.return len);
+             close =
+               (fun () ->
+                 incr closed;
+                 Lwt.return_unit);
+           }
+         in
+         let work =
+           A.with_connection transport
+             (ok (E.server ()))
+             (fun c ->
+               let* _ = A.next_event c in
+               Lwt.wakeup_later enter ();
+               Lwt.finalize
+                 (fun () -> fst (Lwt.task ()))
+                 (fun () ->
+                   Lwt.wakeup_later start_cleanup ();
+                   let* () = cleanup_gate in
+                   cleaned := true;
+                   Lwt.return_unit))
+         in
+         let* () = entered in
+         if cancel then Lwt.cancel work else Lwt.wakeup_later_exn fail_read Exit;
+         let* () = cleanup_started in
+         let* () = Lwt.pause () in
+         let premature_close = !closed <> 0 in
+         let premature_finish = not (Lwt.is_sleeping work) in
+         Lwt.wakeup_later finish_cleanup ();
+         let* () =
+           Lwt.catch
+             (fun () ->
+               let* () = work in
+               Lwt.fail_with "read failure swallowed")
+             (function
+               | Lwt.Canceled when cancel -> Lwt.return_unit
+               | A.Error (A.Transport Exit) when not cancel -> Lwt.return_unit
+               | exn -> Lwt.fail exn)
+         in
+         assert ((not premature_close) && not premature_finish);
+         assert (!cleaned && !closed = 1);
+         Lwt.return_unit)
+       [ false; true ])
+
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->
       match
@@ -631,6 +693,7 @@ let () =
             ("fragmented reads and partial writes", partial);
             ("write failure cannot become successful flush", error);
             ("handler cleanup", handler_error);
+            ("suspended handler cleanup", suspended_handler_cleanup);
             ("configured admission and diagnostics", configured_admission);
             ("cancel and join read", cancel_read);
             ("handoff residual and close ownership", handoff);

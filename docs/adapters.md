@@ -39,3 +39,8 @@ settings fail before accepting a transport. Each accepted transport receives a
 fresh engine; settings do not share queues or request identity between clients.
 `failure_to_string` preserves the error category and transport exception detail.
 Transport-provided text should only be logged where the application intends it.
+
+Suspended callback finalizers are part of connection ownership: after failure or
+cancellation, the adapter waits for their completion before closing the transport.
+See the [lifecycle matrix and regression](lifecycle.md). Custom finalizers must
+terminate; cancelling a promise alone does not establish that cleanup has joined.

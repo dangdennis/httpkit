@@ -314,12 +314,17 @@ let with_connection ?(policy = Timeout.default) ?(clock = monotonic_clock)
       Lwt.cancel reader;
       Lwt.cancel writer;
       Lwt.cancel work;
-      let* () =
-        Lwt.join
-          (List.map
-             (fun p -> Lwt.catch (fun () -> p) (fun _ -> Lwt.return_unit))
-             [ reader; writer ])
+      (* Cancelling work starts its finalizers but does not join them. They may
+         still own resources needed by the callback, including the transport.
+         Preserve the winning failure while waiting for all owned work. *)
+      let settle promise =
+        Lwt.catch
+          (fun () ->
+            let* _ = promise in
+            Lwt.return_unit)
+          (fun _ -> Lwt.return_unit)
       in
+      let* () = Lwt.join [ settle reader; settle writer; settle work ] in
       if !succeeded && c.claimed then Lwt.return_unit
       else (
         Engine.abort engine Engine.Cancelled;

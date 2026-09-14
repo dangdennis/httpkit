@@ -433,6 +433,57 @@ let configured_admission () =
         A.failure_to_string (A.Engine E.Invalid_command)
         = "engine: invalid engine command"))
 
+let suspended_handler_cleanup () =
+  run (fun clock ->
+      let entered, enter = Eio.Promise.create () in
+      let cleanup_started, start_cleanup = Eio.Promise.create () in
+      let cleanup_gate, finish_cleanup = Eio.Promise.create () in
+      let failed_read, fail_read = Eio.Promise.create () in
+      let reads = ref 0 and closed = ref 0 and cleaned = ref false in
+      let head = "POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 1\r\n\r\n" in
+      let transport : A.transport =
+        {
+          read =
+            (fun dst off _ ->
+              incr reads;
+              if !reads = 1 then (
+                Bytes.blit_string head 0 dst off (String.length head);
+                String.length head)
+              else (
+                Eio.Promise.await failed_read;
+                raise Exit));
+          write = (fun _ _ len -> len);
+          close = (fun () -> incr closed);
+        }
+      in
+      let finished = ref false in
+      Eio.Fiber.both
+        (fun () ->
+          (try
+             A.with_connection ~clock transport
+               (ok (E.server ()))
+               (fun c ->
+                 ignore (A.next_event c);
+                 Eio.Promise.resolve enter ();
+                 Fun.protect
+                   (fun () -> Eio.Fiber.await_cancel ())
+                   ~finally:(fun () ->
+                     Eio.Cancel.protect (fun () ->
+                         Eio.Promise.resolve start_cleanup ();
+                         Eio.Promise.await cleanup_gate;
+                         cleaned := true)))
+           with A.Error (A.Transport Exit) -> ());
+          finished := true)
+        (fun () ->
+          Eio.Promise.await entered;
+          Eio.Promise.resolve fail_read ();
+          Eio.Promise.await cleanup_started;
+          Eio.Fiber.yield ();
+          let premature = !closed <> 0 || !finished in
+          Eio.Promise.resolve finish_cleanup ();
+          assert (not premature));
+      assert (!finished && !cleaned && !closed = 1))
+
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->
       match
@@ -456,6 +507,7 @@ let () =
             ("fragmented reads and partial writes", partial);
             ("write failure cannot become successful flush", error);
             ("handler cleanup", handler_error);
+            ("suspended handler cleanup", suspended_handler_cleanup);
             ("configured admission and diagnostics", configured_admission);
             ("cancel and join read", cancel_read);
             ("absolute header timeout", header_timeout);

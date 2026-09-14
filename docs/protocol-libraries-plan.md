@@ -80,7 +80,15 @@ regression evidence under `_artifacts/production-slices`):
   random segmentation and grammar-aware chunk/trailer inputs. `dune runtest` adds
   seeded OCaml smoke for request/response/chunked, without invoking AFL.
 
-Next: lifecycle cancellation and resource ownership.
+- Local existing framework profile captured before runtime changes: three
+  10-second epochs at concurrency 1/4/8, source-matched report under
+  `_artifacts/framework/profile-3b7261`. This is a local reference, not the final
+  five-endpoint benchmark matrix or a stable regression threshold.
+- [Lifecycle ownership matrix](lifecycle.md) and suspended callback cleanup:
+  Lwt transport teardown now joins handler finalizers before close; regression
+  reproduced early teardown before the fix, with matching Eio control.
+
+Next: broaden cancellation/limits and application-resource schedules.
 
 ## P0 — required before production confidence
 
