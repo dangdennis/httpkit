@@ -70,7 +70,10 @@ regression evidence under `_artifacts/production-slices`):
 - Chunk/extensions/trailers and cumulative quotas; malformed-body isolation in
   normal and discard modes (`test/engine/chunk_test.ml`).
 
-Next: special-response framing, then connection reuse and lifecycle slices.
+- Special-response framing and EOF (`test/http1/response_policy_test.ml`),
+  including every informational status and encoder/decoder parity.
+
+Next: connection reuse and lifecycle slices.
 
 ## P0 — required before production confidence
 

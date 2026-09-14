@@ -70,3 +70,10 @@ extension/trailer outcomes, malformed chunk/terminator/trailer rejection, exact
 and cumulative body quotas, and huge declared chunks without payload allocation.
 Normal and discard-mode engines must close on every malformed-body fixture and
 refuse an appended request under every segmentation/work schedule.
+
+`test/http1/response_policy_test.ml` enumerates all informational status codes,
+HEAD, 204, 304, successful/unsuccessful CONNECT and ordinary response framing.
+It checks explicit strict-policy expectations, encoder/decoder parity, exact
+head suffixes and bodylessness under every segmentation schedule. A close-framed
+response consumes request-looking bytes as payload until real EOF; empty input
+alone is not EOF. Tunnel metadata does not authorize HTTP parsing of tunnel bytes.

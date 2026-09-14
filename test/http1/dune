@@ -20,3 +20,9 @@
  (wrapped false)
  (modules segmentation_support framing_cases chunk_cases)
  (libraries http1_cases httpkit-core httpkit-http1))
+
+(test
+ (name response_policy_test)
+ (modules response_policy_test)
+ (modes byte exe)
+ (libraries http1_conformance http1_cases httpkit-core httpkit-http1 alcotest))
