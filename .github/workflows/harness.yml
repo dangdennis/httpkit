@@ -52,35 +52,8 @@ jobs:
         with:
           name: harness-${{ matrix.os }}-${{ matrix.compiler }}
           path: _artifacts/
-  instrumentation:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
-        with:
-          version: "2026.6.10"
-          install_args: opam
-      - uses: ./.github/actions/native-dependencies
-      - run: tools/bootstrap 5.5.0
-      - run: mise run setup:afl
-      - run: tools/dev fuzz-smoke
-      - run: tools/dev fuzz --seconds 30
-      # AFL corpus names contain colons, which upload-artifact rejects. Archive
-      # the complete evidence tree without renaming seeds or losing findings.
-      - name: Archive fuzz evidence
-        if: always()
-        run: |
-          mkdir -p _artifacts
-          tar -czf "$RUNNER_TEMP/harness-afl.tar.gz" _artifacts
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: harness-afl
-          path: ${{ runner.temp }}/harness-afl.tar.gz
-          if-no-files-found: error
+  # AFL is skipped by project policy. Native seeded parser/application smoke
+  # runs through dune runtest in the correctness job; campaign gates stay open.
   release-tooling:
     runs-on: ubuntu-24.04
     timeout-minutes: 45

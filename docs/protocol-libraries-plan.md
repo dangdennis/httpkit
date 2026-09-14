@@ -97,7 +97,11 @@ regression evidence under `_artifacts/production-slices`):
   `max_int`; header delimiter allowance now uses overflow-safe arithmetic. Exact,
   one-over, zero and extreme limits run under every segmentation schedule.
 
-Next: broaden cancellation/limits and application-resource schedules.
+- CI no longer schedules the legacy AFL job on pushes. Native generated-input
+  smoke remains in correctness validation; missing long-campaign evidence is
+  still NOT_READY, and this change does not waive release policy.
+
+Next: Linux regression evidence, then broader cancellation/limits and application-resource schedules.
 
 ## P0 — required before production confidence
 
