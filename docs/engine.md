@@ -60,3 +60,12 @@ and output draining are separate from both; this preserves duplex behavior.
 `complete_input`, `abort_input` and `complete_output` establish the related
 invariants together. Discard changes retention policy while preserving framing
 validation and the normal incoming completion transition.
+
+## Segmented reuse controls
+
+`test/engine/reuse_test.ml` drives fixed, chunked and empty-body pipelines under
+whole/byte/every-split/random input and work budgets 1/7/16384. It checks normal
+and discard delivery, body/event identity, exact suffix ownership, admission
+blocked through partial output acknowledgements, and single idle closure. Early
+final responses before and during body parsing must abort the body and close
+after draining output; they cannot reinterpret the unread suffix as a request.

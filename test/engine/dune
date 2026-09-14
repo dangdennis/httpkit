@@ -15,3 +15,9 @@
  (modules chunk_test)
  (modes byte exe)
  (libraries http1_conformance http1_cases engine_cases httpkit-http1 httpkit-engine alcotest))
+
+(test
+ (name reuse_test)
+ (modules reuse_test)
+ (modes byte exe)
+ (libraries http1_conformance engine_cases httpkit-core httpkit-http1 httpkit-engine alcotest))

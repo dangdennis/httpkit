@@ -73,7 +73,10 @@ regression evidence under `_artifacts/production-slices`):
 - Special-response framing and EOF (`test/http1/response_policy_test.ml`),
   including every informational status and encoder/decoder parity.
 
-Next: connection reuse and lifecycle slices.
+- Connection reuse across segmentation, normal/discard bodies, partial output
+  acknowledgements and early rejection (`test/engine/reuse_test.ml`).
+
+Next: deepen the existing OCaml parser fuzz checks, then lifecycle cancellation.
 
 ## P0 — required before production confidence
 
