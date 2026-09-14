@@ -348,6 +348,7 @@ let epoch ~port ~seconds ~concurrency ~rate ~seed ~modes operation =
       ("latency_counts", json_ints total);
       ("latency_counts_by_workload", `Assoc (sorted hist json_ints));
       ("p50_upper_ms", percentile 0.5);
+      ("p95_upper_ms", percentile 0.95);
       ("p99_upper_ms", percentile 0.99);
     ]
 

@@ -442,3 +442,48 @@ Body fixtures use named direction, framing, transport, scheduling and consumptio
 settings. Owned scan, borrowed scan and collection are exclusive choices. The
 shared input-window helper advances arrivals only when parsing needs more bytes;
 a paused runtime does not change the configured transport fragmentation.
+
+## End-to-end application endpoint profile
+
+```sh
+tools/dev endpoint-profile --seconds 10 --repetitions 3
+# Functional check of every endpoint/concurrency combination:
+tools/dev endpoint-profile --seconds 0.1 --repetitions 1
+```
+
+This local OCaml runner starts the Eio framework example with no database and
+measures one endpoint at a time over persistent HTTP/1.1 connections. It retains
+the example's routing, request IDs, security headers and CORS middleware. The
+default binary uses the ordinary development build; the report records that
+profile. A supplied `--binary` has external/unverified build provenance and must
+expose the same Eio/compiler/counter contract. This is an application workload,
+not a minimal codec or release-optimized framework comparison.
+
+| Endpoint | Request body | Response body / producer chunks |
+| --- | --- | --- |
+| GET /plaintext | Empty | 14-byte greeting |
+| GET /json | Empty | 27-byte JSON object, encoded per request |
+| POST /echo | 4096 bytes | Exact 4096-byte echo |
+| GET /small-stream | Empty | 4096 bytes in four 1024-byte sends |
+| GET /large-stream | Empty | 1 MiB in 128 8192-byte sends |
+
+Each configuration uses concurrency 1, 4 and 8, one second of untimed warm-up,
+then the requested repetitions. Payload contents and status are checked on every
+operation. The report under `_artifacts/framework/endpoints-*/report.json` records
+source, binary and workload hashes; lock metadata hash (full lock files also enter
+the source hash); compiler, OS/architecture and available domains; throughput;
+p50/p95/p99 histogram upper bounds; server allocated words/bytes per request,
+minor/major collection counts and CPU time/utilization; RSS, descriptor and
+connection observations; and final shutdown accounting. CPU utilization is a
+percentage of one core. Allocated words are `minor_words + major_words - promoted_words`,
+not an allocation-object count. Counter validation rejects decreases, invalid
+word size and nonfinite values.
+
+The test-only `/bench-stats` endpoint samples process counters without forcing GC.
+Counter intervals include boundary requests and connection setup/teardown, so
+allocation results have a small sampling overhead. Resource checks force GC only
+outside those intervals. The client and server share a host; client byte checking,
+thread scheduling, laptop load and GC can limit throughput. A short run is a
+functional check, not a statistical baseline. No automatic timing threshold is
+introduced. Release-profile runs, Lwt parity, richer hardware provenance, separate
+load hosts, slow-client matrices and external framework comparisons remain open.

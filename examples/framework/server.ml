@@ -53,6 +53,32 @@ let () =
                       App.reply (W.Reply.json (Metrics.snapshot metrics))
                     else text ~status:404 "Not found\n");
                 App.route Method.get "/health" (fun _ -> text "ok\n");
+                App.route Method.get "/bench-stats" (fun _ ->
+                    if testing then
+                      App.reply (W.Reply.json (Metrics.counters ()))
+                    else text ~status:404 "Not found\n");
+                App.route Method.get "/plaintext" (fun _ ->
+                    text "Hello, world!\n");
+                App.route Method.get "/json" (fun _ ->
+                    App.reply
+                      (W.Reply.json
+                         (`Assoc [ ("message", `String "Hello, world!") ])));
+                App.route Method.post "/echo" (fun request ->
+                    App.reply
+                      (W.Reply.make
+                         ~headers:
+                           [ ("content-type", "application/octet-stream") ]
+                         (App.body request)));
+                App.route Method.get "/small-stream" (fun _ ->
+                    App.stream (fun send ->
+                        for _ = 1 to 4 do
+                          send (String.make 1024 's')
+                        done));
+                App.route Method.get "/large-stream" (fun _ ->
+                    App.stream (fun send ->
+                        for _ = 1 to 128 do
+                          send (String.make 8192 'x')
+                        done));
                 App.route Method.get "/" (fun _ ->
                     App.reply
                       (W.Reply.html
@@ -193,7 +219,8 @@ let () =
               App.serve ~clock ~random ~stop
                 ~accept:(fun () ->
                   let flow, peer = Eio.Net.accept ~sw socket in
-                  ( Metrics.transport metrics (Httpkit_transport_eio.of_flow flow),
+                  ( Metrics.transport metrics
+                      (Httpkit_transport_eio.of_flow flow),
                     Format.asprintf "%a" Eio.Net.Sockaddr.pp peer ))
                 ~on_error:(fun exn ->
                   Metrics.error metrics exn;

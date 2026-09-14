@@ -117,6 +117,24 @@ let recv_frame c =
 
 let exercise app =
   with_connection app.port (fun c ->
+      List.iter
+        (fun (meth, path, body, expected) ->
+          let response = request ~body ~connection:c app meth path in
+          require
+            (response.status = 200 && response.body = expected)
+            ("Benchmark endpoint bytes: " ^ path))
+        [
+          ("GET", "/plaintext", "", "Hello, world!\n");
+          ("GET", "/json", "", {|{"message":"Hello, world!"}|});
+          ( "POST",
+            "/echo",
+            "binarylet exercise app =00body",
+            "binarylet exercise app =00body" );
+          ("GET", "/small-stream", "", String.make 4096 's');
+          ("GET", "/large-stream", "", String.make 1048576 'x');
+        ]);
+
+  with_connection app.port (fun c ->
       let ids = ref [] in
       for _ = 1 to 10 do
         let r = request ~connection:c app "GET" "/health" in

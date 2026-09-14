@@ -17,10 +17,10 @@ let () =
         print_endline
           "httpkit developer tools: validate, consumer, framework-test, \
            routing-test, databases, coverage, mutations, interop, performance, \
-           bench, profile-bodies, framework-load, personal-load, \
-           framework-validate, personal-validate, fuzz, fuzz-smoke, \
-           triage-timeout, release, selftest, protocol-spikes, fingerprint, \
-           packages"
+           bench, profile-bodies, endpoint-profile, framework-load, \
+           personal-load, framework-validate, personal-validate, fuzz, \
+           fuzz-smoke, triage-timeout, release, selftest, protocol-spikes, \
+           fingerprint, packages"
     | [ "validate" ]
     | [ "validate"; "5.5.0" ]
     | [ "evidence"; "validate"; "5.5.0" ] ->
@@ -66,6 +66,11 @@ let () =
             [ "--mode"; "--seconds"; "--epoch-seconds"; "--rate"; "--binary" ]
           ~flags:[] args;
         Personal.main args
+    | "endpoint-profile" :: args ->
+        Common.validate_options
+          ~values:[ "--seconds"; "--repetitions"; "--binary" ]
+          ~flags:[] args;
+        Endpoint_profile.main args
     | "framework-load" :: args ->
         Common.validate_options
           ~values:[ "--mode"; "--seconds"; "--binary"; "--database" ]

@@ -50,3 +50,18 @@ let snapshot t =
       ("live_words", `Int gc.live_words);
       ("heap_words", `Int gc.heap_words);
     ]
+
+(* Sampling does not force GC; process counters include the small sampling cost. *)
+let counters () =
+  let gc = Gc.quick_stat () and cpu = Unix.times () in
+  `Assoc
+    [
+      ("ocaml_version", `String Sys.ocaml_version);
+      ("runtime", `String "eio");
+      ( "allocated_words",
+        `Float (gc.minor_words +. gc.major_words -. gc.promoted_words) );
+      ("word_bytes", `Int (Sys.word_size / 8));
+      ("minor_collections", `Int gc.minor_collections);
+      ("major_collections", `Int gc.major_collections);
+      ("cpu_seconds", `Float (cpu.tms_utime +. cpu.tms_stime));
+    ]

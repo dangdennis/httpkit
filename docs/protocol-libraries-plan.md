@@ -118,8 +118,14 @@ Completed slices (relevant local regression evidence is retained under
   suspended; handler, stream and external-cancellation schedules are covered.
   Nonterminating cleanup and remaining fault interleavings stay explicit limits.
 
-Next: broader local limits and application-resource schedules, followed by
-source-matched endpoint profiling. CI work remains deferred.
+- The local Eio endpoint profiler now measures the five fixed HTTP workloads
+  separately at concurrency 1/4/8 with repetitions, warm-up, payload verification,
+  CPU/allocation/GC counters, latency upper bounds and cleanup observations.
+  Reports retain source/binary/workload identity and build-profile limits. This
+  is the first application matrix, not release thresholds or Lwt parity.
+
+Next: broader local limits and application-resource schedules; release-profile
+and Lwt benchmark parity remain open. CI work remains deferred.
 
 ## P0 — required before production confidence
 

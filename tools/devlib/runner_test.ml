@@ -41,7 +41,58 @@ let resources () =
   print_endline
     "PASS resource controls reject leaks, missing observations and RSS growth"
 
+let endpoint_counters () =
+  let before =
+    `Assoc
+      [
+        ("allocated_words", `Float 100.);
+        ("word_bytes", `Int 8);
+        ("cpu_seconds", `Float 1.);
+        ("minor_collections", `Int 2);
+        ("major_collections", `Int 1);
+      ]
+  in
+  let after =
+    `Assoc
+      [
+        ("allocated_words", `Float 116.);
+        ("word_bytes", `Int 8);
+        ("cpu_seconds", `Float 1.5);
+        ("minor_collections", `Int 3);
+        ("major_collections", `Int 1);
+      ]
+  in
+  let result =
+    Endpoint_profile.summary ~operations:4 ~seconds:2. before after
+  in
+  require
+    (field "allocated_bytes_per_request" result = `Float 32.
+    && field "cpu_percent_one_core" result = `Float 25.
+    && field "minor_collections" result = `Float 1.)
+    "Endpoint counter units";
+  let reject f =
+    require (Selftest.rejects f) "Invalid endpoint counters accepted"
+  in
+  List.iter
+    (fun (key, value) ->
+      reject (fun () ->
+          ignore
+            (Endpoint_profile.summary ~operations:4 ~seconds:2. before
+               (Benchmarks.setj key value after))))
+    [
+      ("allocated_words", `Float 99.);
+      ("cpu_seconds", `Float nan);
+      ("minor_collections", `Int 1);
+      ("word_bytes", `Int 4);
+    ];
+  reject (fun () ->
+      ignore (Endpoint_profile.summary ~operations:0 ~seconds:2. before after));
+  reject (fun () ->
+      ignore (Endpoint_profile.summary ~operations:4 ~seconds:0. before after));
+  print_endline "PASS endpoint profile units and invalid counter rejection"
+
 let coordinator () =
+  endpoint_counters ();
   resources ();
   let steps = Validate.personal_steps ~long:true ~skip_afl:true in
   require (List.length steps = 8) "Missing non-AFL steps";
