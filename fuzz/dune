@@ -13,7 +13,7 @@
 (executable
  (name http1_fuzz)
  (modules http1_fuzz)
- (libraries httpkit-core httpkit-http1 crowbar)
+ (libraries http1_conformance httpkit-core httpkit-http1 crowbar)
  (modes exe))
 
 (executable (name engine_fuzz) (modules engine_fuzz) (libraries engine_scenarios crowbar) (modes exe))
@@ -21,3 +21,12 @@
 (executable (name release_fuzz) (modules release_fuzz) (libraries httpkit-core httpkit-engine crowbar) (modes exe))
 
 (executable (name adapter_fuzz) (modules adapter_fuzz) (libraries httpkit-core httpkit-engine httpkit-transport-eio httpkit-transport-lwt eio.mock lwt.unix crowbar) (modes exe))
+
+; Deterministic OCaml PR smoke; no AFL process or instrumentation is required.
+(rule
+ (alias runtest)
+ (action
+  (progn
+   (setenv HTTP_KIT_FUZZ_CASE request (run ./http1_fuzz.exe -r 200 -s 42))
+   (setenv HTTP_KIT_FUZZ_CASE response (run ./http1_fuzz.exe -r 200 -s 42))
+   (setenv HTTP_KIT_FUZZ_CASE chunked (run ./http1_fuzz.exe -r 200 -s 42)))))

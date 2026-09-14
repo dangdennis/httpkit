@@ -76,7 +76,11 @@ regression evidence under `_artifacts/production-slices`):
 - Connection reuse across segmentation, normal/discard bodies, partial output
   acknowledgements and early rejection (`test/engine/reuse_test.ml`).
 
-Next: deepen the existing OCaml parser fuzz checks, then lifecycle cancellation.
+- Existing parser fuzz target now shares real-EOF/progress/terminal-error controls,
+  random segmentation and grammar-aware chunk/trailer inputs. `dune runtest` adds
+  seeded OCaml smoke for request/response/chunked, without invoking AFL.
+
+Next: lifecycle cancellation and resource ownership.
 
 ## P0 — required before production confidence
 

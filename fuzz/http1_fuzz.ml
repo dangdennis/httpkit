@@ -1,22 +1,27 @@
 open Httpkit_http1
 open Httpkit_core
+module Segmentation = Segmentation_support
 
 let parse role wire step =
-  let d = head_decoder role in
-  let rec loop off =
-    let len = min step (String.length wire - off) in
-    match feed_head d wire ~off ~len with
-    | Error e -> Error e
-    | Ok (n, Some meta) -> Ok (off + n, meta)
-    | Ok (0, None) -> Error Unexpected_eof
-    | Ok (n, None) -> loop (off + n)
+  let cuts =
+    if step = 1 then List.init (String.length wire) (( + ) 1)
+    else [ String.length wire ]
   in
-  loop 0
+  Segmentation.head ~step:16384 role wire cuts
+
+let variants run wire expected =
+  List.iter
+    (fun seed ->
+      Crowbar.check
+        (run ~step:7 (Segmentation.random_cuts (String.length wire) seed)
+        = expected))
+    [ 0; 17 ]
 
 let check_head role wire =
   let whole = parse role wire max_int in
   let fragmented = parse role wire 1 in
   Crowbar.check (whole = fragmented);
+  variants (fun ~step cuts -> Segmentation.head ~step role wire cuts) wire whole;
   match whole with
   | Error _ -> ()
   | Ok (_, meta) -> (
@@ -53,21 +58,18 @@ let chunk_meta =
   snd (Result.get_ok (encode_request r))
 
 let chunks wire step =
-  let d = body_decoder chunk_meta in
-  let rec loop off data trailers count =
-    Crowbar.check (count <= (2 * String.length wire) + 4);
-    match feed_body d wire ~off ~len:(min step (String.length wire - off)) with
-    | Error e -> Error e
-    | Ok (n, Some End) ->
-        Ok (off + n, String.concat "" (List.rev data), trailers)
-    | Ok (n, Some (Data bytes)) ->
-        loop (off + n) (bytes :: data) trailers (count + 1)
-    | Ok (n, Some (Trailers hs)) ->
-        loop (off + n) data (Headers.to_list hs) (count + 1)
-    | Ok (0, None) -> Error Unexpected_eof
-    | Ok (n, None) -> loop (off + n) data trailers (count + 1)
+  let cuts =
+    if step = 1 then List.init (String.length wire) (( + ) 1)
+    else [ String.length wire ]
   in
-  loop 0 [] [] 0
+  Segmentation.body ~step:16384 chunk_meta wire cuts
+
+let check_chunks wire =
+  let whole = chunks wire max_int in
+  Crowbar.check (whole = chunks wire 1);
+  variants
+    (fun ~step cuts -> Segmentation.body ~step chunk_meta wire cuts)
+    wire whole
 
 let bounded f bytes = if String.length bytes <= 65536 then f bytes
 
@@ -102,4 +104,12 @@ let () =
       check_head (Response Method.get)
         "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc");
   add "chunked" (fun wire ->
-      Crowbar.check (chunks wire max_int = chunks wire 1))
+      check_chunks wire;
+      (* Make body, terminator and trailer states reachable even when arbitrary
+         bytes fail in the first chunk-size line. Empty payload has no data chunk. *)
+      let payload = String.sub wire 0 (min 128 (String.length wire)) in
+      let data =
+        if payload = "" then ""
+        else Printf.sprintf "%x;flag\r\n%s\r\n" (String.length payload) payload
+      in
+      check_chunks (data ^ "0\r\ndigest: generated\r\n\r\n"))

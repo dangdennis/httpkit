@@ -20,22 +20,23 @@ let window boundaries length =
     in
     skip ()
 
-let schedules length =
-  let random seed =
-    let state = Random.State.make [| seed; length |] in
-    let rec loop pos acc =
-      if pos = length then List.rev acc
-      else
-        let next = min length (pos + 1 + Random.State.int state 19) in
-        loop next (next :: acc)
-    in
-    loop 0 []
+let random_cuts length seed =
+  let state = Random.State.make [| seed; length |] in
+  let rec loop pos acc =
+    if pos = length then List.rev acc
+    else
+      let next = min length (pos + 1 + Random.State.int state 19) in
+      loop next (next :: acc)
   in
+  loop 0 []
+
+let schedules length =
   ("whole", [ length ])
   :: ("bytes", List.init length (( + ) 1))
   :: (List.init (length + 1) (fun split ->
           ("split-" ^ string_of_int split, [ split; length ]))
-     @ List.init 8 (fun seed -> ("seed-" ^ string_of_int seed, random seed)))
+     @ List.init 8 (fun seed ->
+         ("seed-" ^ string_of_int seed, random_cuts length seed)))
 
 let head ~step role wire cuts =
   let decoder = head_decoder ~limits:(ok (limits ~step ())) role in

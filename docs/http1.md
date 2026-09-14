@@ -36,7 +36,7 @@ Body encoders enforce exact fixed length, chunk framing, declared trailers, and 
 
 `test/http1` contains golden syntax/framing cases, all single split points for golden heads and selected bodies, EOF prefixes, malformed framing followed by a marker request, exact quotas, encoder misuse, and a generated fixed-body fragmentation property. The public installed consumer runs in bytecode and native modes; the independent http/af response parser checks the emitted chunked response and duplicate Set-Cookie order.
 
-`fuzz/http1_fuzz.ml` checks one-byte versus whole-input request/response/chunked behavior. Accepted heads are re-encoded and decoded. The smoke runner uses valid seeds, preserves findings, and replays queue entries without instrumentation. `bench/http1_bench.ml` measures head time/allocation at geometric field sizes with one-byte and whole-buffer delivery. Stable-runner thresholds, reference disagreements beyond this initial lane, and long release campaigns remain later gates.
+`fuzz/http1_fuzz.ml` shares the conformance progress/terminal-error/real-EOF controls and checks whole, bytewise and random multi-split request/response/chunked behavior. Accepted heads are re-encoded and decoded. The smoke runner uses valid seeds, preserves findings, and replays queue entries without instrumentation. `bench/http1_bench.ml` measures head time/allocation at geometric field sizes with one-byte and whole-buffer delivery. Stable-runner thresholds, reference disagreements beyond this initial lane, and long release campaigns remain later gates.
 
 Head scanning is linear in input bytes. Connection/trailer token validation uses
 a deterministic balanced set rather than repeated list scans. For C Connection
@@ -77,3 +77,15 @@ It checks explicit strict-policy expectations, encoder/decoder parity, exact
 head suffixes and bodylessness under every segmentation schedule. A close-framed
 response consumes request-looking bytes as payload until real EOF; empty input
 alone is not EOF. Tunnel metadata does not authorize HTTP parsing of tunnel bytes.
+
+The `fuzz` runtest alias runs 200 seeded OCaml quickcheck rounds per parser target.
+For a larger reproducible local run (still not a release-duration campaign):
+
+```sh
+tools/dune-pkg exec -- fuzz/http1_fuzz.exe -r 5000 -s 42
+```
+
+Existing Crowbar corpus files and selectors remain replay-compatible. Grammar-aware
+chunk companions reach payload, extension, terminator and declared trailer states.
+Failures must retain their original seed/corpus before shrinking; a passing smoke
+run does not establish long-campaign coverage or total memory bounds.
