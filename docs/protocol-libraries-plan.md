@@ -4,6 +4,9 @@ Status: proposed implementation plan, 2026-09-13. Baseline: `c47c624` on `main`.
 No new protocol support is implemented by this document. Estimates below are
 engineering effort, not delivery promises or evidence of security.
 
+Implementation has started with the private [Phase 0 experiments](protocol-foundations.md).
+That status page records measured results and unresolved dependency gates.
+
 ## Outcome and constraints
 
 Deliver independently usable HTTP semantics, compression, TLS integration,

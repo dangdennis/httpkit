@@ -1,0 +1,3 @@
+(library
+ (name closeable_zlib)
+ (libraries bytesrw.zlib))

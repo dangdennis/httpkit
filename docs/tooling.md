@@ -14,6 +14,7 @@ fuzzer remain external executables.
 | --- | --- |
 | Build, docs, regressions and installed consumers | `tools/dev validate` |
 | Tooling unit controls | `tools/dev selftest` |
+| Protocol dependency experiments (not production acceptance) | `tools/dev protocol-spikes` |
 | Benchmark report controls | `tools/dev bench-test` |
 | Benchmark preflight/selection | `tools/dev bench-selection-test` |
 | Coordinator/resource controls | `tools/dev coordinator-test` |

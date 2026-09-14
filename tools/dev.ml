@@ -19,7 +19,8 @@ let () =
            routing-test, databases, coverage, mutations, interop, performance, \
            bench, profile-bodies, framework-load, personal-load, \
            framework-validate, personal-validate, fuzz, fuzz-smoke, \
-           triage-timeout, release, selftest, fingerprint, packages"
+           triage-timeout, release, selftest, protocol-spikes, fingerprint, \
+           packages"
     | [ "validate" ]
     | [ "validate"; "5.5.0" ]
     | [ "evidence"; "validate"; "5.5.0" ] ->
@@ -33,6 +34,7 @@ let () =
           args;
         Validate.acceptance "personal" args
     | [ "runner-test" ] -> Runner_test.cleanup ()
+    | [ "protocol-spikes" ] -> Protocol_spikes.main ()
     | [ "coordinator-test" ] -> Runner_test.coordinator ()
     | [ "coordinator-fixture"; code; directory ] ->
         ignore
