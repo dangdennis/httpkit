@@ -506,3 +506,18 @@ cost is visible alongside server counters. This replaced a byte-at-a-time header
 read path that took 97 read syscalls for two tiny responses. Source/workload
 identity must be checked when comparing historical reports: changing the load
 client can change measured throughput without changing httpkit's server code.
+
+## WebSocket segmented-input allocation control
+
+`test/web/websocket_buffer_test.ml` measures cumulative GC allocation, excluding
+fixture construction, for complete, fragmented, one-byte and coalesced inputs.
+Fourfold input growth must stay below a deliberately broad eightfold allocation
+bound (plus100KB). This detects algorithmic copying without timing thresholds.
+
+The initial native5.5.0 run measured4KiB/16KiB byte-by-byte frames at8.68MB/135.40MB
+allocated (15.59x), and1024/4096 coalesced empty Ping frames at3.31MB/50.99MB
+(15.40x). Appending to a buffer, parsing with a cursor and compacting once after
+consumed frames reduced those pairs to0.55MB/2.21MB (3.99x) and0.20MB/0.79MB
+(3.98x). Values are decimal bytes allocated, not RSS, retained heap or end-to-end
+throughput. Error/close resets release expanded buffers; ordinary open connections
+may retain bounded buffer capacity for reuse. WebSocket remains experimental.

@@ -13,7 +13,11 @@ type t
 val server : ?max_frame:int -> ?max_message:int -> unit -> t
 
 val feed : t -> string -> (event list, string) result
-(** At most 64 KiB per call. Protocol failure is terminal. *)
+(** At most 64 KiB per call. Incomplete frames are buffered within the
+    configured frame limit plus one input chunk and framing overhead. Buffer
+    capacity may round up geometrically; message assembly has its separate
+    message limit. Protocol failure is terminal and releases accumulated
+    buffers. *)
 
 val eof : t -> (unit, string) result
 

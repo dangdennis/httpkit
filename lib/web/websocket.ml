@@ -10,7 +10,7 @@ type event =
 type t = {
   max_frame : int;
   max_message : int;
-  mutable pending : string;
+  pending : Buffer.t;
   message : Buffer.t;
   mutable opcode : int option;
   mutable closed : bool;
@@ -41,7 +41,7 @@ let server ?(max_frame = 1048576) ?(max_message = 4194304) () =
   {
     max_frame;
     max_message;
-    pending = "";
+    pending = Buffer.create 256;
     message = Buffer.create 256;
     opcode = None;
     closed = false;
@@ -55,7 +55,7 @@ let frame_event t op fin payload =
     | 8 ->
         let event = close_payload payload in
         t.closed <- true;
-        Buffer.clear t.message;
+        Buffer.reset t.message;
         t.opcode <- None;
         Some event
     | 9 -> Some (Ping payload)
@@ -89,13 +89,15 @@ let feed t chunk =
     try
       if String.length chunk > 65536 then fail "input chunk limit";
       if t.closed && chunk <> "" then fail "data after close";
-      t.pending <- t.pending ^ chunk;
-      let rec parse acc =
-        let s = t.pending in
-        if t.closed && s <> "" then fail "data after close"
-        else if String.length s < 2 then List.rev acc
+      Buffer.add_string t.pending chunk;
+      let size = Buffer.length t.pending in
+      let rec parse offset acc =
+        let remaining = size - offset in
+        let byte i = Char.code (Buffer.nth t.pending (offset + i)) in
+        if t.closed && remaining <> 0 then fail "data after close"
+        else if remaining < 2 then (offset, List.rev acc)
         else
-          let a = Char.code s.[0] and b = Char.code s.[1] in
+          let a = byte 0 and b = byte 1 in
           let fin = a land 128 <> 0 and op = a land 15 and small = b land 127 in
           if
             a land 112 <> 0
@@ -103,14 +105,14 @@ let feed t chunk =
             || not (List.mem op [ 0; 1; 2; 8; 9; 10 ])
           then fail "frame flags";
           let ext = if small = 126 then 2 else if small = 127 then 8 else 0 in
-          if String.length s < 2 + ext then List.rev acc
+          if remaining < 2 + ext then (offset, List.rev acc)
           else
             let length = ref (Int64.of_int (if ext = 0 then small else 0)) in
             for i = 0 to ext - 1 do
               length :=
                 Int64.logor
                   (Int64.shift_left !length 8)
-                  (Int64.of_int (Char.code s.[2 + i]))
+                  (Int64.of_int (byte (2 + i)))
             done;
             if
               !length < 0L
@@ -121,32 +123,39 @@ let feed t chunk =
             if op >= 8 && ((not fin) || !length > 125L) then
               fail "control length";
             let n = Int64.to_int !length and start = 2 + ext + 4 in
-            if String.length s < start + n then List.rev acc
+            if remaining < start + n then (offset, List.rev acc)
             else
               let payload =
                 String.init n (fun i ->
-                    Char.chr
-                      (Char.code s.[start + i]
-                      lxor Char.code s.[2 + ext + (i mod 4)]))
+                    Char.chr (byte (start + i) lxor byte (2 + ext + (i mod 4))))
               in
-              t.pending <- String.sub s (start + n) (String.length s - start - n);
               let event = frame_event t op fin payload in
-              parse (match event with None -> acc | Some e -> e :: acc)
+              parse
+                (offset + start + n)
+                (match event with None -> acc | Some e -> e :: acc)
       in
-      Ok (parse [])
+      let consumed, events = parse 0 [] in
+      (* Keep incomplete frames in place; compact once after consumed frames,
+         rather than copying on every input byte or every decoded frame. *)
+      if consumed > 0 then (
+        let rest = Buffer.sub t.pending consumed (size - consumed) in
+        Buffer.clear t.pending;
+        Buffer.add_string t.pending rest);
+      if t.closed then Buffer.reset t.pending;
+      Ok events
     with Protocol e ->
       t.failed <- true;
-      t.pending <- "";
-      Buffer.clear t.message;
+      Buffer.reset t.pending;
+      Buffer.reset t.message;
       Error e
 
 let eof t =
   if t.failed then Error "websocket failed"
-  else if t.closed && t.pending = "" then Ok ()
+  else if t.closed && Buffer.length t.pending = 0 then Ok ()
   else (
     t.failed <- true;
-    t.pending <- "";
-    Buffer.clear t.message;
+    Buffer.reset t.pending;
+    Buffer.reset t.message;
     Error "abnormal websocket EOF")
 
 let encode event =

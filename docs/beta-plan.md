@@ -28,7 +28,7 @@ invented. Existing main commit/push authorization remains in effect.
 | Slice | Work | Exit condition / status |
 | --- | --- | --- |
 | 1 | Beta/production gates, policy and evidence manifests | Profile separation and rejection controls implemented; actual candidate campaign evidence remains pending |
-| 2 | Multipart controls and WebSocket allocation investigation | Multipart form-feed/header and content-type newline acceptance reproduced and fixed with segmented regressions; WebSocket profiling remains next |
+| 2 | Multipart controls and WebSocket allocation investigation | Multipart controls fixed; incremental/coalesced WebSocket quadratic copying reproduced and replaced with buffered parsing; segmented protocol and allocation regressions pass |
 | 3 | Feature security, lifecycle and ownership review | Every feature mapped to invariants/tests; historical timeout artifacts correctly classified; no untriaged supported-scope findings |
 | 4 | Queue/rejection/admission/shutdown diagnostics and API contracts | Accurate observations preserve backpressure and cleanup; safe installed examples and migration notes |
 | 5 | Checked/skipped native fuzz accounting, resumable campaigns, coverage/mutations | All 14 targets meet 30min/100000 checked/20 distinct seeds; fresh 95/85/80% point coverage and critical-path review |
