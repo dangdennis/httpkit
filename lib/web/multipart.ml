@@ -21,6 +21,7 @@ type t = {
 exception Invalid of string
 
 let invalid s = raise (Invalid s)
+let forbidden_control c = c <> '\t' && (Char.code c < 32 || Char.code c = 127)
 
 let quoted s =
   if String.length s >= 2 && s.[0] = '"' && s.[String.length s - 1] = '"' then (
@@ -42,6 +43,7 @@ let quoted s =
   else invalid "invalid parameter"
 
 let parameters raw =
+  if String.exists forbidden_control raw then invalid "parameter control";
   match String.split_on_char ';' raw with
   | [] -> invalid "missing media type"
   | kind :: rest ->
@@ -130,6 +132,8 @@ let emit_data t n =
 let parse_part raw =
   String.iteri
     (fun i c ->
+      if c <> '\r' && c <> '\n' && forbidden_control c then
+        invalid "part header control";
       if
         (c = '\n' && (i = 0 || raw.[i - 1] <> '\r'))
         || (c = '\r' && (i + 1 = String.length raw || raw.[i + 1] <> '\n'))

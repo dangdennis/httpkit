@@ -1,5 +1,7 @@
 (** Strict streaming multipart/form-data. No preamble or epilogue. [filename] is
-    metadata, never a filesystem path. Callback failure is terminal. *)
+    metadata, never a filesystem path. Header controls are rejected before
+    whitespace normalization; only SP/HTAB are optional value whitespace.
+    Callback failure is terminal. *)
 
 type part = {
   name : string;
