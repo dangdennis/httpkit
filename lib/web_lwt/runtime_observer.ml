@@ -78,6 +78,13 @@ let body_limit scope limit =
            { connection = s.connection; request = s.request; limit }))
     scope
 
+let output_queue scope =
+  Option.map
+    (fun s queued_bytes ->
+      emit s.owner
+        (O.Output_queue_changed { connection = s.connection; queued_bytes }))
+    scope
+
 let connection_failed scope exn =
   Option.iter
     (fun s ->

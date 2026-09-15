@@ -88,7 +88,7 @@ No exception messages or request contents are included.
 
 The production observation tests cover recovery, streams, application deadlines,
 every transport timeout phase, identity matching and enqueue-versus-drain behavior.
-Queue depth, dedicated WebSocket events and enabled-hook allocation budgets
+Dedicated WebSocket events and enabled-hook allocation budgets
 remain separate work. These events establish no
 production-readiness or peer-delivery claim.
 
@@ -117,3 +117,22 @@ Tests cover both body quotas, one/three-slot saturation, ordinary sink exception
 and a late-accept schedule with counts1→2→1→0. They require shutdown completion
 to remain absent while close is suspended. New event constructors require users
 with exhaustive matches to handle them when updating before API stabilization.
+
+## Output queue occupancy
+
+`Output_queue_changed` samples serialized bytes waiting in the HTTP engine after
+normal state changes, suppressing consecutive equal values. Both adapters also
+expose the optional `with_connection ~on_output_queue` hook for users below the
+application layer. Sampling precedes waking adapter waiters, so an observer sees
+the queue before a woken writer can drain it. The hook follows the same synchronous,
+nonblocking, ordinary-error-isolated contract as the application sink.
+
+This is a per-connection gauge, not total retained memory, a socket-buffer metric,
+or evidence of peer receipt. Failure and teardown bypass queue hooks to preserve
+cleanup and the original failure; no terminal zero event is guaranteed. Retire
+the gauge on `Connection_closed`, or when a direct adapter scope ends.
+
+Both-runtime controls cover queue growth, bounded values, duplicate suppression,
+partial-write drain, and positive occupancy when response production finishes
+before the writer is released. Sink cancellation during partial parsing must join
+cleanup and close exactly once without dispatching a handler.

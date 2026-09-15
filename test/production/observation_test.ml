@@ -6,6 +6,7 @@ type mode =
   | Normal
   | Sink_error
   | Sink_cancel
+  | Queue_sink_cancel
   | Close_failure
   | Write_failure
   | Invalid_write
@@ -98,6 +99,9 @@ let verify mode events read written closes handled =
   if mode = Sink_cancel then
     check "sink cancellation is preserved before handler"
       ((not handled) && read = 0 && written = 0)
+  else if mode = Queue_sink_cancel then
+    check "queue sink cancellation closes before dispatch"
+      ((not handled) && read > 0 && written = 0)
   else (
     check "handler ran" handled;
     check "request fully read" (read = String.length (wire mode));
@@ -129,7 +133,7 @@ let verify mode events read written closes handled =
       events
   in
   (match (starts, finishes) with
-  | [], [] when mode = Sink_cancel -> ()
+  | [], [] when mode = Sink_cancel || mode = Queue_sink_cancel -> ()
   | [ (c, r) ], [ (c', r', outcome, duration) ] -> (
       check "request scope identity" (c = 0L && c = c' && r = r');
       check "request duration"
@@ -173,7 +177,8 @@ let verify mode events read written closes handled =
       check "stream cancellation observed"
         (callbacks
         = [ (O.Handler, None); (O.Response_stream, Some O.Cancelled) ])
-  | Sink_cancel -> check "no callbacks before cancellation" (callbacks = [])
+  | Sink_cancel | Queue_sink_cancel ->
+      check "no callbacks before cancellation" (callbacks = [])
   | _ -> check "handler completion observed" (callbacks = [ (O.Handler, None) ]));
   let statuses =
     List.filter_map
@@ -195,8 +200,31 @@ let verify mode events read written closes handled =
   | _ -> check "no spurious body rejection" (rejected = []));
   if mode = Handler_error then
     check "recovered status is 500" (statuses = [ 500 ]);
-  if mode = Handler_timeout || mode = Sink_cancel then
-    check "no response status before headers" (statuses = [])
+  if mode = Handler_timeout || mode = Sink_cancel || mode = Queue_sink_cancel
+  then check "no response status before headers" (statuses = []);
+  let queues =
+    List.filter_map
+      (function
+        | O.Output_queue_changed x ->
+            check "queue identity and configured bound"
+              (x.connection = 0L && x.queued_bytes >= 0
+             && x.queued_bytes <= 32768);
+            Some x.queued_bytes
+        | _ -> None)
+      events
+  in
+  let rec distinct = function
+    | a :: (b :: _ as rest) -> a <> b && distinct rest
+    | _ -> true
+  in
+  check "unchanged queue samples suppressed" (distinct queues);
+  if
+    List.mem mode
+      [ Normal; Sink_error; Upgrade; Handler_error; Enqueued; Close_failure ]
+  then (
+    check "queue growth observed" (List.exists (( < ) 0) queues);
+    check "normal drain observed after acknowledgement"
+      (List.hd (List.rev queues) = 0))
 
 let eio mode =
   let request_timeout =
@@ -217,6 +245,7 @@ let eio mode =
       let close_seen = ref [] and output = Buffer.create 256 in
       let gate, release = Eio.Promise.create () in
       let enqueued_before_write = ref false in
+      let queued = ref 0 in
       let stop_once () =
         if not !stopped then (
           stopped := true;
@@ -252,14 +281,20 @@ let eio mode =
       let observe event =
         events := !events @ [ event ];
         (match event with
+        | O.Output_queue_changed x -> queued := x.queued_bytes
         | O.Request_finished _ when mode = Enqueued ->
-            enqueued_before_write := !written = 0;
+            enqueued_before_write := !written = 0 && !queued > 0;
             Eio.Promise.resolve release ()
         | _ -> ());
         (match event with
         | O.Connection_closed _ -> close_seen := !closes :: !close_seen
         | _ -> ());
         if mode = Sink_error then raise Sink_failed;
+        (if mode = Queue_sink_cancel then
+           match event with
+           | O.Output_queue_changed _ ->
+               raise (Eio.Cancel.Cancelled Sink_failed)
+           | _ -> ());
         if mode = Sink_cancel then
           match event with
           | O.Connection_accepted _ -> raise (Eio.Cancel.Cancelled Sink_failed)
@@ -297,7 +332,11 @@ let eio mode =
              else if mode = Stream_timeout then
                App.stream (fun _ -> Eio.Fiber.await_cancel ())
              else App.reply (Httpkit.Reply.text "ok"))
-       with Eio.Cancel.Cancelled _ when mode = Sink_cancel -> ());
+       with
+       | Eio.Cancel.Cancelled _
+       when mode = Sink_cancel || mode = Queue_sink_cancel
+       ->
+         ());
       check "close event follows actual close" (!close_seen = [ 1 ]);
       if mode = Enqueued then
         check "enqueue does not wait for transport drain" !enqueued_before_write;
@@ -321,6 +360,7 @@ let lwt mode =
   let close_seen = ref [] and output = Buffer.create 256 in
   let gate, release = Lwt.wait () in
   let enqueued_before_write = ref false in
+  let queued = ref 0 in
   let stop_once () =
     if not !stopped then (
       stopped := true;
@@ -359,14 +399,19 @@ let lwt mode =
   let observe event =
     events := !events @ [ event ];
     (match event with
+    | O.Output_queue_changed x -> queued := x.queued_bytes
     | O.Request_finished _ when mode = Enqueued ->
-        enqueued_before_write := !written = 0;
+        enqueued_before_write := !written = 0 && !queued > 0;
         Lwt.wakeup_later release ()
     | _ -> ());
     (match event with
     | O.Connection_closed _ -> close_seen := !closes :: !close_seen
     | _ -> ());
     if mode = Sink_error then raise Sink_failed;
+    (if mode = Queue_sink_cancel then
+       match event with
+       | O.Output_queue_changed _ -> raise Lwt.Canceled
+       | _ -> ());
     if mode = Sink_cancel then
       match event with O.Connection_accepted _ -> raise Lwt.Canceled | _ -> ()
   in
@@ -409,7 +454,8 @@ let lwt mode =
                  App.stream (fun _ -> fst (Lwt.task ()))
                else App.reply (Httpkit.Reply.text "ok"))))
     (function
-      | Lwt.Canceled when mode = Sink_cancel -> Lwt.return_unit
+      | Lwt.Canceled when mode = Sink_cancel || mode = Queue_sink_cancel ->
+          Lwt.return_unit
       | exn -> Lwt.fail exn)
   >|= fun () ->
   check "close event follows actual close" (!close_seen = [ 1 ]);
@@ -428,6 +474,7 @@ let () =
       Normal;
       Sink_error;
       Sink_cancel;
+      Queue_sink_cancel;
       Close_failure;
       Write_failure;
       Invalid_write;

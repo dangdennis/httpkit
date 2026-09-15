@@ -33,6 +33,7 @@ type connection
 
 val with_connection :
   ?policy:Timeout.policy ->
+  ?on_output_queue:(int -> unit) ->
   clock:_ Eio.Time.Mono.t ->
   transport ->
   Engine.t ->
@@ -41,7 +42,12 @@ val with_connection :
 (** Runs the callback with concurrent bounded input/output. On normal return,
     flushes accepted output before cancellation/cleanup. Exceptions/cancellation
     abort and close. A successfully claimed handoff transfers close ownership.
-*)
+    [on_output_queue] observes serialized queued bytes after normal engine state
+    changes, suppressing duplicate values. The callback is synchronous: do not
+    block, yield, or mutate the connection/engine. Ordinary exceptions are
+    ignored; cancellation propagates. Failure/teardown bypass callbacks so they
+    cannot interrupt cleanup; retire the gauge when the connection scope ends.
+    The callback does not establish peer receipt or total buffer memory. *)
 
 val next_event : connection -> Engine.event
 (** Complete means incoming completion, not outgoing drain. *)

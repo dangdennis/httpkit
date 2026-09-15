@@ -28,7 +28,8 @@ let check_events observed events capacity =
             && x.capacity = capacity)
       | O.Body_limit_rejected _ -> failwith "spurious body rejection"
       | O.Connection_failed _ | O.Request_started _ | O.Callback_finished _
-      | O.Response_headers_enqueued _ | O.Request_finished _ ->
+      | O.Response_headers_enqueued _ | O.Request_finished _
+      | O.Output_queue_changed _ ->
           ())
     events;
   check "observed scopes all retired" (!active = 0);

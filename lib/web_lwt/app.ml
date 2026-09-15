@@ -286,7 +286,9 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
           else
             Lwt.catch
               (fun () ->
-                A.with_connection ?policy ~clock transport (engine ()) (fun c ->
+                A.with_connection ?policy
+                  ?on_output_queue:(Runtime_observer.output_queue scope)
+                  ~clock transport (engine ()) (fun c ->
                     connections := (c, scope) :: !connections;
                     Lwt.finalize
                       (fun () ->

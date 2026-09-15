@@ -29,6 +29,7 @@ type event =
   | Shutdown_progress of { active_connections : int }
   | Shutdown_finished
   | Body_limit_rejected of { connection : int64; request : int64; limit : int }
+  | Output_queue_changed of { connection : int64; queued_bytes : int }
   | Connection_failed of { connection : int64; failure : failure }
   | Request_started of { connection : int64; request : int64 }
   | Callback_finished of {

@@ -60,16 +60,28 @@ type connection = {
   mutable ended : bool;
   mutable failure : failure option;
   mutable stopping : bool;
+  on_output_queue : (int -> unit) option;
+  mutable observed_output : int;
 }
 
-let signal c = Lwt_condition.broadcast c.changed ()
+let broadcast c = Lwt_condition.broadcast c.changed ()
+
+let signal c =
+  (match c.on_output_queue with
+  | None -> ()
+  | Some observe ->
+      let queued = Engine.queued_output_bytes c.engine in
+      if queued <> c.observed_output then (
+        c.observed_output <- queued;
+        try observe queued with Lwt.Canceled as exn -> raise exn | _ -> ()));
+  broadcast c
 
 (* Record a failure before waking waiters. Otherwise an aborted queue becoming
    empty can let a concurrent flush report success before the I/O error wins. *)
 let remember c failure =
   if c.failure = None then c.failure <- Some failure;
   Engine.abort c.engine Engine.Cancelled;
-  signal c
+  broadcast c
 
 let check_failure c =
   match c.failure with None -> () | Some failure -> raise (Error failure)
@@ -255,8 +267,8 @@ let write_loop c =
   in
   loop ()
 
-let with_connection ?(policy = Timeout.default) ?(clock = monotonic_clock)
-    transport engine f =
+let with_connection ?(policy = Timeout.default) ?on_output_queue
+    ?(clock = monotonic_clock) transport engine f =
   let c =
     {
       engine;
@@ -271,6 +283,8 @@ let with_connection ?(policy = Timeout.default) ?(clock = monotonic_clock)
       ended = false;
       failure = None;
       stopping = false;
+      on_output_queue;
+      observed_output = -1;
     }
   in
   let guard f =
@@ -310,7 +324,7 @@ let with_connection ?(policy = Timeout.default) ?(clock = monotonic_clock)
       (* A ready promise may already be delivering its callback when cancellation
          runs. The stop flag prevents that callback from opening another wait. *)
       c.stopping <- true;
-      signal c;
+      broadcast c;
       Lwt.cancel reader;
       Lwt.cancel writer;
       Lwt.cancel work;

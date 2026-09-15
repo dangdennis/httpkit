@@ -61,6 +61,11 @@ type event =
   | Body_limit_rejected of { connection : int64; request : int64; limit : int }
       (** Application read or collection quota, in bytes. Does not identify
           codec, multipart or other quotas, or promise an HTTP 413 response. *)
+  | Output_queue_changed of { connection : int64; queued_bytes : int }
+      (** Serialized engine output after normal queue changes. Aborts/teardown
+          bypass queue hooks; remove the connection's gauge on
+          [Connection_closed]. Does not measure total memory, socket buffering
+          or peer receipt. *)
   | Connection_failed of { connection : int64; failure : failure }
   | Request_started of { connection : int64; request : int64 }
   | Callback_finished of {

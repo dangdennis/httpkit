@@ -39,6 +39,7 @@ type connection
 
 val with_connection :
   ?policy:Timeout.policy ->
+  ?on_output_queue:(int -> unit) ->
   ?clock:clock ->
   transport ->
   Engine.t ->
@@ -46,7 +47,13 @@ val with_connection :
   'a Lwt.t
 (** Flushes accepted output on normal callback completion. Exceptions and
     cancellation abort and close. A successfully claimed handoff transfers close
-    ownership. Clock injection supports deterministic deadline tests. *)
+    ownership. Clock injection supports deterministic deadline tests.
+    [on_output_queue] observes serialized queued bytes after normal engine state
+    changes, suppressing duplicate values. The callback is synchronous: do not
+    block, yield, or mutate the connection/engine. Ordinary exceptions are
+    ignored; cancellation propagates. Failure/teardown bypass callbacks so they
+    cannot interrupt cleanup; retire the gauge when the connection scope ends.
+    The callback does not establish peer receipt or total buffer memory. *)
 
 val next_event : connection -> Engine.event Lwt.t
 (** Complete means incoming completion, not outgoing drain. *)

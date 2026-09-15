@@ -61,16 +61,30 @@ type connection = {
   mutable claimed : bool;
   mutable ended : bool;
   mutable failure : failure option;
+  on_output_queue : (int -> unit) option;
+  mutable observed_output : int;
 }
 
-let signal c = Eio.Condition.broadcast c.changed
+let broadcast c = Eio.Condition.broadcast c.changed
+
+let signal c =
+  (match c.on_output_queue with
+  | None -> ()
+  | Some observe ->
+      let queued = Engine.queued_output_bytes c.engine in
+      if queued <> c.observed_output then (
+        c.observed_output <- queued;
+        try observe queued with
+        | Eio.Cancel.Cancelled _ as exn -> raise exn
+        | _ -> ()));
+  broadcast c
 
 (* Record a failure before waking waiters. Otherwise an aborted queue becoming
    empty can let a concurrent flush report success before the I/O error wins. *)
 let remember c failure =
   if c.failure = None then c.failure <- Some failure;
   Engine.abort c.engine Engine.Cancelled;
-  signal c
+  broadcast c
 
 let check_failure c =
   match c.failure with None -> () | Some failure -> raise (Error failure)
@@ -239,7 +253,8 @@ let write_loop c =
   in
   loop ()
 
-let with_connection ?(policy = Timeout.default) ~clock transport engine f =
+let with_connection ?(policy = Timeout.default) ?on_output_queue ~clock
+    transport engine f =
   let c =
     {
       engine;
@@ -256,6 +271,8 @@ let with_connection ?(policy = Timeout.default) ~clock transport engine f =
       claimed = false;
       ended = false;
       failure = None;
+      on_output_queue;
+      observed_output = -1;
     }
   in
   let guard f =
