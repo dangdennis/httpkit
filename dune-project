@@ -1,5 +1,8 @@
 (lang dune 3.24)
 (name httpkit)
+(version 0.1.0~beta1)
+(license MIT)
+(source (github dangdennis/httpkit))
 (generate_opam_files true)
 (maintainers "httpkit maintainers")
 (authors "httpkit maintainers")

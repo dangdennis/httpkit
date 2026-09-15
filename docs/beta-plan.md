@@ -19,9 +19,10 @@ Existing constructor defaults remain unchanged; this is an opt-in tested profile
 Fix measured pathological behavior and capacity failures before broader tuning.
 
 Two owner checkpoints remain: approve an exact hosted staging resource/cost plan
-before creating paid resources; approve the prepared public release before
-changing repository visibility or publishing. No external-review approval is
-invented. Existing main commit/push authorization remains in effect.
+before creating paid resources; approve the prepared beta before publishing a
+release. The repository is already public (verified 2026-09-15); no visibility
+change is planned. No external-review approval is invented. Existing main
+commit/push authorization remains in effect.
 
 ## Ordered slices and exit conditions
 
@@ -34,7 +35,7 @@ invented. Existing main commit/push authorization remains in effect.
 | 5 | Checked/skipped native fuzz accounting, resumable campaigns, coverage/mutations | Accounting, length-boundary generators and identity-checked resumable runner implemented; actual14-target30min/100000-checked/20-seed campaigns and fresh95/85/80% coverage remain pending |
 | 6 | Capacity, slow-client/overload stress, allocation profiles | Opt-in64-connection endpoint profile,1/16/64-slot admission/backlog, incomplete-input, blocked-output and unread/consumed-body isolation runners implemented; sustained bounded-capacity proof, stable profiles, SQLite30min/PostgreSQL2h and idle/slow/overload30min campaigns pending |
 | 7 | Reproducible local platforms and approved hosted staging | [Local Linux/macOS recipe](local-validation.md) implemented; Linux x86_64/posix validation and actual direct-edge contract/lifecycle evidence remain acceptance work; hosted campaign requires cost approval |
-| 8 | MIT/notices, dependency inventory, private reporting, archive/pin installs and release notes | Exact beta candidate passes gates and is prepared for owner publication review |
+| 8 | MIT/notices, dependency inventory, private reporting, archive/pin installs and release notes | MIT and beta package metadata prepared; private reporting enabled and verified; complete dependency/notices review, archive/pin installs, release notes and owner publication review pending |
 
 For every substantial change: identify invariant/test, implement smallest fix,
 run narrow then relevant regression suites, inspect security/performance effects,

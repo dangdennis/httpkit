@@ -10,9 +10,14 @@ Public publication requires the owner's final review of the prepared release.
 
 ## Reporting privately
 
-This repository is currently private. Collaborators can report a suspected vulnerability in a private repository issue, addressed to the repository owner, `@dangdennis`. Keep exploit details and reproducing inputs inside the private repository. Access to that issue follows repository access permissions; it is not a separate security team inbox.
+This repository is public. GitHub private vulnerability reporting is enabled
+(verified 2026-09-15). Use [Report a vulnerability](https://github.com/dangdennis/httpkit/security/advisories/new)
+to report privately to the maintainers. Do not put exploit details, reproducing
+inputs or credentials in a public issue.
 
-Before making the repository or a release public, the owner must configure and verify GitHub private vulnerability reporting or provide another private contact. That verification is an explicit release gate. The current repository does not provide a verified public reporter channel, and this document does not invent an email address or promise a response SLA.
+Reporting requires a GitHub account. The channel's enabled state has been verified;
+no test vulnerability report was submitted. This policy does not promise a response
+SLA. Recheck channel availability when preparing a release.
 
 Include the affected revision, package/runtime/compiler, a minimal request or schedule, expected versus actual behavior, relevant limits, and whether the issue affects framing, ownership, cancellation, confidentiality, or availability. Use synthetic data and remove credentials and personal information. Raw request bodies should be attached as files when text formatting would alter bytes.
 
