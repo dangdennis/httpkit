@@ -67,6 +67,19 @@ let descriptors pid =
              (String.sub s 1 (String.length s - 1)))
     |> List.length
 
+let process_resources pid row =
+  `Assoc
+    (assoc row
+    @ [
+        ( "rss_kib",
+          `Int
+            (int_of_string
+               (String.trim
+                  (Process.output ~timeout:5.
+                     [ "ps"; "-o"; "rss="; "-p"; string_of_int pid ]))) );
+        ("descriptors", `Int (descriptors pid));
+      ])
+
 let resources ?(capacity = 16) port pid persistent =
   let deadline = monotonic () +. 10. in
   let rec await () =
@@ -86,17 +99,7 @@ let resources ?(capacity = 16) port pid persistent =
     && int (field "opened" row)
        = int (field "closed" row) + int (field "active" row))
     "Application ownership/admission errors";
-  `Assoc
-    (assoc row
-    @ [
-        ( "rss_kib",
-          `Int
-            (int_of_string
-               (String.trim
-                  (Process.output ~timeout:5.
-                     [ "ps"; "-o"; "rss="; "-p"; string_of_int pid ]))) );
-        ("descriptors", `Int (descriptors pid));
-      ])
+  process_resources pid row
 
 let check_resources ?(rss_limit_kib = 262144) rows =
   require (rss_limit_kib > 0) "Invalid RSS limit";

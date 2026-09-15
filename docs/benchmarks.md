@@ -526,6 +526,42 @@ read path that took 97 read syscalls for two tiny responses. Source/workload
 identity must be checked when comparing historical reports: changing the load
 client can change measured throughput without changing httpkit's server code.
 
+## Admission and TCP backlog controls
+
+`tools/dev capacity-stress` runs one cycle at each of1,16,64 application slots.
+Use `--capacities 1,64` to select capacities, or `--seconds 60` to repeat cycles
+for at least60 seconds **per capacity**, finishing the last cycle. The maximum is
+3600 seconds per capacity; zero means one cycle. This is local validation, with
+no hosted CI dependency.
+
+Each cycle fills every application slot with a confirmed keep-alive request,
+then makes enough concurrent TCP attempts to reach128 total attempts. TCP may
+connect into the kernel backlog without acquiring an application slot. The runner
+requires no additional HTTP response or transport admission while all slots are
+held, then closes one held connection and requires exactly one queued request to
+complete within5 seconds. It records established, refused, reset and timed-out
+attempts separately; it does not call kernel queuing an application rejection.
+Connect attempts have a750ms deadline. Timing is a generous liveness control,
+not a throughput or latency baseline.
+
+One server remains alive for all cycles at a capacity. Statistics are sampled
+over a held connection during saturation, avoiding an extra admission slot.
+The runner checks512MiB sampled RSS, connection accounting, admitted descriptor
+bounds, idle descriptor return within2 of baseline, and the existing warmed
+32MiB RSS/1MiB live-heap growth controls. Shutdown requires every admitted
+connection closed and zero unexpected errors. All started client workers are
+joined and their sockets closed on failure too.
+
+Reports under `_artifacts/framework/capacity-*/` retain per-cycle observations,
+source/binary identities, platform, capacity, timing and final cleanup counts.
+The development-profile server clears inherited instrumentation/runtime tuning;
+the report flags inherited load-client tuning. RSS is sampled, not a continuous
+peak measurement. A one-cycle smoke cannot establish warmed memory stability.
+These controls cover admission, idle keep-alive and backlog handoff. Slow headers,
+stalled/unread bodies, blocked readers, disconnect and shutdown stress at all
+capacities and the final frozen-candidate campaigns remain separate requirements.
+`PASS` here never marks a release ready.
+
 ## WebSocket segmented-input allocation control
 
 `test/web/websocket_buffer_test.ml` measures cumulative GC allocation, excluding

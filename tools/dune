@@ -26,6 +26,11 @@
  (libraries devlib))
 
 (test
+ (name capacity_test)
+ (modules capacity_test)
+ (libraries devlib))
+
+(test
  (name native_campaign_test)
  (modules native_campaign_test)
  (libraries devlib))
