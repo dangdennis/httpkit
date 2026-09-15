@@ -18,6 +18,14 @@ module Queries = struct
     static
       T.(int -->! int)
       "SELECT COUNT(*)::integer FROM pg_stat_activity WHERE pid=?"
+
+  let sleep = static T.(unit -->! int) "SELECT 1 FROM pg_sleep(3)"
+
+  let sleeping =
+    static
+      T.(int -->! int)
+      "SELECT COUNT(*)::integer FROM pg_stat_activity WHERE pid=? AND \
+       wait_event='PgSleep'"
 end
 
 let ok = Caqti_eio.or_fail
@@ -168,6 +176,31 @@ let backend_faults ~sw ~stdenv ~clock uri =
                   | () -> failwith "lost transaction query error became success"
                   | exception (Caqti.Error.Exn _ | D.Connection_invalidated) ->
                       ())
+              | `Query_cancel ->
+                  let entered, notify = Eio.Promise.create () in
+                  Eio.Fiber.first
+                    (fun () ->
+                      D.transaction victim
+                        (fun (module C : Caqti_eio.CONNECTION) ->
+                          ok (C.exec Queries.insert 99);
+                          old_pid := ok (C.find pid ());
+                          Eio.Promise.resolve notify ();
+                          Fun.protect
+                            ~finally:(fun () -> callback_finished := true)
+                            (fun () ->
+                              ignore (ok (C.find Queries.sleep ()));
+                              failwith "query completed before cancellation")))
+                    (fun () ->
+                      Eio.Promise.await entered;
+                      Eio.Time.Timeout.run_exn
+                        (Eio.Time.Timeout.seconds clock 2.) (fun () ->
+                          D.use control
+                            (fun (module Admin : Caqti_eio.CONNECTION) ->
+                              while
+                                ok (Admin.find Queries.sleeping !old_pid) = 0
+                              do
+                                Eio.Time.Mono.sleep clock 0.001
+                              done)))
               | `Cancel ->
                   let killed, notify = Eio.Promise.create () in
                   Eio.Fiber.first
@@ -197,7 +230,7 @@ let backend_faults ~sw ~stdenv ~clock uri =
                   check "idle replacement restores statement timeout"
                     (ok (C.find Queries.timeout ()) = "10s"));
               check "recovery retains the pool bound" (D.size victim = 1)))
-        [ `Exception; `Commit; `Query_error; `Cancel ]);
+        [ `Exception; `Commit; `Query_error; `Query_cancel; `Cancel ]);
   check "control pool retired" (D.size control = 0)
 
 let () =

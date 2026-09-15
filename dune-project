@@ -42,7 +42,7 @@
 (package
  (name httpkit-db-eio)
  (synopsis "Eio database transactions and migrations")
- (depends caqti-eio caqti-driver-postgresql caqti-driver-sqlite3 digestif (ocaml (= 5.5.0))))
+ (depends caqti-eio (caqti-driver-postgresql (= 3.0.1+httpkit1)) caqti-driver-sqlite3 digestif (ocaml (= 5.5.0))))
 (package
  (name httpkit-cookie)
  (synopsis "Authenticated encrypted cookie sessions")

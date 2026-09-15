@@ -1,0 +1,13 @@
+--- a/caqti-driver-postgresql/lib/caqti_driver_postgresql.ml
++++ b/caqti-driver-postgresql/lib/caqti_driver_postgresql.ml
+@@ -949,7 +949,9 @@
+       in_use := true;
+       Fiber.cleanup
+         (fun () -> f () >|= fun res -> in_use := false; res)
+-        (fun () -> reset () >|= fun _ -> in_use := false)
++        (fun () -> Fiber.finally
++          (fun () -> reset () >|= fun _ -> ())
++          (fun () -> in_use := false; Fiber.return ()))
+ 
+     let deallocate request = using_db @@ fun () ->
+       (match Request.prepare_policy request with

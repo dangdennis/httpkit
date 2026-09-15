@@ -2,6 +2,9 @@
 (pkg enabled)
 (jobs 4)
 (repository
+ (name httpkit-fixes)
+ (url "./toolchain/opam-fixes"))
+(repository
  (name pinned-opam)
  (url "git+https://github.com/ocaml/opam-repository.git#5d711cd97e038d93464ab855e041c0ff624c9d07"))
 (repository
@@ -9,5 +12,5 @@
  (url "git+https://github.com/ocaml-dune/opam-overlays.git#99fc2e18c45b4761ed5f6d282910c03c97e32bce"))
 (lock_dir
  (path dune.lock)
- (repositories pinned-overlay pinned-opam)
+ (repositories httpkit-fixes pinned-overlay pinned-opam)
  (constraints (ocamlfind (= 1.9.8+dune)) (ocaml (= 5.5.0)) (ocaml-base-compiler (= 5.5.0))))

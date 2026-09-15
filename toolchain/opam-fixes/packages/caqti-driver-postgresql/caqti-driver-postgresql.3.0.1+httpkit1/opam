@@ -1,0 +1,42 @@
+opam-version: "2.0"
+name: "caqti-driver-postgresql"
+version: "3.0.1+httpkit1"
+maintainer: "httpkit maintainers"
+authors: [
+  "Petter A. Urkedal <paurkedal@gmail.com>"
+  "James Owen <james@cryptosense.com>"
+]
+license: "LGPL-3.0-or-later WITH LGPL-3.0-linking-exception"
+homepage: "https://github.com/paurkedal/ocaml-caqti/"
+doc: "https://paurkedal.github.io/ocaml-caqti/index.html"
+bug-reports: "https://github.com/dangdennis/httpkit/issues"
+synopsis: "Caqti PostgreSQL driver with httpkit cancellation cleanup fix"
+description: """
+Local httpkit patch of upstream 3.0.1, not an upstream release. Clear the
+connection busy flag even when exception cleanup is cancelled or fails.
+The upstream source archive and license remain unchanged; the patch is applied
+before building. All ordinary query/protocol behavior comes from Caqti.
+"""
+depends: [
+  "alcotest" {with-test & >= "1.5.0"}
+  "ocaml"
+  "caqti" {>= "3.0.0" & < "3.1.0~"}
+  "cmdliner" {with-test & >= "1.1.0"}
+  "dune" {>= "3.23.1"}
+  "odoc" {with-doc}
+  "postgresql" {>= "5.0.0"}
+  "uri" {>= "4.0.0"}
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+  ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
+]
+patches: ["httpkit-cancellation.patch"]
+extra-files: [
+  ["httpkit-cancellation.patch" "sha256=6319c1fa890bd48430117a9201862d137f2320f47f3e26887fe1d21aac75f3f7"]
+]
+url {
+  src: "https://github.com/paurkedal/ocaml-caqti/releases/download/v3.0.1/caqti-v3.0.1.tbz"
+  checksum: "sha512=f2191e91c6104ffdd9c6e6a698f29ef87e284af239390a3c9529befe1e2a05e991a08564ceecf913df39b49474e354ce3893bb078f7ad92a2ce4ad93ab70700d"
+}

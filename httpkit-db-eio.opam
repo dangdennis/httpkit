@@ -6,7 +6,7 @@ authors: ["httpkit maintainers"]
 depends: [
   "dune" {>= "3.24"}
   "caqti-eio"
-  "caqti-driver-postgresql"
+  "caqti-driver-postgresql" {= "3.0.1+httpkit1"}
   "caqti-driver-sqlite3"
   "digestif"
   "ocaml" {= "5.5.0"}

@@ -1,7 +1,11 @@
-(version 3.0.1)
+(version 3.0.1+httpkit1)
 
 (build
- (all_platforms ((action (run dune build -p %{pkg-self:name} -j %{jobs})))))
+ (all_platforms
+  ((action
+    (progn
+     (patch httpkit-cancellation.patch)
+     (run dune build -p %{pkg-self:name} -j %{jobs}))))))
 
 (depends
  (all_platforms

@@ -1,6 +1,7 @@
 # Dependency review
 
-Inspection date: 2026-09-14. This is a scoped maintainer review of locked packages,
+Initial advisory inspection: 2026-09-14; local cancellation patch review:
+2026-09-15. This is a scoped maintainer review of locked packages,
 published upstream advisories and native linkage. It is not a complete
 vulnerability scan or an independent security approval. P0-09 remains open.
 
@@ -14,7 +15,7 @@ free of database, authentication, TLS and runtime-backend dependencies.
 | --- | --- | --- |
 | Runtime transport/application | Eio 1.5 or Lwt 6.1.2 | Cancellation, provider/backend and native resource semantics |
 | HTTP/application values | ipaddr 5.6.2, Yojson 3.0.0, Base64, Digestif 1.3.1, Eqaf 0.10 | Parsing limits, encoded lengths, hashing and equality |
-| Database | Caqti 3.0.0 with PostgreSQL/SQLite drivers | Native client libraries, transactions, rollback, lease scope |
+| Database | Caqti 3.0.0, PostgreSQL driver3.0.1+httpkit1, SQLite driver3.0.0 | Native client libraries, transactions, rollback, lease scope |
 | Cookie protection | Mirage Crypto 2.4.1 plus its RNG | Upstream authenticated encryption; our key/nonce/configuration and expiry policy |
 | Passwords | ocaml-argon2 1.0.2 plus native libargon2 | Synchronous native work, cost limits and caller-owned worker admission |
 | OIDC | jose 0.11.0, oidc 0.2.0, upstream cryptographic dependencies | Algorithm/key policy, verification, claims and remote-client trust |
@@ -30,6 +31,28 @@ consumer reproduced the old unnecessary `eio_main` requirement, and now builds
 and runs application composition in native and bytecode modes without
 `eio_main`, `eio_posix`, `eio_linux` or Lwt installed. This bounded package cleanup
 does not justify merging independent database/authentication packages.
+
+## Local PostgreSQL cancellation fix
+
+A real in-flight cancellation control reproduced a stuck driver busy flag and
+failed disconnect. The local `3.0.1+httpkit1` driver patch clears the flag in a
+finalizer even when reset cleanup fails or is cancelled. It does not make I/O
+uncancellable. The isolated patched-driver probe and existing PostgreSQL/SQLite
+regressions passed before adopting the patch; the regular suite now includes the
+observed-query cancellation schedule.
+
+The [local repository and installation requirement](../toolchain/opam-fixes/README.md)
+are explicit. The original archive checksum, patch checksum and patch copies in
+both locks are retained. `httpkit-db-eio` requires the patched version; ordinary
+opam installation cannot fall back to the known-broken version. Core/HTTP/engine
+dependency boundaries are unchanged. This is a local patch, not a claimed
+upstream release or upstream security approval.
+
+Dune marks the serialized repository list `complete false` because a local
+directory has no remote Git revision. The selected package recipes and embedded
+patches remain locked; the local repository files are committed and included in
+the release source fingerprint. Re-resolving requires this checkout's local
+repository, in addition to the existing pinned remote repositories.
 
 ## Published advisory review
 

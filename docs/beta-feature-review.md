@@ -87,6 +87,13 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
   callback error results, constraint errors, later writes, commit refusal and
   pool recovery. This deliberately trades connection reuse after query failures
   for deterministic failure; ordinary successful transactions keep their lease.
+- Observed in-flight PostgreSQL query cancellation also reproduced a driver
+  busy flag left set when reconnect cleanup was itself cancelled. A minimal
+  pinned driver patch clears the flag in a finalizer so rollback/disconnect can
+  run. The regression waits for `PgSleep` on its own backend before cancellation,
+  checks joined callback cleanup, absence of committed writes and bounded pool
+  recovery. This closes a different boundary from cancellation while only the
+  application callback was suspended. Long database soaks remain pending.
 
 ## Contracts that remain the application's responsibility
 
