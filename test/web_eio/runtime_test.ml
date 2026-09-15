@@ -711,6 +711,96 @@ let () =
   print_endline "PASS upload write, close and retryable unlink fault cleanup"
 
 let () =
+  List.iter
+    (fun fault ->
+      let directory = Filename.temp_file "httpkit-upload-permanent-" "" in
+      Sys.remove directory;
+      Unix.mkdir directory 0o700;
+      Fun.protect
+        ~finally:(fun () ->
+          Array.iter
+            (fun name -> Sys.remove (Filename.concat directory name))
+            (Sys.readdir directory);
+          Unix.rmdir directory)
+        (fun () ->
+          let basename =
+            Base64.encode_string ~pad:false ~alphabet:Base64.uri_safe_alphabet
+              (String.make 24 'f')
+          in
+          let filename = Filename.concat directory basename in
+          if fault = `Collision then (
+            let channel = open_out_bin filename in
+            output_string channel "existing sentinel";
+            close_out channel);
+          let endpoint = ref (fun _ -> assert false) in
+          let closes = ref 0 and unlinks = ref 0 and callbacks = ref 0 in
+          let errors =
+            run
+              ~request_timeout:(if fault = `Cancelled then 0.02 else 1.)
+              (fun request -> !endpoint request)
+              (fun env peer ->
+                let root =
+                  fault_directory
+                    Eio.Path.(Eio.Stdenv.fs env / directory)
+                    ~write:(fun () ->
+                      if fault = `Write then
+                        raise (Unix.Unix_error (Unix.ENOSPC, "write", "")))
+                    ~close:(fun () -> incr closes)
+                    ~unlink:(fun () ->
+                      incr unlinks;
+                      failwith "persistent unlink failure")
+                in
+                (endpoint :=
+                   fun request ->
+                     App.Files.with_upload ~directory:root
+                       ~random:(fun n -> String.make n 'f')
+                       request ~boundary:"fault"
+                       (fun _ _ ->
+                         incr callbacks;
+                         if fault = `Cancelled then Eio.Fiber.await_cancel ();
+                         if fault = `Callback then failwith "callback failure");
+                     App.reply (W.Reply.text "unexpected"));
+                let response =
+                  raw peer
+                    (upload_wire (upload_part ^ upload_part ^ "--fault--\r\n"))
+                in
+                check "persistent upload failure is not success"
+                  ((fault = `Cancelled && response = "")
+                  || String.starts_with ~prefix:"HTTP/1.1 500" response);
+                check "failed unlink does not claim removal"
+                  (Sys.readdir directory = [| basename |]);
+                if fault = `Collision then (
+                  let channel = open_in_bin filename in
+                  let contents =
+                    really_input_string channel (in_channel_length channel)
+                  in
+                  close_in channel;
+                  check "exclusive creation preserves prior file"
+                    (contents = "existing sentinel")))
+          in
+          check "permanent upload failure reported" (errors <> []);
+          check "temporary file explicitly closed before retirement failure"
+            (!closes = if fault = `Collision then 0 else 1);
+          check "cleanup retries bounded"
+            (!unlinks
+            = match fault with `Collision -> 0 | `Write -> 1 | _ -> 2);
+          check "no next part callback after cleanup failure"
+            (!callbacks = match fault with `Write | `Collision -> 0 | _ -> 1);
+          let rec cleanup_error = function
+            | Failure message -> message = "persistent unlink failure"
+            | Fun.Finally_raised exn -> cleanup_error exn
+            | Eio.Exn.Multiple errors ->
+                List.exists (fun (exn, _) -> cleanup_error exn) errors
+            | _ -> false
+          in
+          if fault <> `Collision then
+            check "cleanup failure remains observable"
+              (List.exists cleanup_error errors)))
+    [ `Unlink; `Callback; `Cancelled; `Write; `Collision ];
+  print_endline
+    "PASS permanent upload cleanup failures and exclusive collision ownership"
+
+let () =
   let directory = Filename.temp_file "httpkit-upload-finalizer-" "" in
   Sys.remove directory;
   Unix.mkdir directory 0o700;

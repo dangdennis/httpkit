@@ -54,6 +54,12 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
   real HTTP codecs and the Eio application with a controlled transport. Invalid
   configuration, clocks and entropy, bounded collision retries and lease reuse
   have explicit controls. Additional backend fault combinations remain open.
+- Upload controls now include permanent unlink failure after a completed part,
+  callback failure/cancellation and write failure, plus exclusive-name collision.
+  They check bounded cleanup, explicit close, retained-file evidence, observable
+  failure and no subsequent part callback. A pre-existing file is never retired
+  as an owned upload. The filesystem recovery and cleanup-error precedence
+  contract is explicit in `Files.with_upload`; no production rewrite was needed.
 
 ## Contracts that remain the application's responsibility
 

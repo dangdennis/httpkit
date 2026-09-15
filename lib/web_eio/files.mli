@@ -19,4 +19,9 @@ val with_upload :
     are removed after each callback returns, including exceptional or cancelled
     return, before the next part is processed. Partial files are removed when
     parsing fails or is cancelled. The basename is valid only during its
-    callback; copy durable data explicitly. Cleanup I/O errors propagate. *)
+    callback; copy durable data explicitly. Cleanup I/O errors propagate and may
+    replace a callback/parser failure through [Fun.protect]. Permanent unlink
+    failure can leave a closed temporary file in [directory]; its owner must
+    recover that directory. Cleanup attempts are bounded, not a guarantee that a
+    failing filesystem removes the file. Exclusive-create collisions preserve
+    pre-existing files. *)
