@@ -257,7 +257,7 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
       let (transport : A.transport), peer = accept () in
       Runtime_observer.connection observation transport (fun transport ->
           if !stopping then (
-            transport.close ();
+            Eio.Cancel.protect transport.close;
             Eio.Fiber.await_cancel ());
           try
             let upgraded =

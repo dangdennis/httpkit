@@ -106,3 +106,20 @@ Reads and writes now use the same remaining absolute closing budget. Both native
 controls expire at two seconds and join cancelled write cleanup. Ordinary open
 connection callback/I/O budgets are unchanged. This closes one deadline defect;
 WebSockets remain experimental and the broader security campaign stays open.
+
+## Accept completing during shutdown
+
+Once `accept` returns a transport, the application server owns its close even if
+shutdown has already stopped admission. That transport never enters the HTTP
+driver. Its close must be protected from worker cancellation and joined before
+`serve` returns, just like cleanup for an established connection.
+
+`test/production/late_accept_test.ml` reproduced this race in both runtimes, with
+observations enabled and disabled. While one request drains, a second accept
+returns after the stop signal and starts a suspended close. Previously, finishing
+the active request let shutdown cancel that close and return early. Eio now
+protects the close with `Eio.Cancel.protect`; Lwt uses `Lwt.no_cancel` around the
+close operation. The regression requires shutdown to remain pending until close
+is released, then verifies exactly one completed close per transport. The
+caller's close operation must eventually finish; graceful HTTP deadlines do not
+justify abandoning an owned cleanup operation.

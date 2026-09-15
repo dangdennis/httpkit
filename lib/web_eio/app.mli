@@ -65,8 +65,10 @@ val serve :
   handler ->
   unit
 (** Stops admission and drains active connections on [stop]. Callers own the
-    listener. Application callback deadlines cover unrelated work as well as
-    body processing. [policy] configures absolute header and graceful-shutdown
+    listener. A transport returned by a late accept is closed under cancellation
+    protection, and its close is joined before return; close must eventually
+    finish. Application callback deadlines cover unrelated work as well as body
+    processing. [policy] configures absolute header and graceful-shutdown
     deadlines and body/write/keep-alive idle deadlines; it defaults to
     [Httpkit_engine.Timeout.default]. The independent [request_timeout] bounds
     each application exchange, even when a transport idle deadline is disabled.

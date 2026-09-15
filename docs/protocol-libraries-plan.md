@@ -286,6 +286,12 @@ external listener backlog and itemizes selected combined byte budgets, including
 caller-retained bodies/responses that queue limits do not bound. Large-connection
 soak and measured aggregate RSS/native-resource acceptance remain open.
 
+A late-accept shutdown regression also reproduced interrupted close in both
+runtimes: a transport returned after stopping could be abandoned when the active
+request finished draining. Its close is now cancellation-protected and joined
+before `serve` returns. Controls pass with observations enabled and disabled;
+the transport never enters HTTP parsing and is closed exactly once.
+
 Document actual request/status/header-line, aggregate-header/count, body, response
 buffer, multipart parts/per-part/total/header, JSON depth/bytes, URL/form, WebSocket
 frame/message, active/queued connections, engine queues, read/write/header/body/

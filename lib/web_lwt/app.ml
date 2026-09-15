@@ -267,7 +267,7 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
     else
       accept () >>= fun ((transport : A.transport), peer) ->
       Runtime_observer.connection observation transport (fun transport ->
-          if !stopping then transport.close ()
+          if !stopping then Lwt.no_cancel (Lwt.apply transport.close ())
           else
             Lwt.catch
               (fun () ->

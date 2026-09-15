@@ -69,8 +69,10 @@ val serve :
   handler ->
   unit Lwt.t
 (** Stops admission and drains active connections on [stop]. Callers own the
-    listener. Application callback deadlines cover unrelated work as well as
-    body processing. A timeout or external cancellation joins owned handler and
+    listener. A transport returned by a late accept is closed under cancellation
+    protection, and its close is joined before return; close must eventually
+    finish. Application callback deadlines cover unrelated work as well as body
+    processing. A timeout or external cancellation joins owned handler and
     stream cleanup before the connection closes. Cleanup that must survive
     cancellation should use [Lwt.no_cancel]; it must eventually finish. [policy]
     configures absolute header and graceful-shutdown deadlines and
