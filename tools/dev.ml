@@ -19,8 +19,8 @@ let () =
            routing-test, databases, coverage, mutations, interop, performance, \
            bench, profile-bodies, endpoint-profile, framework-load, \
            personal-load, framework-validate, personal-validate, native-fuzz, \
-           native-minimize, fuzz, fuzz-smoke, triage-timeout, release, \
-           selftest, protocol-spikes, fingerprint, packages"
+           native-minimize, native-campaign, fuzz, fuzz-smoke, triage-timeout, \
+           release, selftest, protocol-spikes, fingerprint, packages"
     | [ "validate" ]
     | [ "validate"; "5.5.0" ]
     | [ "evidence"; "validate"; "5.5.0" ] ->
@@ -67,6 +67,22 @@ let () =
             ]
           ~flags:[] args;
         Native_fuzz.main args
+    | "native-campaign" :: args ->
+        Common.validate_options
+          ~values:
+            [
+              "--resume";
+              "--session-seconds";
+              "--target";
+              "--seconds";
+              "--checked";
+              "--seeds";
+              "--rounds";
+              "--seed";
+              "--timeout";
+            ]
+          ~flags:[] args;
+        Native_campaign.main args
     | "native-minimize" :: args ->
         Common.validate_options
           ~values:

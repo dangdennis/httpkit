@@ -77,6 +77,51 @@ Use the separate minimizer below for captured bytes. Richer state generators,
 long release durations and independent review remain open. A PASS here does not certify release readiness,
 bounded RSS, or the skipped AFL campaign. CI integration is deferred by request.
 
+## Resumable duration campaigns
+
+```sh
+tools/dev native-campaign --session-seconds 43200
+tools/dev native-campaign --resume _artifacts/native-campaigns/run-EXAMPLE \
+  --session-seconds 43200
+```
+
+The default targets are the same14 properties. Each must reach all three policy
+minima:1800 seconds measured inside successful children,100000 checked inputs,
+and20 distinct seeds. `--seconds`, `--checked`, `--seeds`, `--target`, `--rounds`,
+`--seed` and `--timeout` can select a smaller diagnostic run; the report retains
+those choices and does not label them release evidence. Runtime tuning,
+instrumentation and inherited fuzz-control overrides are cleared in child
+environments. The recorded case and seed select each property explicitly.
+
+The initial10000-trial batch calibrates subsequent batches toward at most30s or
+half the configured timeout. Growth is capped at fourfold and ten million trials.
+Each batch runs in a separate process with a fresh successive seed per target.
+The overall session time budget defaults to12h and cannot be increased above it.
+The runner stops starting batches when the remaining budget cannot cover a full
+child timeout plus5s reserve. Setup, evidence verification and process cleanup
+can extend wall time; this is a cooperative work budget, not a hard external
+process deadline. Resume may change only that session budget.
+
+An exclusive process lock prevents simultaneous writers. Checkpoints use atomic
+replacement and retain the original child report, log and counters for every
+completed batch. Resuming requires identical source, executable, compiler,
+dependency-lock, target-catalog and release-policy hashes. It verifies every
+retained report and attachment, seed sequence and child counter before continuing.
+Missing, modified, duplicated or unrecorded batches are rejected. Keep the
+directory in place because child evidence records absolute paths.
+
+`PAUSED` means the budget ended between complete batches and can resume. `PASS`
+means the recorded campaign minima are met. Both return exit0, so automation must
+inspect status. `FAIL` and interrupted `RUNNING` checkpoints cannot resume;
+investigate their preserved active batch, then start a new campaign if appropriate.
+A timeout or interrupted child cannot become a passing shorter run or silently
+disappear from history. A failed resume validation leaves the old report intact.
+
+Campaign completion does not resolve historical findings, run regression or
+mutation inventories, prove coverage/RSS limits, or approve a release. Those
+remain separate release gates; no empty finding list or review approval is
+manufactured by this command. Finish source/docs/locks before final campaigns.
+
 ## Minimize a captured property failure
 
 ```sh

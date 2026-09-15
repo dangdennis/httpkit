@@ -16,6 +16,11 @@
  (action (run %{test} %{exe:../fuzz/minimize_fixture.exe})))
 
 (test
+ (name native_campaign_test)
+ (modules native_campaign_test)
+ (libraries devlib))
+
+(test
  (name native_fuzz_test)
  (modules native_fuzz_test)
  (libraries devlib)

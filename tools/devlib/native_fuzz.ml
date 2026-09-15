@@ -58,7 +58,7 @@ let read_input path =
       in
       loop 0)
 
-let main args =
+let main ?directory ?(build = true) args =
   let input = option args "--input" "" in
   let replay = input <> "" in
   require
@@ -97,9 +97,14 @@ let main args =
     |> List.map (fun t -> "fuzz/" ^ string (field "binary" t) ^ ".exe")
     |> List.sort_uniq String.compare
   in
-  Build.call ([ "build" ] @ binaries);
+  if build then Build.call ([ "build" ] @ binaries);
   let digest = Build.source_hash () in
-  let directory = temp_dir ~parent:(root / "_artifacts/native-fuzz") "run-" in
+  let directory =
+    Option.value ~default:"" directory |> fun directory ->
+    if directory = "" then
+      temp_dir ~parent:(root / "_artifacts/native-fuzz") "run-"
+    else directory
+  in
   let replay_path = directory / "replay.input" in
   Option.iter (write replay_path) input_data;
   let rows = ref [] in
@@ -149,17 +154,9 @@ let main args =
           Build.binary ("fuzz/" ^ string (field "binary" target) ^ ".exe")
         in
         let env =
-          Build.environment ()
+          Build.measurement_environment ()
           |> List.filter (fun (key, _) ->
-              (not
-                 (List.mem key
-                    [
-                      "HTTP_KIT_FUZZ_CASE";
-                      "HTTP_KIT_FUZZ_INPUT";
-                      "HTTP_KIT_FUZZ_CAPTURE";
-                      "HTTP_KIT_FUZZ_FAILURE";
-                      "HTTP_KIT_FUZZ_STATS";
-                    ]))
+              (not (starts ~prefix:"HTTP_KIT_FUZZ_" key))
               && (not (starts ~prefix:"AFL_" key))
               && not (starts ~prefix:"__AFL" key))
         in
