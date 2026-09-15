@@ -40,6 +40,13 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
 - Historical request/core timeout artifacts are generator entropy. Their original
   causes remain unknown. [Investigation notes](request-timeout-investigation.md)
   prevent a raw-parser replay or changed generator from being mislabeled resolution.
+- `auth_boundaries_test.ml` adds authenticated-but-invalid cookie payloads,
+  cookie configuration/clock/header limits, pre-native password/hash guards, and
+  OIDC metadata/callback/token-document rejection. Cookie fixtures use upstream
+  AEAD with a test key to reach validation beyond authentication; no cryptographic
+  algorithm is implemented locally. Authorization-code form escaping is checked
+  separately from callback policy. SQL session HTTP middleware and additional
+  backend fault combinations remain separate acceptance work.
 
 ## Contracts that remain the application's responsibility
 
