@@ -19,7 +19,7 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
 | Uploads | Generated exclusive names; filename is metadata; callback and partial-file cleanup owns deletion | Multipart segmentation/quotas/control-byte tests; runtime ENOSPC/write/close/retryable unlink/cancellation controls; persistent filesystem failure remains an application-visible error |
 | Cookies/sessions | Authenticated cookie payloads; explicit expiry/rotation/replay semantics; memory/SQL resources stay scoped | `test/web/web_test.ml`, `test/extensions/auth_test.ml`, `sql_session_test.ml`; final concurrency/capacity evidence pending |
 | Database | One scoped lease owner; bounded users/waiters; rollback before release; shutdown never reopens | `test/db_eio/db_test.ml` with SQLite/PostgreSQL, migration and cancellation controls; backend disconnect/rollback failure combinations and fresh long soaks pending |
-| Password | Upstream Argon2 only; reject cost bombs before native work; bound off-loop verification admission | `auth_test.ml` and installed consumers cover policy/hash/verify; tested bounded worker integration is still needed |
+| Password | Upstream Argon2 only; reject cost bombs before native work; bound off-loop verification admission | `auth_test.ml` and installed consumers cover policy/hash/verify; `examples/passwords/worker_test.ml` covers one-worker admission/cancellation/native work; sustained mixed-load evidence pending |
 | OIDC | Upstream JOSE verification plus exact local claims; browser binding consumed once; remote work bounded | `auth_test.ml`, `oidc_eio_test.ml` cover signature/claims/duplicates/replay/cache/capacity/deadlines; real configured HTTPS-client/provider contract remains application/deployment work |
 | WebSocket (experimental) | Masking, UTF-8, fragmentation and limits; one callback/write owner; absolute closing deadline | Web tests, segmented/allocation controls, runtime close/partial-write/cancellation tests; full security campaign and independent review remain open |
 
@@ -64,7 +64,9 @@ serving. Upload callbacks must explicitly copy durable data before returning.
 Password calls must run in bounded separate domains/processes. Each accepted
 verification can allocate up to256MiB in the upstream library; a512MiB app profile
 cannot safely admit arbitrary parallel password work. No custom cryptography or
-unbounded background worker is justified by this review.
+unbounded background worker is justified by this review. The tested Eio example
+admits one job and retains its slot through cancellation until native work ends;
+it is application-owned integration, not an additional public package.
 
 OIDC's supplied client must validate TLS, refuse redirects, bound response reads
 and support cancellation. Coordinator timeout tests cannot certify an arbitrary

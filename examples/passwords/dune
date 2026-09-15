@@ -1,0 +1,14 @@
+(library
+ (name password_example_worker)
+ (modules worker)
+ (libraries eio))
+
+(executable
+ (name demo)
+ (modules demo)
+ (libraries password_example_worker httpkit-password eio_main))
+
+(test
+ (name worker_test)
+ (modules worker_test)
+ (libraries password_example_worker httpkit-password eio_main))

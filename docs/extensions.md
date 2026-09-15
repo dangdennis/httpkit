@@ -120,6 +120,29 @@ Lwt preemptive thread does not establish event-loop responsiveness. Budget worke
 against the maximum accepted verification cost (256 MiB per call), not just the
 default hashing cost. No runtime-specific password worker pool is supplied.
 
+`examples/passwords/worker.ml` is a small application-owned integration using
+Eio's executor pool. It owns one worker domain, admits one job and returns `Busy`
+for overlapping submissions. There is no waiting-job queue. Cancellation of a
+request retains admission until its already-started job finishes; a cancelled
+caller does not receive a successful result. Keep callers within the pool's
+owning switch and call the helper from one application domain. Jobs must finish
+and access only thread-safe captured values. Native Argon2 cannot be interrupted
+mid-call; a request timeout cannot force it to release memory immediately.
+
+```sh
+tools/dune-pkg exec examples/passwords/demo.exe
+tools/dune-pkg runtest examples/passwords
+```
+
+The demo captures secure salt bytes before entering the worker and uses the
+existing Argon2 wrapper. It prints no password/hash. The helper is example code,
+not a new installed package or a login endpoint. Applications can map `Busy` to
+a bounded rejection response and must still budget all other app memory within
+their deployment limit. Controlled tests verify separate-domain execution,
+admission retention during cancellation, exception cleanup, scope retirement and
+a real native hash/verify roundtrip. Sustained mixed-load measurements remain
+part of beta acceptance.
+
 The package's small C shim ensures libargon2 is loaded for ordinary bytecode
 consumers. It calls no hashing implementation of its own. Account registration,
 email verification, password reset, MFA and login throttling are application
