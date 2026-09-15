@@ -4,6 +4,13 @@
  (libraries devlib))
 
 (test
+ (name native_minimize_test)
+ (modules native_minimize_test)
+ (libraries devlib)
+ (deps ../fuzz/minimize_fixture.exe)
+ (action (run %{test} %{exe:../fuzz/minimize_fixture.exe})))
+
+(test
  (name native_fuzz_test)
  (modules native_fuzz_test)
  (libraries devlib))

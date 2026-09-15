@@ -15,6 +15,11 @@
  (libraries fuzz_input unix))
 
 (executable
+ (name minimize_fixture)
+ (modules minimize_fixture)
+ (libraries fuzz_input unix))
+
+(executable
  (name core_fuzz)
  (modules core_fuzz)
  (libraries httpkit-core crowbar fuzz_input)

@@ -49,6 +49,38 @@ These are seeded generator trials, not coverage-guided search. Length guards in
 some properties can skip expensive checks; trial counts are not assertions or
 unique paths exercised. The existing scenario harness provides shrinking for its
 own scenario format; this runner does not automatically shrink Crowbar failures.
-Automatic byte-input minimization, richer state generators, long release durations
-and independent review remain open. A PASS here does not certify release readiness,
+Use the separate minimizer below for captured bytes. Richer state generators,
+long release durations and independent review remain open. A PASS here does not certify release readiness,
 bounded RSS, or the skipped AFL campaign. CI integration is deferred by request.
+
+## Minimize a captured property failure
+
+```sh
+tools/dev native-minimize --target request --input path/to/failure.input \
+  --attempts 1000 --seconds 300 --timeout 5
+```
+
+This native OCaml tool deletes contiguous ranges while preserving the original
+property exception class and exact backtrace. It reproduces the original twice
+and requires two matching replays before accepting each smaller input. A different
+failure site cannot replace the original finding. Missing failure identity,
+unexpected process exits, timeouts and inconsistent replays abort with a FAIL
+report; they never count as a successful reduction. This tool minimizes property
+exceptions, not process crashes or hangs.
+
+Each run retains `original.input`, `best.input`, every probe input/log and a report
+under `_artifacts/native-minimize/run-*/`. The report records source/binary/input
+hashes, failure identity hash, budgets and probe outcomes. Keep tracked sources and
+the binary unchanged during minimization. Inputs are limited to 64 KiB, attempts
+to 10,000, total requested time to one day, and each replay to one hour. Defaults
+are 1,000 attempts, 300 seconds overall and 5 seconds per replay. Process cleanup
+can add time after a timeout; there is no total RSS or log-size guarantee.
+
+A completed PASS establishes that no single byte deletion preserves that failure
+under this replay oracle. It does not establish the globally smallest input or
+explain the defect. Exhausting the attempt/time budget between probes retains the
+best twice-reproduced input as `BUDGET_EXHAUSTED`, with minimality explicitly false.
+Timing out inside a replay is inconclusive and produces FAIL. The command prints
+the outcome and report path; callers must inspect the report rather than treating
+a zero exit alone as completed minimization. Add the reduced input as a permanent
+regression test and keep the original evidence before fixing the defect.

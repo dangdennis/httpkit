@@ -124,6 +124,7 @@ let main args =
                       "HTTP_KIT_FUZZ_CASE";
                       "HTTP_KIT_FUZZ_INPUT";
                       "HTTP_KIT_FUZZ_CAPTURE";
+                      "HTTP_KIT_FUZZ_FAILURE";
                     ]))
               && (not (starts ~prefix:"AFL_" key))
               && not (starts ~prefix:"__AFL" key))

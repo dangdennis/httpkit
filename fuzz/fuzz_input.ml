@@ -31,6 +31,17 @@ let protect f data =
   try f data
   with exn ->
     let trace = Printexc.get_raw_backtrace () in
+    (match Sys.getenv_opt "HTTP_KIT_FUZZ_FAILURE" with
+    | None -> ()
+    | Some path -> (
+        try
+          let stack = Printexc.raw_backtrace_to_string trace in
+          if stack = "" then invalid_arg "failure stack unavailable";
+          let fingerprint = Printexc.exn_slot_name exn ^ "\n" ^ stack in
+          if String.length fingerprint > 65536 then
+            invalid_arg "failure stack exceeds 64 KiB";
+          save path fingerprint
+        with _ -> ()));
     (match Sys.getenv_opt "HTTP_KIT_FUZZ_CAPTURE" with
     | None -> ()
     | Some path -> (
