@@ -1,3 +1,8 @@
 (tests
  (names timeouts_test websocket_deadline_test admission_test observation_test late_accept_test)
  (libraries httpkit-eio httpkit-lwt eio.mock lwt.unix))
+
+(test
+ (name unread_body_test)
+ (modules unread_body_test)
+ (libraries httpkit-eio httpkit-lwt eio.mock lwt.unix alcotest))

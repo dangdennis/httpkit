@@ -624,6 +624,29 @@ functional controls on a shared host, not continuous peak RSS, production
 throughput or sustained acceptance evidence. Source/binary identities remain
 attached. The fixture adds no production endpoint or runtime dependency.
 
+## Unread bodies and reuse
+
+The engine's existing strict policy is to abort an unfinished upload when the
+application sends a final response, then close after output. It does not drain an
+unread body to reuse the connection. A handler that wants keep-alive reuse should
+consume the body to completion before returning; those reads validate framing,
+trailers and the application quota and remain inside the application deadline.
+
+`tools/dev unread-body` checks this distinction at1/16/64 connections. Ignored
+fixed/chunked bodies, malformed unread chunks and stalled uploads must receive the
+early response and close promptly, without dispatching a following request. Fully
+consumed fixed/chunked bodies with valid trailers must echo the exact body and
+permit a subsequent pipelined request. A request-shaped string inside the body
+must remain body data. Consumed malformed framing must close with a protocol
+failure and no following dispatch. Select cases using `--scenarios`; reports are
+under `_artifacts/framework/unread-body-*/`.
+
+The shared fixture uses the same capacity/resource/cleanup checks as backpressure
+controls. These short tests complement66 segmented Eio/Lwt controls for ignored
+versus consumed bodies, partial reads, quotas, trailers and application timeout
+with body-idle timeout disabled. No new draining policy or production behavior
+is introduced. Long frozen-candidate acceptance remains separate.
+
 ## WebSocket segmented-input allocation control
 
 `test/web/websocket_buffer_test.ml` measures cumulative GC allocation, excluding

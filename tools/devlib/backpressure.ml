@@ -252,11 +252,7 @@ let run ~capacity ~scenario ~snapshot ~directory app baseline =
           ("after", after);
         ])
 
-let main args =
-  let capacities = Capacity.capacities (option args "--capacities" "1,16,64")
-  and selected =
-    select (option args "--scenarios" (String.concat "," scenarios))
-  in
+let campaign ~kind ~scope ~run ~capacities ~selected () =
   ignore
     (Process.run
        ~env:(Build.measurement_environment ())
@@ -264,7 +260,7 @@ let main args =
   let binary = Build.binary "test/stress/server.exe" in
   let digest = Build.source_hash () and binary_digest = sha (read binary) in
   let directory =
-    temp_dir ~parent:(root / "_artifacts/framework") "backpressure-"
+    temp_dir ~parent:(root / "_artifacts/framework") (kind ^ "-")
   in
   let results = ref [] in
   let report status extra =
@@ -284,10 +280,7 @@ let main args =
             ("scenarios", strings selected);
             ("results", `List !results);
             ("public_release", `String "NOT_READY");
-            ( "scope",
-              `String
-                "Observed blocked producers on real sockets; short functional \
-                 control, not sustained acceptance" );
+            ("scope", `String scope);
           ]
          @ extra))
   in
@@ -336,7 +329,7 @@ let main args =
                 save (dir / (scenario ^ ".json")) row;
                 results := !results @ [ row ];
                 report "RUNNING" [];
-                Printf.printf "Backpressure %d %s: PASS\n%!" capacity scenario)
+                Printf.printf "%s %d %s: PASS\n%!" kind capacity scenario)
               selected;
             Framework.close app;
             let final = Option.get app.final in
@@ -350,8 +343,18 @@ let main args =
       (Build.source_hash () = digest && sha (read binary) = binary_digest)
       "Source/binary changed during backpressure test";
     report "PASS" [];
-    Printf.printf "PASS backpressure controls: %s\n%!"
-      (directory / "report.json")
+    Printf.printf "PASS %s controls: %s\n%!" kind (directory / "report.json")
   with exn ->
     report "FAIL" [ ("error", `String (Printexc.to_string exn)) ];
     raise exn
+
+let main args =
+  let capacities = Capacity.capacities (option args "--capacities" "1,16,64")
+  and selected =
+    select (option args "--scenarios" (String.concat "," scenarios))
+  in
+  campaign ~kind:"backpressure"
+    ~scope:
+      "Observed blocked producers on real sockets; short functional control, \
+       not sustained acceptance"
+    ~run ~capacities ~selected ()

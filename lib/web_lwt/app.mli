@@ -78,7 +78,11 @@ val serve :
     configures absolute header and graceful-shutdown deadlines and
     body/write/keep-alive idle deadlines; the default is
     [Httpkit_engine.Timeout.default]. [request_timeout] independently bounds the
-    application exchange. Upgraded protocols use their own timeout policy.
+    application exchange. A final response before incoming body completion
+    aborts the unread upload and closes the connection after output; there is no
+    implicit drain for reuse. Consume with [body] or [read] through [None]
+    before responding to permit keep-alive reuse, with framing, trailers and
+    body quotas checked. Upgraded protocols use their own timeout policy.
     [observe] optionally receives synchronous connection-scope observations; see
     [Httpkit.Observation] for privacy, byte-count and sink behavior contracts.
 *)

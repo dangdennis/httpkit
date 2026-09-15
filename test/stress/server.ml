@@ -153,6 +153,7 @@ let () =
             | "/stats" -> App.reply (Httpkit.Reply.json (snapshot ~gc:true ()))
             | "/bench-stats" -> App.reply (Httpkit.Reply.json (snapshot ()))
             | "/ignore" -> reply "ignored\n"
+            | "/consume" -> reply (App.body request)
             | "/blocked" ->
                 let c =
                   Hashtbl.find connections (int_of_string (App.peer request))

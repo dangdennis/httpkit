@@ -72,7 +72,11 @@ val serve :
     deadlines and body/write/keep-alive idle deadlines; it defaults to
     [Httpkit_engine.Timeout.default]. The independent [request_timeout] bounds
     each application exchange, even when a transport idle deadline is disabled.
-    Upgraded protocols use their own callback/I/O timeout policy. [observe]
-    optionally receives synchronous connection-scope observations; see
-    [Httpkit.Observation] for privacy, byte-count and sink behavior contracts.
-*)
+    A final response before incoming body completion aborts the unread upload
+    and closes the connection after output. There is no implicit drain for
+    reuse. To permit keep-alive reuse, consume the body with [body] or [read]
+    through [None] before returning a response; framing, trailers and body
+    quotas remain checked during those reads. Upgraded protocols use their own
+    callback/I/O timeout policy. [observe] optionally receives synchronous
+    connection-scope observations; see [Httpkit.Observation] for privacy,
+    byte-count and sink behavior contracts. *)
