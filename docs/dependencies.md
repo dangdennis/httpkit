@@ -25,6 +25,15 @@ The development harness also installs comparison, test and profiling packages;
 its entire lock inventory is not the dependency set of every production package.
 Review installed package closures separately from the all-packages workspace.
 
+The [macOS archive-install inventory](beta-install-inventory.md) records the
+actual opam package versions and declared licenses for the `a21d8ee` installation.
+Its 110 entries include build tools and compiler/configuration packages; they are
+not all runtime dependencies. This resolution used the pinned central repository
+and local PostgreSQL fix, separately from Dune's overlay-based locks. In particular,
+it selected ctypes 0.24.0 and ocamlfind 1.9.9~preview. The installed native/bytecode
+consumer controls passed, but that does not transfer all locked-workspace evidence
+to these versions. Final platform, advisory and distribution review remains open.
+
 The application library depends on `eio` interfaces. Backend selection belongs
 to the executable; examples select `eio_main` explicitly. An isolated installed
 consumer reproduced the old unnecessary `eio_main` requirement, and now builds

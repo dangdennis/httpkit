@@ -32,6 +32,14 @@ Review the lock diffs and rerun the compiler validation and fuzz smoke. The wrap
 
 The workspace pins both opam-repository and Dune's official compatibility overlay. The normal and coverage locks select `ocamlfind.1.9.8+dune`, whose relocatable configuration avoids temporary sandbox paths in Topkg builds. This is a solver constraint; generated lock files are never patched by hand.
 
+Dune 3.24.1's standalone `pkg validate-lockdir` rejects the coverage lock's
+selected optional Bisect packages as unused. Its dependency-closure validation
+does not include the workspace-selected `depopts`; enabling instrumentation on
+that command does not fix it. The instrumented build succeeds with the existing
+lock. Preserve this diagnostic, validate the regular lock normally, and use the
+instrumented build and coverage runs for coverage-workspace evidence. Do not
+remove Bisect or regenerate the lock merely to silence this validator limitation.
+
 ## Everyday commands
 
 Run commands from the repository root:

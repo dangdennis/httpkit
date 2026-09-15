@@ -88,6 +88,7 @@ other runtimes through their explicit input, output and event interfaces.
 
 ## Documentation
 
+- [Install candidate packages with opam](docs/beta-install.md)
 - [Eio web application guide](docs/framework.md)
 - [Sessions, login and Lwt applications](docs/extensions.md)
 - [Runnable examples](docs/examples.md)
