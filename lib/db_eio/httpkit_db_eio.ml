@@ -68,6 +68,22 @@ let create ?(max_connections = 8) ?(max_waiters = 32) ?(statement_timeout = 10.)
         if !live then (
           live := false;
           Eio.Cancel.protect Raw.disconnect)
+
+      (* Caqti PostgreSQL 3.0.1 clears its retry guard before COMMIT/ROLLBACK.
+         Execute them as ordinary requests while the guard from start remains
+         active: retrying COMMIT on a replacement session can report success
+         after losing the transaction. Keeping the guard set between leases is
+         conservative; validate may reconnect before the next lease and then
+         post_connect restores our session settings. *)
+      let finish sql fallback =
+        match backend with
+        | Sqlite -> fallback ()
+        | Postgresql ->
+            let open Caqti.Templater in
+            Raw.exec (dynamic T.(unit -->. unit) sql) ()
+
+      let commit () = finish "COMMIT" Raw.commit
+      let rollback () = finish "ROLLBACK" Raw.rollback
     end in
     let connection = (module C : Caqti_eio.CONNECTION) in
     let resource = { connection; live } in
@@ -82,10 +98,16 @@ let create ?(max_connections = 8) ?(max_waiters = 32) ?(statement_timeout = 10.)
   in
   let validate resource =
     let module C = (val resource.connection : Caqti_eio.CONNECTION) in
-    if !(resource.live) && C.validate () then (
-      ignore (post_connect resource.connection);
-      true)
-    else false
+    try
+      if !(resource.live) && C.validate () then (
+        ignore (post_connect resource.connection);
+        true)
+      else false
+    with Caqti.Error.Exn _ ->
+      (* Idle peer loss can arrive after validate's socket-status check. No
+         lease callback has run yet; let the pool retire this resource. Fresh
+         allocation failures and cancellation still propagate. *)
+      false
   in
   let pool = Eio.Pool.create ~validate ~dispose max_connections allocate in
   let t =

@@ -60,6 +60,22 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
   failure and no subsequent part callback. A pre-existing file is never retired
   as an owned upload. The filesystem recovery and cleanup-error precedence
   contract is explicit in `Files.with_upload`; no production rewrite was needed.
+- PostgreSQL controls terminate only a backend allocated by the isolated test,
+  then wait for confirmed termination. They cover callback exception, commit
+  attempted after termination, caught query errors and cancellation; callback cleanup must join,
+  uncommitted writes disappear, and the bounded pool must replace the connection.
+  This reproduced false commit success in the locked Caqti PostgreSQL3.0.1
+  driver: clearing its transaction guard before COMMIT allowed reconnect/retry
+  on an empty session. PostgreSQL completion now executes ordinary COMMIT and
+  ROLLBACK requests while retaining the guard set by start. This also disables
+  automatic query retry between transactions until idle validation reconnects;
+  it adds no round trip and does not discard healthy connections. Tests verify
+  successful-commit reuse, idle reconnect and restored statement deadlines.
+  An idle disconnect can also arrive between the driver's status check and
+  session setup. A database error during pre-lease validation now retires that
+  resource; fresh-allocation failures and cancellation still propagate.
+  A connection lost during an actual commit exchange can still have an unknown
+  outcome, so these schedules do not justify automatic transaction retries.
 
 ## Contracts that remain the application's responsibility
 

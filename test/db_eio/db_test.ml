@@ -5,6 +5,18 @@ module Queries = struct
 
   let insert = static T.(int -->. unit) "INSERT INTO items(id) VALUES (?)"
   let count = static T.(unit -->! int) "SELECT COUNT(*) FROM items"
+  let pid = static T.(unit -->! int) "SELECT pg_backend_pid()"
+
+  let timeout =
+    static T.(unit -->! string) "SELECT current_setting('statement_timeout')"
+
+  let terminate =
+    static T.(int -->! bool) "SELECT pg_terminate_backend(?::integer)"
+
+  let present =
+    static
+      T.(int -->! int)
+      "SELECT COUNT(*)::integer FROM pg_stat_activity WHERE pid=?"
 end
 
 let ok = Caqti_eio.or_fail
@@ -18,6 +30,106 @@ let migration =
   }
 
 exception Abort
+
+let backend_faults ~sw ~stdenv ~clock uri =
+  let pid = Queries.pid
+  and terminate = Queries.terminate
+  and present = Queries.present in
+  let control = D.create ~max_connections:1 ~sw ~stdenv uri in
+  Fun.protect
+    ~finally:(fun () -> D.close control)
+    (fun () ->
+      List.iter
+        (fun mode ->
+          let victim =
+            D.create ~max_connections:1 ~max_waiters:0 ~sw ~stdenv uri
+          in
+          Fun.protect
+            ~finally:(fun () -> D.close victim)
+            (fun () ->
+              let old_pid = ref 0 and callback_finished = ref false in
+              let kill (module C : Caqti_eio.CONNECTION) =
+                old_pid := ok (C.find pid ());
+                D.use control (fun (module Admin : Caqti_eio.CONNECTION) ->
+                    check "control connection is separate"
+                      (!old_pid > 0 && !old_pid <> ok (Admin.find pid ()));
+                    check "terminated only the owned backend"
+                      (ok (Admin.find terminate !old_pid));
+                    Eio.Time.Timeout.run_exn (Eio.Time.Timeout.seconds clock 5.)
+                      (fun () ->
+                        while ok (Admin.find present !old_pid) <> 0 do
+                          Eio.Time.Mono.sleep clock 0.001
+                        done))
+              in
+              let transaction finish =
+                D.transaction victim
+                  (fun ((module C : Caqti_eio.CONNECTION) as connection) ->
+                    ok (C.exec Queries.insert 99);
+                    kill connection;
+                    Fun.protect
+                      ~finally:(fun () -> callback_finished := true)
+                      finish)
+              in
+              (match mode with
+              | `Exception -> (
+                  match transaction (fun () -> raise Abort) with
+                  | () -> failwith "lost backend transaction succeeded"
+                  | exception Abort -> ())
+              | `Commit -> (
+                  match transaction (fun () -> ()) with
+                  | () -> failwith "commit succeeded after backend termination"
+                  | exception Caqti.Error.Exn _ -> ())
+              | `Query_error -> (
+                  match
+                    D.transaction victim
+                      (fun ((module C : Caqti_eio.CONNECTION) as connection) ->
+                        ok (C.exec Queries.insert 99);
+                        kill connection;
+                        Fun.protect
+                          ~finally:(fun () -> callback_finished := true)
+                          (fun () ->
+                            List.iter
+                              (fun id ->
+                                match C.exec Queries.insert id with
+                                | Error _ -> ()
+                                | Ok () ->
+                                    failwith
+                                      "write retried outside lost transaction")
+                              [ 100; 101 ]))
+                  with
+                  | () -> failwith "lost transaction query error became success"
+                  | exception Caqti.Error.Exn _ -> ())
+              | `Cancel ->
+                  let killed, notify = Eio.Promise.create () in
+                  Eio.Fiber.first
+                    (fun () ->
+                      transaction (fun () ->
+                          Eio.Promise.resolve notify ();
+                          Eio.Fiber.await_cancel ()))
+                    (fun () -> Eio.Promise.await killed));
+              check "transaction callback cleanup completed" !callback_finished;
+              D.use victim (fun (module C : Caqti_eio.CONNECTION) ->
+                  check "lost backend replaced" (ok (C.find pid ()) <> !old_pid);
+                  check "terminated transaction did not commit"
+                    (ok (C.find Queries.count ()) = 1);
+                  check "replacement restores statement timeout"
+                    (ok (C.find Queries.timeout ()) = "10s"));
+              let reused =
+                D.transaction victim (fun (module C : Caqti_eio.CONNECTION) ->
+                    ok (C.find pid ()))
+              in
+              D.use victim (fun ((module C : Caqti_eio.CONNECTION) as c) ->
+                  check "successful commit keeps its connection"
+                    (ok (C.find pid ()) = reused);
+                  kill c);
+              D.use victim (fun (module C : Caqti_eio.CONNECTION) ->
+                  check "idle connection loss recovers before next lease"
+                    (ok (C.find pid ()) <> reused);
+                  check "idle replacement restores statement timeout"
+                    (ok (C.find Queries.timeout ()) = "10s"));
+              check "recovery retains the pool bound" (D.size victim = 1)))
+        [ `Exception; `Commit; `Query_error; `Cancel ]);
+  check "control pool retired" (D.size control = 0)
 
 let () =
   let temporary =
@@ -295,6 +407,10 @@ let () =
               check "interrupted close can be retried"
                 (D.size interrupted_close = 0);
               if Uri.scheme uri <> Some "sqlite3" then (
+                backend_faults ~sw
+                  ~stdenv:(env :> Caqti_eio.stdenv)
+                  ~clock:(Eio.Stdenv.mono_clock env)
+                  uri;
                 let timed =
                   D.create ~statement_timeout:0.05 ~sw
                     ~stdenv:(env :> Caqti_eio.stdenv)
