@@ -182,6 +182,7 @@ let acceptance kind args =
 
 let compiler () =
   let digest = Build.source_hash () in
+  mkdir (root / "_artifacts");
   remove (root / "_artifacts/compiler-5.5.0.json");
   Build.call [ "pkg"; "enabled" ];
   Build.call [ "pkg"; "validate-lockdir"; "dune.lock" ];

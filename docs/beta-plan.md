@@ -33,7 +33,7 @@ invented. Existing main commit/push authorization remains in effect.
 | 4 | Queue/rejection/admission/shutdown diagnostics and API contracts | Queue occupancy, body rejection, saturation and shutdown progress implemented with both-runtime controls; remaining API/installation review pending |
 | 5 | Checked/skipped native fuzz accounting, resumable campaigns, coverage/mutations | Accounting, length-boundary generators and identity-checked resumable runner implemented; actual14-target30min/100000-checked/20-seed campaigns and fresh95/85/80% coverage remain pending |
 | 6 | Capacity, slow-client/overload stress, allocation profiles | Opt-in64-connection endpoint profile implemented; bounded-capacity proof, stable profiles, SQLite30min/PostgreSQL2h and idle/slow/overload30min campaigns pending |
-| 7 | Reproducible local platforms and approved hosted staging | Linux x86_64/macOS arm64 on5.5.0; real direct-edge contract and lifecycle evidence; cost-approved isolated synthetic campaign |
+| 7 | Reproducible local platforms and approved hosted staging | [Local Linux/macOS recipe](local-validation.md) implemented; Linux x86_64/posix validation and actual direct-edge contract/lifecycle evidence remain acceptance work; hosted campaign requires cost approval |
 | 8 | MIT/notices, dependency inventory, private reporting, archive/pin installs and release notes | Exact beta candidate passes gates and is prepared for owner publication review |
 
 For every substantial change: identify invariant/test, implement smallest fix,
