@@ -40,8 +40,9 @@ normalized before counting. Every batch must exit successfully, record its binar
 identity and checked/skipped/generated counts, and satisfy their accounting.
 Timeouts, skipped-only batches, reused seeds, incomplete regression replay and
 unresolved findings cannot qualify. Source and binary identity must remain frozen.
-The runner's checked-input accounting and long-campaign collection are subsequent
-implementation slices; historical 420,000-trial smoke reports do not qualify yet.
+The native runner records checked-input accounting and supports resumable
+duration campaigns; actual frozen-candidate long evidence remains pending.
+Historical 420,000-trial smoke reports do not qualify.
 
 Coverage minima are 95% core/codec/engine, 85% framework and 80% extensions. Reports
 must retain visited/total points, a consistent computed percentage, missing-file
@@ -49,6 +50,16 @@ inventory and critical-path review. These are instrumented points, not branch
 coverage or security percentages. Additional per-file controls and upstream
 libraries are not erased by exceeding an aggregate threshold. Existing Bisect
 instrumentation remains development-only, on the separate coverage lock.
+
+`tools/dev coverage core|framework|extensions` produces per-file summaries,
+HTML and line reports. Framework and extension measurements include the shared
+production lifecycle/observation suite; extensions also run the bounded password
+worker example. These are real tests of the selected libraries, not additional
+excluded code. Module aliases and the type-only `lib/web/observation.ml` have no
+executable points and are listed explicitly in their applicable exclusions.
+The parser accepts the pinned reporter's spacing around `%`; missing required
+files still fail measurement. A completed measurement below its threshold is
+not a passing release gate, and HTML coverage does not replace critical-path review.
 
 Curated mutations must compile and fail real regression tests. Compilation errors
 and timeouts are not kills. Three lower-layer and four framework mutations are

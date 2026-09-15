@@ -1,5 +1,17 @@
 open Common
 
+let summary_row line =
+  try
+    Scanf.sscanf (String.trim line) "%f %% %d/%d %s%!"
+      (fun percent visited total file ->
+        if
+          total > 0 && visited >= 0 && visited <= total
+          && Float.is_finite percent && percent >= 0. && percent <= 100.
+          && starts ~prefix:"lib/" file
+        then Some (file, visited, total)
+        else None)
+  with _ -> None
+
 let main layer =
   require
     (List.mem layer [ "core"; "framework"; "extensions" ])
@@ -17,7 +29,7 @@ let main layer =
     let r = Process.run ~env (Build.command ~coverage:true args) in
     r.stdout ^ r.stderr
   in
-  let suites, layers, aliases =
+  let suites, layers, excluded_modules =
     match layer with
     | "core" ->
         ( [
@@ -31,11 +43,15 @@ let main layer =
           [ "core"; "http1"; "engine" ],
           [ "lib/core/httpkit_core.ml" ] )
     | "framework" ->
-        ( [ "test/web"; "test/web_eio"; "test/db_eio" ],
+        ( [ "test/web"; "test/web_eio"; "test/db_eio"; "test/production" ],
           [ "web"; "web_eio"; "db_eio" ],
-          [ "lib/web/httpkit.ml"; "lib/web_eio/httpkit_eio.ml" ] )
+          [
+            "lib/web/httpkit.ml";
+            "lib/web/observation.ml";
+            "lib/web_eio/httpkit_eio.ml";
+          ] )
     | _ ->
-        ( [ "test/extensions" ],
+        ( [ "test/extensions"; "test/production"; "examples/passwords" ],
           [ "cookie"; "password"; "session_eio"; "oidc"; "oidc_eio"; "web_lwt" ],
           [ "lib/web_lwt/httpkit_lwt.ml" ] )
   in
@@ -91,39 +107,28 @@ let main layer =
       ]
   in
   write (directory / "summary.txt") summary;
-  if layer <> "extensions" then (
-    ignore
-      (run
-         [
-           "exec";
-           "--";
-           "bisect-ppx-report";
-           "html";
-           "--coverage-path=" ^ directory;
-           "-o";
-           directory / "html";
-         ]);
-    ignore
-      (run
-         [
-           "exec";
-           "--";
-           "bisect-ppx-report";
-           "coveralls";
-           "--coverage-path=" ^ directory;
-           directory / "lines.json";
-         ]));
-  let rows =
-    lines summary
-    |> List.filter_map (fun line ->
-        try
-          Scanf.sscanf (String.trim line) "%f%% %d/%d %s"
-            (fun _ visited total file ->
-              if total > 0 && starts ~prefix:"lib/" file then
-                Some (file, visited, total)
-              else None)
-        with _ -> None)
-  in
+  ignore
+    (run
+       [
+         "exec";
+         "--";
+         "bisect-ppx-report";
+         "html";
+         "--coverage-path=" ^ directory;
+         "-o";
+         directory / "html";
+       ]);
+  ignore
+    (run
+       [
+         "exec";
+         "--";
+         "bisect-ppx-report";
+         "coveralls";
+         "--coverage-path=" ^ directory;
+         directory / "lines.json";
+       ]);
+  let rows = lines summary |> List.filter_map summary_row in
   let required =
     List.concat_map
       (fun l ->
@@ -131,7 +136,7 @@ let main layer =
         |> List.filter (ends ~suffix:".ml")
         |> List.map (fun p -> "lib/" ^ l ^ "/" ^ p))
       layers
-    |> List.filter (fun p -> not (List.mem p aliases))
+    |> List.filter (fun p -> not (List.mem p excluded_modules))
   in
   let selected = List.filter (fun (p, _, _) -> List.mem p required) rows in
   let missing =
@@ -174,7 +179,7 @@ let main layer =
       ("report_directory", `String directory);
       ( "exclusions",
         strings
-          (aliases
+          (excluded_modules
           @ [
               "Build configuration";
               "Native linkage shim";
