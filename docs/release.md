@@ -1,47 +1,119 @@
-# Release evidence and remaining gates
+# Beta and production release evidence
 
-The repository includes the application/auth/session/database/realtime packages
-as well as core, codecs and transports; see the [package map](design.md) and
-[audit](production-audit.md). Release predicates originated with the lower layers
-and must be extended to cover every supported capability. No package is declared
-production-ready by this document. The [production roadmap](protocol-libraries-plan.md)
-contains the complete human checklist; it does not silently amend machine gates.
+The approved [beta delivery plan](beta-plan.md) covers all existing application
+features with WebSockets explicitly experimental. Public beta publication is a
+separate owner-approved step after the beta evidence passes. Neither a successful
+push nor a passing short test run authorizes publication or a production claim.
 
-## Commands
+## Assess a frozen candidate
 
 ```sh
-tools/dev coverage
-tools/dev mutations
-tools/dev selftest release
-tools/dev release --output _artifacts/release.json
+tools/dev release --profile beta --output _artifacts/beta-release.json
+tools/dev release --profile production --output _artifacts/production-release.json
 ```
 
-The standalone release command returns exit 3 and `NOT_READY` whenever a required gate is missing, stale, below budget, or failed. Exit 0 means the checked evidence is complete. An artifact's `status: PASS` describes its own scope; it does not imply release readiness. `toolchain/release-policy.json` records the actual thresholds and required evidence families.
+Omitting `--profile` selects production. The JSON schema is version 2. Success is
+`BETA_READY` or `PRODUCTION_READY`, with exit 0; missing, stale or failed required
+evidence is `NOT_READY`, with exit 3. Unknown profiles are usage errors. Harness
+`readiness --release` and `readiness --milestone M7` continue to use production.
+Consumers of the old `READY` result must migrate to the explicit profile result.
 
-Both `tools/harness readiness --release` and `tools/harness readiness --milestone M7` run the same detailed assessment and preserve exit 3 for incomplete evidence. See the [manual M7 completion checklist](m7-manual-checklist.md) for ownership, commands, and required review artifacts.
+Both profiles require local Linux x86_64 and macOS arm64 validation on OCaml 5.5.0,
+all installed native/bytecode consumers, six direct/Nginx interop lanes, all seven
+curated mutants, measured coverage, all fourteen native fuzz targets, feature
+review, stress/soak, deployment, dependency and packaging evidence. Production
+additionally requires independent security and API reviews. Their absence remains
+visible as non-required `PENDING` gates in beta. WebSocket stays experimental in
+both profiles; passing these gates does not upgrade its support status.
 
-Fourteen separately selected fuzz targets cover core values; request, response and chunked codecs; server and client lifecycles; partial writes; native adapter schedules; connection isolation; URL/forms, routing, multipart and WebSockets. `toolchain/fuzz-targets.json` records their executable and selector. The optional AFL runner (currently skipped by request) assigns a time budget, retains its corpus and logs, and replays every retained queue entry without instrumentation. The native adapter target checks partial I/O and cancellation with both runtimes. It sends no network traffic.
+GitHub Actions is unavailable because its monthly quota is exhausted. Hosted CI
+is not inspected or awaited. Policy v2 replaces it with reproducible local platform
+evidence, and replaces AFL with the approved native campaign. Reports explicitly
+record these replacements; neither unavailable CI nor skipped AFL is recorded as
+passed. Restoring CI later is separate work, not a dependency of this plan.
 
-The existing AFL-oriented policy remains unsatisfied while AFL is skipped; P0-04
-requires an explicitly reviewed non-AFL campaign/evidence design, not a waiver.
-For historical runner interpretation, a release-duration command is `tools/dev fuzz --seconds 28800`. That schedules eight hours **per target**, up to 112 hours of fuzz CPU across all fourteen. Use `--target request` (or another catalog name) to run one independently. Run this only against a frozen release candidate: any source change makes evidence stale. Historical 30-second campaigns are smoke evidence and do not satisfy that gate. Campaign completion also does not remove the need to triage findings or review generator depth.
+## Native campaign and coverage requirements
 
-## Coverage and mutation evidence
+Each target requires at least 1,800 seconds of completed child execution, 100,000
+checked inputs and 20 distinct nonnegative 64-bit seeds. Seed spelling is
+normalized before counting. Every batch must exit successfully, record its binary
+identity and checked/skipped/generated counts, and satisfy their accounting.
+Timeouts, skipped-only batches, reused seeds, incomplete regression replay and
+unresolved findings cannot qualify. Source and binary identity must remain frozen.
+The runner's checked-input accounting and long-campaign collection are subsequent
+implementation slices; historical 420,000-trial smoke reports do not qualify yet.
 
-Coverage has its own committed `coverage.lock` and `dune-workspace.coverage`, using OCaml 5.5.0 and ppxlib 0.38.0. Normal builds use `dune.lock` with the same compiler. The separate lock adds development instrumentation dependencies; it is not a compiler compatibility lane. The backend is optional and never enters a production package's required dependency closure. Bisect is pinned to commit `7061d643ff492b0045796357ee6917ded21fb1f0` from [upstream PR #448](https://github.com/aantron/bisect_ppx/pull/448), which adapts instrumentation to the modern PPX AST and supports Cmdliner 2. This is an unmerged upstream patch, not a released Bisect version; coverage must be verified when changing that pin. [Dune instrumentation](https://dune.readthedocs.io/en/stable/instrumentation.html).
+Coverage minima are 95% core/codec/engine, 85% framework and 80% extensions. Reports
+must retain visited/total points, a consistent computed percentage, missing-file
+inventory and critical-path review. These are instrumented points, not branch
+coverage or security percentages. Additional per-file controls and upstream
+libraries are not erased by exceeding an aggregate threshold. Existing Bisect
+instrumentation remains development-only, on the separate coverage lock.
 
-The coverage report records the measured core/codec/engine instrumented-point percentage and checks for missing executable source files. Module aliases in `lib/core/httpkit_core.ml` have no executable points and are the sole inventory exclusion. No executable branches are marked `coverage off`. Per-file results remain visible: engine coverage is lower than codec coverage, and adapters are assessed with their fault/lifecycle tests as well as point reports. This is not a branch-coverage percentage or evidence that all defects are absent.
+Curated mutations must compile and fail real regression tests. Compilation errors
+and timeouts are not kills. Three lower-layer and four framework mutations are
+required; these are selected test controls, not an exhaustive mutation score.
 
-Uncovered points remain in the denominator. They include large-counter overflow guards, combinations rejected earlier by opaque constructors or framing validation, additional upgrade/error combinations, and alternate paths within compound conditions. The HTML and line reports identify exact locations. Independent review must assess those gaps; this implementation does not waive them merely because the aggregate exceeds 95%.
+## Evidence manifest contract
 
-Forked tests explicitly dump native counters before `_exit`, through a test-only module selected only when Bisect is available. Normal harness builds use a no-op implementation. This avoids both losing child coverage and running inherited parent exit hooks.
+The assessor reads `_artifacts/release-manifest.json`, rather than accepting loose
+historical PASS files. Its fields are:
 
-The mutation runner copies source into a temporary project and uses the active locked compiler/dependency closure. It first requires passing baseline suites. It then weakens CL+TE rejection, cross-connection ID ownership, and output accounting one at a time. Each mutant must compile and fail a real test suite. Compilation failures and timeouts do not count as kills. These three curated mutations are a positive control, not an exhaustive mutation score.
+- `schema_version`: 2; `compiler`: `5.5.0`.
+- `candidate_commit`: the full candidate Git commit; `source_sha256`: the current
+  `tools/dev fingerprint` value; `lock_sha256`: `Release.lock_hash ()`, covering
+  sorted repository-relative paths and bytes of both lock directories.
+- `reports`: uniquely named entries containing `name`, relative `path`, `sha256`,
+  `platform`, nonempty `command` argument list, and nonempty `attachments`.
+- Each attachment has a relative `path` and content `sha256`. Attach original
+  logs/measurements/review records, not placeholder approvals.
 
-## Evidence requiring additional work or review
+Every referenced JSON report must contain `status: PASS` and the matching
+`source_sha256`, plus its gate-specific fields. Duplicate JSON keys, duplicate
+report names, altered/missing attachments, absolute or parent paths, symlink
+escapes, nonregular files and files exceeding 16 MiB are rejected. Split large
+logs into bounded attachments. Hashes bind local evidence against accidental
+substitution; they are not signatures or proof that a report author is honest.
+The evidence directory must remain stable during assessment.
 
-The report also requires the complete remote platform matrix, independent security review, API review, broader reference/differential evidence, proxy wire/backend/application observation, a stable paired performance baseline, sustained soak runs, and a reviewed mapping of all applicable contracts. The implemented Nginx/http/af/curl smoke lanes do not claim to be the entire planned Hyper/httpun/HAProxy comparison matrix.
+Required report names and payload contracts:
 
-Review artifacts must refer to the exact source hash and real supporting files, record a reviewer/approver, and list no unresolved findings. The machine checks the fields and freshness; a maintainer must verify reviewer identity, independence, and the contents of the evidence. Hand-written placeholder approvals are not reviews. No such independent approvals are created by the build agent.
+| Name | Required payload beyond status/source |
+| --- | --- |
+| `compiler/<platform>` | `compiler`, matching `platform`, `execution: LOCAL`, installed-consumer/integration booleans |
+| `interop` | Exact six-lane `results` inventory |
+| `mutations`, `framework-mutations` | Exact curated `results`: `name`, `compiled: true`, `status: KILLED` |
+| `coverage/core`, `/framework`, `/extensions` | `visited`, `total`, `percent`, `missing_files: []`, `critical_paths_reviewed: true`, `metric: instrumented points, not branches` |
+| `native/<target>` | `target`, `mode: NATIVE`, `runs` with seed/status/exit/seconds/checked/skipped/generated/binary_sha256; `regression_inventory_replayed`, `negative_controls_passed`, empty `unresolved_findings` |
+| `internal-review`, `reference-differential`, `proxy-observers`, `stable-performance`, `soak`, `contract-coverage`, `dependencies`, `packaging` | `reviewed_by`, `acceptance_passed: true`, empty `unresolved_findings`, with substantive supporting attachments |
+| `support-scope` | Exact `features` inventory with `BETA_TESTED` status, `websocket: EXPERIMENTAL`, `public_production_claim: false` |
+| `security-review`, `api-review` | `reviewer`, `approved: true`, `independent_of_implementation: true`, `identity_verified_by`, empty `unresolved_findings`; owner-verified independent review attachments |
+| `private-reporting` | `verified_channel`, `verified_by`, verification evidence |
 
-Licensing and a verified private vulnerability-reporting channel remain owner decisions before publication. See [SECURITY.md](../SECURITY.md). Package publication, public repository visibility, and a security recommendation are distinct from committing and pushing the implementation.
+The exact feature and target inventories are enforced by the assessor. The
+manifest does not choose which mandatory gates exist. Raising policy budgets is
+supported; weakening the approved minimum native/coverage budgets cannot pass.
+A root project LICENSE is also required. License choice is MIT; adding the text,
+metadata and third-party notice review belongs to publication preparation.
+
+Feature acceptance remains a substantive review responsibility. The assessor
+checks identities, report structure, budgets and attachments; it cannot establish
+reviewer independence or the truth of an arbitrary review assertion. Never create
+fake reviewer identities, placeholder evidence or an approval from the coding
+agent presented as independent. Synthetic positive controls live only in temporary
+test directories and are not release evidence.
+
+## Collection and migration
+
+Prepare source/docs/package/policy changes before the final freeze. Each campaign
+records exact source, binary and environment provenance; retain earlier failures
+and their disposition. Uncommitted or untracked candidate changes block readiness.
+A source change invalidates the candidate's evidence.
+Do not bulk-convert historical reports to v2 or mark unavailable campaigns passed.
+The evidence collector and per-campaign validators will be extended alongside the
+remaining plan slices; until their actual reports exist, readiness remains blocked.
+
+Run `tools/dune-pkg runtest tools --force` and `tools/dev selftest release` for
+positive beta/production controls and negative freshness, corruption, budget,
+experimental-scope and independent-review controls. Full `tools/dev validate`
+also runs the release self-test and installed harness readiness checks.

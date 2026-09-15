@@ -1,7 +1,7 @@
 # M7 manual completion checklist
 
-Historical M7 procedure: the active [production roadmap](protocol-libraries-plan.md)
-and [release inventory](release.md) supersede its package/target counts and work
+Historical M7 procedure: the approved [beta plan](beta-plan.md) and v2
+[release inventory](release.md) supersede all commands, thresholds, results and work
 ownership. AFL remains skipped; the commands below are historical instructions,
 not authorization to resume AFL or evidence that its gates passed.
 

@@ -2,6 +2,12 @@
 
 httpkit is pre-release. Passing a milestone or a fuzz smoke run is not approval for an internet-facing release. `tools/dev release` lists the remaining evidence gates.
 
+The owner-approved next milestone is a GitHub beta under MIT, with WebSockets
+experimental. `tools/dev release --profile beta` assesses local engineering and
+staging evidence; production remains the default profile and additionally requires
+independent security/API review. A beta pass is not a production recommendation.
+Public publication requires the owner's final review of the prepared release.
+
 ## Reporting privately
 
 This repository is currently private. Collaborators can report a suspected vulnerability in a private repository issue, addressed to the repository owner, `@dangdennis`. Keep exploit details and reproducing inputs inside the private repository. Access to that issue follows repository access permissions; it is not a separate security team inbox.
@@ -40,5 +46,8 @@ or public certificate manager is part of httpkit.
 
 See [production roadmap](docs/protocol-libraries-plan.md), [audit](docs/production-audit.md)
 and [deployment contracts](docs/deployment.md). Dependency changes must refresh
-locks and rerun affected evidence. Skipped AFL, missing hosted CI, stale source
-hashes or absent independent review must not be represented as passing gates.
+locks and rerun affected evidence. Policy v2 replaces AFL with native campaigns
+and unavailable hosted CI with reproducible local Linux/macOS evidence. Neither
+skipped activity is reported as passed. Stale source hashes remain invalid, and
+absent independent review stays visible as pending for beta and blocking for
+production.

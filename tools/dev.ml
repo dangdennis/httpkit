@@ -123,7 +123,9 @@ let () =
         Common.validate_options ~values:[ "--binary" ] ~flags:[] args;
         Databases.main args
     | "release" :: args ->
-        Common.validate_options ~values:[ "--output" ] ~flags:[] args;
+        Common.validate_options
+          ~values:[ "--output"; "--profile" ]
+          ~flags:[] args;
         Release.main args
     | [ "evidence"; "check" ] -> Evidence.check "M0"
     | [ "evidence"; "check"; milestone ] -> Evidence.check milestone

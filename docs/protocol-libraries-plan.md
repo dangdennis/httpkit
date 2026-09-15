@@ -48,9 +48,12 @@ completed slice and push `main`. Record evidence and remaining gaps here. A fail
 or unavailable external gate stays open while independent local work continues.
 Do not deploy services or invent independent approval to satisfy a release gate.
 
-Current selection: complete request observations, native fuzz-input minimization,
-and the remaining local security reviews. Lwt benchmark parity is deferred by
-user instruction. Lwt correctness and regression tests remain in scope.
+Current selection: execute the approved [public beta plan](beta-plan.md), covering
+all existing application features with WebSockets experimental. Request
+observations and native minimization are complete. Policy v2 replaces AFL/hosted
+CI with native campaigns and local platforms; quota-exhausted GitHub Actions is
+not a dependency. MIT, GitHub-only beta and final owner publication review are
+selected. Lwt benchmark parity is deferred; correctness remains in scope.
 
 | Order | Slices, executed separately | Exit invariant |
 | --- | --- | --- |
@@ -252,9 +255,9 @@ Properties: bounded retained memory/queues, valid framing only, encoder/decoder
 consistency, reachable engine states, deterministic failure, no cross-exchange
 leakage, cancellation retirement, monotonic consumed-prefix progress and bounded
 work without input consumption. Preserve original findings before minimization.
-Generated smoke and release-length campaigns are different evidence. Reconcile the
-current AFL-oriented machine policy through review; do not reduce requirements
-just to turn the release report green.
+Generated smoke and release-length campaigns are different evidence. The approved
+v2 policy requires native duration, checked-input accounting, distinct seeds,
+regression replay and negative controls. Do not convert smoke into release evidence.
 
 ### P0-05/06 stress and performance program
 
@@ -411,8 +414,8 @@ when a concrete client need is approved; it is not public TLS termination.
 - Isolated native/ordinary-bytecode installation, runtime dependency isolation,
   examples built/run, documentation and deployment recipes validated.
 - Coverage-gap and mutation review, canary/soak results, independent security/API
-  review, verified private vulnerability-reporting channel and hosted CI evidence.
+  review for production, verified private reporting and local platform evidence.
 
-Missing, stale or failed evidence means NOT_READY. The machine gate inventory must
-be expanded to match supported features; a human checklist alone does not do that.
+Missing, stale or failed required evidence means NOT_READY. The v2 machine gate
+inventory includes application features and separate beta/production profiles.
 Do not fabricate approval records or treat a successful push as release approval.

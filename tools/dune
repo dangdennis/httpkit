@@ -4,6 +4,11 @@
  (libraries devlib))
 
 (test
+ (name release_test)
+ (modules release_test)
+ (libraries devlib))
+
+(test
  (name native_minimize_test)
  (modules native_minimize_test)
  (libraries devlib)
