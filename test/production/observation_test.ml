@@ -10,6 +10,11 @@ type mode =
   | Write_failure
   | Invalid_write
   | Upgrade
+  | Handler_error
+  | Stream_error
+  | Handler_timeout
+  | Stream_timeout
+  | Enqueued
 
 exception Sink_failed
 exception Close_failed
@@ -76,9 +81,78 @@ let verify mode events read written closes handled =
     check "request fully read" (read = String.length (wire mode));
     if mode = Invalid_write || mode = Write_failure then
       check "failed write not counted" (written = 0)
-    else check "response written" (written > 0))
+    else if
+      not (List.mem mode [ Stream_error; Handler_timeout; Stream_timeout ])
+    then check "response written" (written > 0));
+  let starts =
+    List.filter_map
+      (function
+        | O.Request_started x -> Some (x.connection, x.request) | _ -> None)
+      events
+  in
+  let finishes =
+    List.filter_map
+      (function
+        | O.Request_finished x ->
+            Some (x.connection, x.request, x.outcome, x.duration_seconds)
+        | _ -> None)
+      events
+  in
+  (match (starts, finishes) with
+  | [], [] when mode = Sink_cancel -> ()
+  | [ (c, r) ], [ (c', r', outcome, duration) ] -> (
+      check "request scope identity" (c = 0L && c = c' && r = r');
+      check "request duration"
+        (Option.fold ~none:false ~some:(fun d -> d >= 0.) duration);
+      match mode with
+      | Handler_timeout | Stream_timeout ->
+          check "application timeout category"
+            (outcome = O.Failed (O.Timeout O.Application))
+      | Stream_error ->
+          check "stream failure category"
+            (outcome = O.Failed O.Application_error)
+      | Upgrade -> check "handoff outcome" (outcome = O.Upgraded)
+      | Normal | Sink_error | Close_failure | Handler_error | Enqueued ->
+          check "response enqueue outcome" (outcome = O.Response_enqueued)
+      | _ -> ())
+  | _ -> failwith "unbalanced request observations");
+  let callbacks =
+    List.filter_map
+      (function
+        | O.Callback_finished x -> Some (x.stage, x.failure) | _ -> None)
+      events
+  in
+  (match mode with
+  | Handler_error ->
+      check "handler failure precedes recovery"
+        (callbacks = [ (O.Handler, Some O.Application_error) ])
+  | Stream_error ->
+      check "stream failure observed separately"
+        (callbacks
+        = [ (O.Handler, None); (O.Response_stream, Some O.Application_error) ])
+  | Handler_timeout ->
+      check "handler cancellation observed"
+        (callbacks = [ (O.Handler, Some O.Cancelled) ])
+  | Stream_timeout ->
+      check "stream cancellation observed"
+        (callbacks
+        = [ (O.Handler, None); (O.Response_stream, Some O.Cancelled) ])
+  | Sink_cancel -> check "no callbacks before cancellation" (callbacks = [])
+  | _ -> check "handler completion observed" (callbacks = [ (O.Handler, None) ]));
+  let statuses =
+    List.filter_map
+      (function O.Response_headers_enqueued x -> Some x.status | _ -> None)
+      events
+  in
+  if mode = Handler_error then
+    check "recovered status is 500" (statuses = [ 500 ]);
+  if mode = Handler_timeout || mode = Sink_cancel then
+    check "no response status before headers" (statuses = [])
 
 let eio mode =
+  let request_timeout =
+    if mode = Handler_timeout || mode = Stream_timeout then 0.01 else 60.
+  in
   let module App = Httpkit_eio in
   let module A = Httpkit_transport_eio in
   Eio_mock.Backend.run_full (fun env ->
@@ -92,6 +166,8 @@ let eio mode =
       and closes = ref 0
       and events = ref [] in
       let close_seen = ref [] and output = Buffer.create 256 in
+      let gate, release = Eio.Promise.create () in
+      let enqueued_before_write = ref false in
       let stop_once () =
         if not !stopped then (
           stopped := true;
@@ -109,6 +185,7 @@ let eio mode =
               n);
           write =
             (fun data off length ->
+              if mode = Enqueued then Eio.Promise.await gate;
               if mode = Write_failure then raise Write_failed;
               if mode = Invalid_write then length + 1
               else
@@ -126,6 +203,11 @@ let eio mode =
       let observe event =
         events := !events @ [ event ];
         (match event with
+        | O.Request_finished _ when mode = Enqueued ->
+            enqueued_before_write := !written = 0;
+            Eio.Promise.resolve release ()
+        | _ -> ());
+        (match event with
         | O.Connection_closed _ -> close_seen := !closes :: !close_seen
         | _ -> ());
         if mode = Sink_error then raise Sink_failed;
@@ -135,7 +217,7 @@ let eio mode =
           | _ -> ()
       in
       (try
-         App.serve ~max_connections:1 ~observe ~clock ~stop
+         App.serve ~max_connections:1 ~request_timeout ~observe ~clock ~stop
            ~random:(fun n -> String.make n 'x')
            ~accept:(fun () ->
              if !accepted then Eio.Fiber.await_cancel ();
@@ -144,6 +226,8 @@ let eio mode =
            ~on_error:(fun _ -> stop_once ())
            (fun request ->
              handled := true;
+             if mode = Handler_error then raise Sink_failed;
+             if mode = Handler_timeout then Eio.Fiber.await_cancel ();
              if mode = Upgrade then
                App.websocket ~allowed_origins:[ "https://example.test" ] request
                  (fun transport _ ->
@@ -152,9 +236,15 @@ let eio mode =
                        loop (off + transport.write "upgrade" off (7 - off))
                    in
                    loop 0)
+             else if mode = Stream_error then
+               App.stream (fun _ -> raise Sink_failed)
+             else if mode = Stream_timeout then
+               App.stream (fun _ -> Eio.Fiber.await_cancel ())
              else App.reply (Httpkit.Reply.text "ok"))
        with Eio.Cancel.Cancelled _ when mode = Sink_cancel -> ());
       check "close event follows actual close" (!close_seen = [ 1 ]);
+      if mode = Enqueued then
+        check "enqueue does not wait for transport drain" !enqueued_before_write;
       if mode = Normal || mode = Sink_error || mode = Upgrade then
         check "response body or upgraded payload completed"
           (String.ends_with
@@ -163,6 +253,9 @@ let eio mode =
       verify mode !events !read !written !closes !handled)
 
 let lwt mode =
+  let request_timeout =
+    if mode = Handler_timeout || mode = Stream_timeout then 0.01 else 60.
+  in
   let open Lwt.Infix in
   let module App = Httpkit_lwt in
   let module A = Httpkit_transport_lwt in
@@ -170,6 +263,8 @@ let lwt mode =
   let stopped = ref false and accepted = ref false and handled = ref false in
   let read = ref 0 and written = ref 0 and closes = ref 0 and events = ref [] in
   let close_seen = ref [] and output = Buffer.create 256 in
+  let gate, release = Lwt.wait () in
+  let enqueued_before_write = ref false in
   let stop_once () =
     if not !stopped then (
       stopped := true;
@@ -188,6 +283,7 @@ let lwt mode =
             Lwt.return n);
       write =
         (fun data off length ->
+          (if mode = Enqueued then gate else Lwt.return_unit) >>= fun () ->
           if mode = Write_failure then Lwt.fail Write_failed
           else if mode = Invalid_write then Lwt.return (length + 1)
           else
@@ -207,6 +303,11 @@ let lwt mode =
   let observe event =
     events := !events @ [ event ];
     (match event with
+    | O.Request_finished _ when mode = Enqueued ->
+        enqueued_before_write := !written = 0;
+        Lwt.wakeup_later release ()
+    | _ -> ());
+    (match event with
     | O.Connection_closed _ -> close_seen := !closes :: !close_seen
     | _ -> ());
     if mode = Sink_error then raise Sink_failed;
@@ -215,7 +316,8 @@ let lwt mode =
   in
   Lwt.catch
     (fun () ->
-      App.serve ~max_connections:1 ~observe ~clock:A.monotonic_clock ~stop
+      App.serve ~max_connections:1 ~request_timeout ~observe
+        ~clock:A.monotonic_clock ~stop
         ~random:(fun n -> String.make n 'x')
         ~accept:(fun () ->
           if !accepted then fst (Lwt.task ())
@@ -227,23 +329,32 @@ let lwt mode =
           Lwt.return_unit)
         (fun request ->
           handled := true;
-          Lwt.return
-            (if mode = Upgrade then
-               App.websocket ~allowed_origins:[ "https://example.test" ] request
-                 (fun transport _ ->
-                   let rec loop off =
-                     if off = 7 then Lwt.return_unit
-                     else
-                       transport.write "upgrade" off (7 - off) >>= fun n ->
-                       loop (off + n)
-                   in
-                   loop 0)
-             else App.reply (Httpkit.Reply.text "ok"))))
+          if mode = Handler_error then Lwt.fail Sink_failed
+          else if mode = Handler_timeout then fst (Lwt.task ())
+          else
+            Lwt.return
+              (if mode = Upgrade then
+                 App.websocket ~allowed_origins:[ "https://example.test" ]
+                   request (fun transport _ ->
+                     let rec loop off =
+                       if off = 7 then Lwt.return_unit
+                       else
+                         transport.write "upgrade" off (7 - off) >>= fun n ->
+                         loop (off + n)
+                     in
+                     loop 0)
+               else if mode = Stream_error then
+                 App.stream (fun _ -> Lwt.fail Sink_failed)
+               else if mode = Stream_timeout then
+                 App.stream (fun _ -> fst (Lwt.task ()))
+               else App.reply (Httpkit.Reply.text "ok"))))
     (function
       | Lwt.Canceled when mode = Sink_cancel -> Lwt.return_unit
       | exn -> Lwt.fail exn)
   >|= fun () ->
   check "close event follows actual close" (!close_seen = [ 1 ]);
+  if mode = Enqueued then
+    check "enqueue does not wait for transport drain" !enqueued_before_write;
   if mode = Normal || mode = Sink_error || mode = Upgrade then
     check "response body or upgraded payload completed"
       (String.ends_with
@@ -261,6 +372,11 @@ let () =
       Write_failure;
       Invalid_write;
       Upgrade;
+      Handler_error;
+      Stream_error;
+      Handler_timeout;
+      Stream_timeout;
+      Enqueued;
     ]
   in
   List.iter eio modes;

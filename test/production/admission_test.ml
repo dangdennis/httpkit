@@ -20,7 +20,10 @@ let check_events observed events capacity =
             (x.active_connections = !active
             && !active >= 0 && x.close_status = O.Closed)
       | O.Shutdown_started _ ->
-          failwith "external cancellation is not graceful stop")
+          failwith "external cancellation is not graceful stop"
+      | O.Connection_failed _ | O.Request_started _ | O.Callback_finished _
+      | O.Response_headers_enqueued _ | O.Request_finished _ ->
+          ())
     events;
   check "observed scopes all retired" (!active = 0);
   let ids = if observed then List.init (capacity + 1) Int64.of_int else [] in

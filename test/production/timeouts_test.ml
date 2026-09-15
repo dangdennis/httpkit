@@ -19,6 +19,25 @@ let input = function
 
 let phases = [ T.Idle; T.Head; T.Body; T.Write; T.Shutdown ]
 
+let check_observed phase events =
+  let module O = Httpkit.Observation in
+  let expected =
+    O.Timeout
+      (match phase with
+      | T.Idle -> O.Idle
+      | Head -> O.Header
+      | Body -> O.Body
+      | Write -> O.Write
+      | Shutdown -> O.Shutdown)
+  in
+  let failures =
+    List.filter_map
+      (function O.Connection_failed x -> Some x.failure | _ -> None)
+      events
+  in
+  check "observed transport timeout category"
+    (failures <> [] && List.for_all (( = ) expected) failures)
+
 let eio phase =
   let module App = Httpkit_eio in
   let module A = Httpkit_transport_eio in
@@ -37,6 +56,7 @@ let eio phase =
           Eio.Promise.resolve finish ())
       in
       let wire = input phase in
+      let observations = ref [] in
       let transport : A.transport =
         {
           read =
@@ -52,7 +72,9 @@ let eio phase =
           close = (fun () -> incr closed);
         }
       in
-      App.serve ~policy:(policy phase) ~max_connections:1 ~clock
+      App.serve
+        ~observe:(fun event -> observations := event :: !observations)
+        ~policy:(policy phase) ~max_connections:1 ~clock
         ~random:(fun n -> String.make n 'x')
         ~stop
         ~accept:(fun () ->
@@ -79,6 +101,7 @@ let eio phase =
         ^ String.concat "; " (List.map Printexc.to_string !failures))
         (!failures <> [] && List.for_all expected !failures);
       check "Eio timeout closes once" (!closed = 1);
+      check_observed phase !observations;
       let elapsed =
         Mtime.Span.to_float_ns (Mtime.span start (Eio.Time.Mono.now clock))
         /. 1e9
@@ -115,6 +138,7 @@ let lwt phase =
     }
   in
   let wire = input phase in
+  let observations = ref [] in
   let transport : A.transport =
     {
       read =
@@ -134,7 +158,9 @@ let lwt phase =
     }
   in
   let server =
-    App.serve ~policy:(policy phase) ~max_connections:1 ~clock
+    App.serve
+      ~observe:(fun event -> observations := event :: !observations)
+      ~policy:(policy phase) ~max_connections:1 ~clock
       ~random:(fun n -> String.make n 'x')
       ~stop:stopped
       ~accept:(fun () ->
@@ -165,7 +191,8 @@ let lwt phase =
         && List.for_all
              (function A.Error (A.Timeout p) -> p = phase | _ -> false)
              !failures);
-      check "Lwt timeout closes once" (!closed = 1))
+      check "Lwt timeout closes once" (!closed = 1);
+      check_observed phase !observations)
     (fun () ->
       Lwt.cancel server;
       Lwt.catch (fun () -> server) (fun _ -> Lwt.return_unit))

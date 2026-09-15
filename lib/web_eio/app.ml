@@ -133,7 +133,7 @@ let routes ?(middleware = []) entries =
   in
   List.fold_right (fun wrapper next -> wrapper next) middleware dispatch
 
-let exchange ~body_limit ~random ~on_error handler c id head =
+let exchange ~scope ~body_limit ~random ~on_error handler c id head =
   let complete = ref false and busy = ref false and started = ref false in
   let total = ref 0 and granted = ref false and alive = ref true in
   let rec next () =
@@ -186,7 +186,10 @@ let exchange ~body_limit ~random ~on_error handler c id head =
           }
         in
         let response =
-          try handler request with
+          try
+            Runtime_observer.callback scope W.Observation.Handler (fun () ->
+                handler request)
+          with
           | (Eio.Cancel.Cancelled _ | A.Error _ | End_of_file) as exn ->
               raise exn
           | exn ->
@@ -200,6 +203,7 @@ let exchange ~body_limit ~random ~on_error handler c id head =
         | Upgrade callback -> (
             ignore (body ~limit:0 request);
             A.respond c id response;
+            Runtime_observer.response scope (status response);
             match A.next_event c with
             | E.Handoff owner when E.equal_id owner id ->
                 let transport, suffix = A.take_handoff c in
@@ -208,22 +212,27 @@ let exchange ~body_limit ~random ~on_error handler c id head =
         | Fixed _ | Streaming _ ->
             started := true;
             A.respond c id response;
+            Runtime_observer.response scope (status response);
             (if Request.meth head <> Method.head then
                match Response.body response with
                | Fixed data -> A.send c id data
-               | Streaming produce -> produce (fun data -> A.send c id data)
+               | Streaming produce ->
+                   Runtime_observer.callback scope W.Observation.Response_stream
+                     (fun () -> produce (fun data -> A.send c id data))
                | Upgrade _ -> assert false);
             A.finish c id;
             if not !complete then A.discard_body c id;
             None)
 
-let connection ~peer ~body_limit ~random ~on_error ~timeout handler c =
+let connection ~scope ~peer ~body_limit ~random ~on_error ~timeout handler c =
   let rec loop () =
     match A.next_event c with
     | E.Request (id, head) -> (
         match
-          Eio.Time.Timeout.run_exn timeout (fun () ->
-              exchange ~body_limit ~random ~on_error handler c id head peer)
+          Runtime_observer.request scope (E.id_number id) (fun scope ->
+              Eio.Time.Timeout.run_exn timeout (fun () ->
+                  exchange ~scope ~body_limit ~random ~on_error handler c id
+                    head peer))
         with
         | None -> loop ()
         | Some _ as handoff -> handoff)
@@ -255,20 +264,21 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
     let rec loop () =
       if !stopping then Eio.Fiber.await_cancel ();
       let (transport : A.transport), peer = accept () in
-      Runtime_observer.connection observation transport (fun transport ->
+      Runtime_observer.connection observation transport (fun transport scope ->
           if !stopping then (
             Eio.Cancel.protect transport.close;
             Eio.Fiber.await_cancel ());
           try
             let upgraded =
               A.with_connection ?policy ~clock transport (engine ()) (fun c ->
-                  connections := c :: !connections;
+                  connections := (c, scope) :: !connections;
                   Fun.protect
                     ~finally:(fun () ->
-                      connections := List.filter (fun x -> x != c) !connections)
+                      connections :=
+                        List.filter (fun (x, _) -> x != c) !connections)
                     (fun () ->
-                      connection ~peer ~body_limit ~random ~on_error ~timeout
-                        handler c))
+                      connection ~scope ~peer ~body_limit ~random ~on_error
+                        ~timeout handler c))
             in
             match upgraded with
             | None -> ()
@@ -277,7 +287,9 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
                     callback transport suffix)
           with
           | Eio.Cancel.Cancelled _ as exn -> raise exn
-          | exn -> on_error exn);
+          | exn ->
+              Runtime_observer.connection_failed scope exn;
+              on_error exn);
       loop ()
     in
     loop ()
@@ -290,8 +302,10 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
       Runtime_observer.shutdown observation;
       Eio.Fiber.all
         (List.map
-           (fun c () ->
+           (fun (c, scope) () ->
              try A.shutdown c with
              | Eio.Cancel.Cancelled _ as exn -> raise exn
-             | exn -> on_error exn)
+             | exn ->
+                 Runtime_observer.connection_failed scope exn;
+                 on_error exn)
            !connections))

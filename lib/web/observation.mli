@@ -2,6 +2,29 @@
     targets, headers, cookies, bodies or exception text. *)
 
 type close_status = Closed | Close_failed | Close_not_attempted
+type timeout_phase = Header | Body | Write | Idle | Shutdown | Application
+
+type failure =
+  | Cancelled
+  | Timeout of timeout_phase
+  | Resource_limit
+  | Protocol_error
+  | Transport_error
+  | Client_disconnected
+  | Application_error
+  | Mixed_failure
+
+type callback_stage = Handler | Response_stream
+
+type request_outcome =
+  | Response_enqueued
+  | Upgraded
+  | Failed of failure
+      (** [Response_enqueued] means application response production/framing and
+          the discard command completed; it does not mean output drained or the
+          peer read it. [Upgraded] ends the HTTP request scope at handoff,
+          before the upgraded callback runs. [Failed] describes the exception
+          leaving that scope after deadline/cancellation cleanup has joined. *)
 
 (** Connection identifiers are local to one [serve] invocation. Active counts
     include accepted transports through their worker scope, including upgrades,
@@ -24,9 +47,42 @@ type event =
       close_status : close_status;
     }
   | Shutdown_started of { active_connections : int }
+  | Connection_failed of { connection : int64; failure : failure }
+  | Request_started of { connection : int64; request : int64 }
+  | Callback_finished of {
+      connection : int64;
+      request : int64;
+      stage : callback_stage;
+      duration_seconds : float option;
+      failure : failure option;
+    }
+  | Response_headers_enqueued of {
+      connection : int64;
+      request : int64;
+      status : int;
+    }
+  | Request_finished of {
+      connection : int64;
+      request : int64;
+      duration_seconds : float option;
+      outcome : request_outcome;
+    }
 
 type sink = event -> unit
-(** Sinks run synchronously on the application's domain/event loop. Keep them
+(** Request identifiers are engine exchange numbers local to the connection.
+    [Request_started] follows a validated request head. [Callback_finished]
+    measures handler or stream callback lifetime, including its finalizers but
+    excluding error recovery. A recovered handler error can be followed by an
+    enqueued 500 and a successful request scope. HEAD skips stream callbacks.
+    [Response_headers_enqueued] reports an accepted final response head, not
+    wire delivery; informational responses are excluded. [Connection_failed]
+    reports the first error passed to connection/shutdown error handling; header
+    and idle timeouts may occur before any request exists. Timeout-driven
+    callback cancellation can be reported as [Cancelled], while its enclosing
+    request ends with [Timeout Application]. Error categories contain no
+    exception text and [Resource_limit] does not identify a particular quota.
+
+    Sinks run synchronously on the application's domain/event loop. Keep them
     bounded and nonblocking; do not yield, mutate the server, or start detached
     work. Adapters isolate ordinary sink exceptions, while preserving runtime
     cancellation. No asynchronous queue or vendor integration is installed.

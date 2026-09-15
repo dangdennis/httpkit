@@ -26,6 +26,7 @@ let observe = function
   | Httpkit.Observation.Connection_closed event ->
       active_connections := event.active_connections
   | Httpkit.Observation.Shutdown_started _ -> ()
+  | _ -> ()
 ```
 
 Identifiers are local to a single `serve` invocation. Counts include upgraded
@@ -52,9 +53,41 @@ invalid write counts, I/O and close failures, ordinary sink exceptions and sink
 cancellation in both runtimes. The admission suite also runs with observations
 enabled and disabled, checking bounded active counts through suspended cleanup.
 
-This is the connection-level foundation. Request/handler timing, response status,
-queue depth, rejection and timeout categories, stream failures, WebSocket events
-and richer shutdown progress remain open. Handler completion, response enqueue,
-local transport drain and peer receipt must remain distinct when request-level
-observations are added. No request-delivery, enabled-hook allocation budget or
-production-readiness claim is made by these initial counters.
+## Request and callback scopes
+
+Each validated request head produces `Request_started`. Its identifier is an
+engine exchange number local to the connection, not a header supplied by a client.
+`Callback_finished` measures the handler or streaming producer through its
+finalizers, with an optional failure category. It excludes subsequent error
+recovery. HEAD does not execute the producer, so it has no stream callback event.
+A handler failure recovered by the application can produce a handler-error event,
+an enqueued 500 status and a successful request scope.
+
+`Response_headers_enqueued` records an accepted final response head and status;
+it excludes interim 1xx responses. `Request_finished` measures the application
+scope, including its deadline/cancellation cleanup. Its outcome is one of:
+
+- `Response_enqueued`: response production and framing completed, and any
+  needed request-body discard command was submitted.
+- `Upgraded`: the HTTP scope handed off the transport; the upgraded callback
+  continues in the connection scope.
+- `Failed category`: an exception left the request scope.
+
+Neither successful enqueue event means local output has drained or the peer has
+received it. A blocked-writer control verifies request completion can be observed
+before any successful write, so instrumentation does not insert extra flushes.
+
+`Connection_failed` reports the first failure entering connection or shutdown
+error handling. Header and idle timeouts can occur before a request exists.
+Categories cover application and all five transport timeout phases, cancellation,
+resource limits, protocol/transport errors, EOF, application errors and mixed
+aggregated failures. Resource-limit events do not identify a specific quota.
+The callback cancelled by a deadline may report `Cancelled`; the surrounding
+request reports the application timeout after that callback's cleanup joins.
+No exception messages or request contents are included.
+
+The production observation tests cover recovery, streams, application deadlines,
+every transport timeout phase, identity matching and enqueue-versus-drain behavior.
+Queue depth, dedicated rejection/WebSocket events, richer shutdown progress and
+enabled-hook allocation budgets remain separate work. These events establish no
+production-readiness or peer-delivery claim.

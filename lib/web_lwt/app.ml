@@ -137,7 +137,7 @@ let routes ?(middleware = []) entries =
   in
   List.fold_right (fun wrapper next -> wrapper next) middleware dispatch
 
-let exchange ~body_limit ~random ~on_error handler c id head peer =
+let exchange ~scope ~body_limit ~random ~on_error handler c id head peer =
   let complete = ref false
   and busy = ref false
   and started = ref false
@@ -196,7 +196,9 @@ let exchange ~body_limit ~random ~on_error handler c id head peer =
         }
       in
       Lwt.catch
-        (fun () -> handler request)
+        (fun () ->
+          Runtime_observer.callback scope W.Observation.Handler (fun () ->
+              handler request))
         (function
           | (Lwt.Canceled | A.Error _ | End_of_file) as exn -> Lwt.fail exn
           | exn ->
@@ -210,6 +212,7 @@ let exchange ~body_limit ~random ~on_error handler c id head peer =
       | Upgrade callback -> (
           body ~limit:0 request >>= fun _ ->
           A.respond c id response >>= fun () ->
+          Runtime_observer.response scope (status response);
           A.next_event c >>= function
           | E.Handoff owner when E.equal_id owner id ->
               let transport, suffix = A.take_handoff c in
@@ -218,11 +221,14 @@ let exchange ~body_limit ~random ~on_error handler c id head peer =
       | Fixed _ | Streaming _ ->
           started := true;
           A.respond c id response >>= fun () ->
+          Runtime_observer.response scope (status response);
           (if Request.meth head = Method.head then Lwt.return_unit
            else
              match Response.body response with
              | Fixed data -> A.send c id data
-             | Streaming produce -> produce (fun data -> A.send c id data)
+             | Streaming produce ->
+                 Runtime_observer.callback scope W.Observation.Response_stream
+                   (fun () -> produce (fun data -> A.send c id data))
              | Upgrade _ -> assert false)
           >>= fun () ->
           A.finish c id >>= fun () ->
@@ -234,13 +240,15 @@ let exchange ~body_limit ~random ~on_error handler c id head peer =
 
 let within = Deadline.within
 
-let connection ~peer ~body_limit ~random ~on_error ~clock ~request_timeout
-    handler c =
+let connection ~scope ~peer ~body_limit ~random ~on_error ~clock
+    ~request_timeout handler c =
   let rec loop () =
     A.next_event c >>= function
     | E.Request (id, head) -> (
-        within clock request_timeout (fun () ->
-            exchange ~body_limit ~random ~on_error handler c id head peer)
+        Runtime_observer.request scope (E.id_number id) (fun scope ->
+            within clock request_timeout (fun () ->
+                exchange ~scope ~body_limit ~random ~on_error handler c id head
+                  peer))
         >>= function
         | None -> loop ()
         | Some _ as h -> Lwt.return h)
@@ -266,20 +274,20 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
     if !stopping then Lwt.return_unit
     else
       accept () >>= fun ((transport : A.transport), peer) ->
-      Runtime_observer.connection observation transport (fun transport ->
+      Runtime_observer.connection observation transport (fun transport scope ->
           if !stopping then Lwt.no_cancel (Lwt.apply transport.close ())
           else
             Lwt.catch
               (fun () ->
                 A.with_connection ?policy ~clock transport (engine ()) (fun c ->
-                    connections := c :: !connections;
+                    connections := (c, scope) :: !connections;
                     Lwt.finalize
                       (fun () ->
-                        connection ~peer ~body_limit ~random ~on_error ~clock
-                          ~request_timeout handler c)
+                        connection ~scope ~peer ~body_limit ~random ~on_error
+                          ~clock ~request_timeout handler c)
                       (fun () ->
                         connections :=
-                          List.filter (fun x -> x != c) !connections;
+                          List.filter (fun (x, _) -> x != c) !connections;
                         Lwt.return_unit))
                 >>= function
                 | None -> Lwt.return_unit
@@ -288,7 +296,10 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
                       (fun () -> callback transport suffix)
                       transport.close)
               (function
-                | Lwt.Canceled as exn -> Lwt.fail exn | exn -> on_error exn))
+                | Lwt.Canceled as exn -> Lwt.fail exn
+                | exn ->
+                    Runtime_observer.connection_failed scope exn;
+                    on_error exn))
       >>= worker
   in
   let workers = List.init max_connections (fun _ -> Lwt.apply worker ()) in
@@ -297,10 +308,14 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
     stopping := true;
     Runtime_observer.shutdown observation;
     Lwt_list.iter_p
-      (fun c ->
+      (fun (c, scope) ->
         Lwt.catch
           (fun () -> A.shutdown c)
-          (function Lwt.Canceled as e -> Lwt.fail e | e -> on_error e))
+          (function
+            | Lwt.Canceled as e -> Lwt.fail e
+            | e ->
+                Runtime_observer.connection_failed scope e;
+                on_error e))
       !connections
   in
   Lwt.finalize

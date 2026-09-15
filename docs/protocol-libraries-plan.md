@@ -48,6 +48,10 @@ completed slice and push `main`. Record evidence and remaining gaps here. A fail
 or unavailable external gate stays open while independent local work continues.
 Do not deploy services or invent independent approval to satisfy a release gate.
 
+Current selection: complete request observations, native fuzz-input minimization,
+and the remaining local security reviews. Lwt benchmark parity is deferred by
+user instruction. Lwt correctness and regression tests remain in scope.
+
 | Order | Slices, executed separately | Exit invariant |
 | --- | --- | --- |
 | 1 | CL/TE policy matrix; chunk/trailer matrix; EOF/special responses | Explicit expected outcomes independent of parser behavior, segmentation parity |
@@ -341,9 +345,13 @@ both application servers: accepted/closed connection scopes, graceful-stop start
 active counts, completed I/O byte counts, duration and explicit close outcome.
 Events carry no request data. Ordinary sink failures are isolated, cancellation
 still closes owned transports, and upgrade traffic remains in the same scope.
-Admission controls run with observations enabled and disabled. Request timing,
-response/stream/timeout/rejection categories, queue depth and exporter-overhead
-measurements remain open; enqueued output is not reported as delivered output.
+Admission controls run with observations enabled and disabled. Request scopes,
+handler/stream callback timing, final response-head enqueue status and categorized
+failures are now implemented. All five transport timeout phases and application
+deadlines have observation controls; an error reported by shutdown and the worker
+is counted once per connection. Recovery to 500, callback cancellation, upgrades
+and a blocked-writer control distinguish enqueue from delivery. Queue depth,
+dedicated rejection/upgrade events and exporter-overhead measurements remain open.
 
 Observation events: accept/close, request start/finish/status/duration, measurable
 TTFB, bytes read/written, active connections, queue depth, admission/body-limit
