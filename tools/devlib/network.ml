@@ -39,10 +39,15 @@ let ready fd write timeout =
   in
   require (r <> [] || w <> []) "Socket deadline exceeded"
 
-let connect ?(timeout = 15.) port =
+let connect ?(timeout = 15.) ?receive_buffer port =
   let fd = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
   Unix.set_nonblock fd;
   try
+    Option.iter
+      (fun n ->
+        require (n > 0) "Invalid receive buffer";
+        Unix.setsockopt_int fd Unix.SO_RCVBUF n)
+      receive_buffer;
     (try Unix.connect fd (Unix.ADDR_INET (Unix.inet_addr_loopback, port))
      with Unix.Unix_error ((Unix.EINPROGRESS | Unix.EWOULDBLOCK), _, _) -> (
        ready fd true timeout;

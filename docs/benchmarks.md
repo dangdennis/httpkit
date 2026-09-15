@@ -591,6 +591,39 @@ This is development-profile functional evidence, not sustained-memory acceptance
 blocked-reader proof or a production-ready claim. Unread-body reuse, blocked output
 and the long frozen-candidate stress campaign remain separate work.
 
+## Observed blocked output
+
+`tools/dev backpressure` uses a dedicated local fixture at1/16/64 connections.
+Select `--capacities 1,64` or `--scenarios resume,reset,timeout,shutdown` for a
+subset. Application and transport defaults stay unchanged. The fixture streams
+8MiB using one reused8KiB chunk; clients initially advertise small receive buffers
+and do not read responses.
+
+Every connection must have an active producer waiting in send, a nonempty output
+queue bounded by32768 bytes, and stable produced-byte and successful transport-write
+counts across a one-second interval. A stream fitting into the kernel buffer cannot
+satisfy this test. A bounded atomic snapshot file provides observations without
+requiring another application connection during saturation. The fixture retains
+current connection state, aggregate counters and at most one capacity's worth of
+recent closure timings, not an unbounded event history.
+
+The runner resumes reading and checks the entire stream in bounded chunks plus
+keep-alive reuse; resets clients and requires producer cleanup; waits for the
+default30s **write** idle timeout with5s scheduling tolerance; or sends SIGTERM while
+producers are blocked. Idle/application timeout does not qualify as a write timeout.
+Idle time is measured from each connection's last successful transport write:
+kernel progress after an initial stall legitimately restarts that deadline. The
+write-timeout scenario also has a55s outer bound. Shutdown must finish within the
+existing15s process bound. Workers are joined
+before client sockets are retired on failure.
+
+Reports under `_artifacts/framework/backpressure-*/` retain blocked-state snapshots,
+sampled RSS/descriptors, failure categories, producer completion/failure counts,
+drained resource checks and final accounting. These are development-profile
+functional controls on a shared host, not continuous peak RSS, production
+throughput or sustained acceptance evidence. Source/binary identities remain
+attached. The fixture adds no production endpoint or runtime dependency.
+
 ## WebSocket segmented-input allocation control
 
 `test/web/websocket_buffer_test.ml` measures cumulative GC allocation, excluding

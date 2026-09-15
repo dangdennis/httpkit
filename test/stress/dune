@@ -1,0 +1,4 @@
+(executable
+ (name server)
+ (modules server)
+ (libraries httpkit-eio eio_main unix yojson))
