@@ -150,8 +150,7 @@ let lwt bytes =
      Lwt.return_unit)
 
 let () =
-  Fuzz_input.add ~name:"native adapter partial I/O and cancellation"
-    (fun bytes ->
-      if String.length bytes <= 1024 then (
-        eio bytes;
-        lwt bytes))
+  Fuzz_input.add ~max_length:1024
+    ~name:"native adapter partial I/O and cancellation" (fun bytes ->
+      eio bytes;
+      lwt bytes)

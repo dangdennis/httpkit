@@ -6,6 +6,34 @@ let check_log log =
     (match rows with [ row ] -> ends ~suffix:": PASS" row | _ -> false)
     "Native fuzz target did not report exactly one passing property"
 
+let check_counts ~rounds data =
+  require
+    (List.sort String.compare (List.map fst (assoc data))
+    = List.sort String.compare
+        [
+          "schema";
+          "generated";
+          "checked";
+          "skipped";
+          "failed";
+          "maximum_input_bytes";
+          "maximum_checked_input_bytes";
+        ])
+    "Invalid or duplicated native fuzz counter fields";
+  let generated = int (field "generated" data)
+  and checked = int (field "checked" data)
+  and skipped = int (field "skipped" data)
+  and failed = int (field "failed" data)
+  and maximum = int (field "maximum_input_bytes" data)
+  and checked_maximum = int (field "maximum_checked_input_bytes" data) in
+  require
+    (field "schema" data = `Int 1
+    && generated = rounds && checked > 0 && skipped >= 0 && checked <= generated
+    && skipped = generated - checked
+    && failed = 0 && maximum >= 0 && maximum <= 65536 && checked_maximum >= 0
+    && checked_maximum <= maximum)
+    "Native fuzz counters do not prove completed checks for requested trials"
+
 let read_input path =
   let fd = Unix.openfile path [ Unix.O_RDONLY; Unix.O_NONBLOCK ] 0 in
   Fun.protect
@@ -76,7 +104,7 @@ let main args =
       (directory / "report.json")
       (`Assoc
          ([
-            ("schema", `Int 1);
+            ("schema", `Int 2);
             ("status", `String status);
             ("source_sha256", `String digest);
             ("compiler", `String Build.version);
@@ -99,10 +127,11 @@ let main args =
             ("release_readiness", `String "NOT_EVALUATED");
             ( "note",
               `String
-                "Seeded Crowbar trials or raw-input replay; length guards may \
-                 skip checks. No coverage-guided search, automatic shrinking \
-                 or total-memory proof is claimed. Reproduce with the recorded \
-                 command and selected case on matching sources." );
+                "Seeded Crowbar trials or raw-input replay; checked and \
+                 skipped callbacks are counted separately. No coverage-guided \
+                 search, automatic shrinking or total-memory proof is claimed. \
+                 Reproduce with the recorded command and selected case on \
+                 matching sources." );
             ("runs", `List (List.map ( ! ) !rows));
           ]
          @ extra))
@@ -125,6 +154,7 @@ let main args =
                       "HTTP_KIT_FUZZ_INPUT";
                       "HTTP_KIT_FUZZ_CAPTURE";
                       "HTTP_KIT_FUZZ_FAILURE";
+                      "HTTP_KIT_FUZZ_STATS";
                     ]))
               && (not (starts ~prefix:"AFL_" key))
               && not (starts ~prefix:"__AFL" key))
@@ -145,7 +175,14 @@ let main args =
           in
           let log = directory / Printf.sprintf "%s-%d.log" name batch in
           let capture = directory / Printf.sprintf "%s-%d.input" name batch in
-          let env = set env "HTTP_KIT_FUZZ_CAPTURE" capture in
+          let stats =
+            directory / Printf.sprintf "%s-%d.stats.json" name batch
+          in
+          let env =
+            set
+              (set env "HTTP_KIT_FUZZ_CAPTURE" capture)
+              "HTTP_KIT_FUZZ_STATS" stats
+          in
           let env =
             if replay then set env "HTTP_KIT_FUZZ_INPUT" replay_path else env
           in
@@ -160,6 +197,7 @@ let main args =
                    ("command", strings command);
                    ("binary_sha256", `String (sha (read binary)));
                    ("log", `String log);
+                   ("counters_path", `String stats);
                    ( "replay_input",
                      if replay then `String replay_path else `Null );
                    ("failure_input", `Null);
@@ -180,6 +218,21 @@ let main args =
                    (Process.status_code status = 0)
                    ("Native fuzz failed: " ^ log));
              check_log (read log);
+             let raw_counts = read_input stats in
+             let counts = Yojson.Basic.from_string raw_counts in
+             check_counts ~rounds counts;
+             List.iter
+               (fun key -> row := Benchmarks.setj key (field key counts) !row)
+               [
+                 "generated";
+                 "checked";
+                 "skipped";
+                 "failed";
+                 "maximum_input_bytes";
+                 "maximum_checked_input_bytes";
+               ];
+             row :=
+               Benchmarks.setj "counters_sha256" (`String (sha raw_counts)) !row;
              require
                (Build.source_hash () = digest)
                "Sources changed during native fuzz batch";

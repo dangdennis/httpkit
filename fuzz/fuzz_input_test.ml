@@ -11,6 +11,27 @@ let expect_invalid f =
   | exception Invalid_argument _ -> ()
 
 let () =
+  assert (List.mem 65536 (Fuzz_input.lengths 65536));
+  assert (List.mem 1025 (Fuzz_input.lengths 1024));
+  assert (not (List.mem 2048 (Fuzz_input.lengths 1024)));
+  let counts = Fuzz_input.counts () in
+  let called = ref false in
+  assert (Fuzz_input.run counts ~max_length:3 (fun _ -> called := true) "abc");
+  assert !called;
+  assert (
+    not
+      (Fuzz_input.run counts ~max_length:3
+         (fun _ -> failwith "skipped input executed")
+         "abcd"));
+  expect_failure (fun () ->
+      ignore
+        (Fuzz_input.run counts ~max_length:3
+           (fun _ -> raise Property_failure)
+           "x"));
+  assert (
+    counts.generated = 3 && counts.checked = 1 && counts.skipped = 1
+    && counts.failed = 1
+    && counts.maximum_input_bytes = 4);
   let directory = Filename.temp_file "httpkit-fuzz-input-" "" in
   Sys.remove directory;
   Unix.mkdir directory 0o700;
@@ -32,6 +53,9 @@ let () =
           assert (actual = bytes);
           called := true);
       assert !called;
+      expect_invalid (fun () ->
+          Fuzz_input.add ~max_length:1 ~name:"oversized replay" (fun _ ->
+              failwith "oversized raw replay executed"));
       assert (not (Sys.file_exists capture));
       expect_failure (fun () ->
           Fuzz_input.add ~name:"failure" (fun actual ->

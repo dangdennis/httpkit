@@ -71,8 +71,6 @@ let check_chunks wire =
     (fun ~step cuts -> Segmentation.body ~step chunk_meta wire cuts)
     wire whole
 
-let bounded f bytes = if String.length bytes <= 65536 then f bytes
-
 let () =
   let selected = Sys.getenv_opt "HTTP_KIT_FUZZ_CASE" in
   if
@@ -81,8 +79,7 @@ let () =
          [ None; Some "request"; Some "response"; Some "chunked" ])
   then invalid_arg "unknown fuzz case";
   let add name f =
-    if selected = None || selected = Some name then
-      Fuzz_input.add ~name (bounded f)
+    if selected = None || selected = Some name then Fuzz_input.add ~name f
   in
   add "request" (fun wire ->
       check_head Request wire;

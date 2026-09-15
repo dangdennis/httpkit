@@ -31,7 +31,7 @@ invented. Existing main commit/push authorization remains in effect.
 | 2 | Multipart controls and WebSocket allocation investigation | Multipart controls fixed; incremental/coalesced WebSocket quadratic copying reproduced and replaced with buffered parsing; segmented protocol and allocation regressions pass |
 | 3 | Feature security, lifecycle and ownership review | Every feature mapped to invariants/tests; historical timeout artifacts correctly classified; no untriaged supported-scope findings |
 | 4 | Queue/rejection/admission/shutdown diagnostics and API contracts | Accurate observations preserve backpressure and cleanup; safe installed examples and migration notes |
-| 5 | Checked/skipped native fuzz accounting, resumable campaigns, coverage/mutations | All 14 targets meet 30min/100000 checked/20 distinct seeds; fresh 95/85/80% point coverage and critical-path review |
+| 5 | Checked/skipped native fuzz accounting, resumable campaigns, coverage/mutations | Accounting and length-boundary generators implemented; resumable 14-target30min/100000-checked/20-seed campaigns and fresh95/85/80% coverage remain pending |
 | 6 | Capacity, slow-client/overload stress, allocation profiles | 64-connection profile bounded; SQLite30min/PostgreSQL2h and idle/slow/overload30min campaigns pass |
 | 7 | Reproducible local platforms and approved hosted staging | Linux x86_64/macOS arm64 on5.5.0; real direct-edge contract and lifecycle evidence; cost-approved isolated synthetic campaign |
 | 8 | MIT/notices, dependency inventory, private reporting, archive/pin installs and release notes | Exact beta candidate passes gates and is prepared for owner publication review |

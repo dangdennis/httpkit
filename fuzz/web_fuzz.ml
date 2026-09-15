@@ -227,6 +227,5 @@ let () =
   List.iter
     (fun (name, f) ->
       if selected = None || selected = Some name then
-        Fuzz_input.add ~name (fun raw ->
-            if String.length raw <= 2048 then f raw))
+        Fuzz_input.add ~max_length:2048 ~name f)
     targets

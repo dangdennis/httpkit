@@ -13,11 +13,8 @@ During the personal-use investigation, 100 ordinary and 100 instrumented direct
 replays passed (maximum observed direct process duration approximately 16 ms).
 Three fresh AFL runs with RNG seeds 42, 43 and 44, each lasting 30 seconds at the
 original memory/execution limits, produced no findings. These initial observations
-precede the final candidate freeze; use the reproducible command for current data:
-
-```sh
-tools/dev triage-timeout
-```
+precede the final candidate freeze. The historical `tools/dev triage-timeout`
+command also starts AFL and is excluded from the approved native-only beta plan.
 
 The tool retains commands, logs, direct timing observations and AFL corpora in
 `_artifacts/personal/timeout-*`. AFL needs shared-memory access. Its output keeps
@@ -40,3 +37,19 @@ executions. Its SHA-256 is
 The input is preserved as `fuzz/corpus/core/deferred-timeout.seed`; original logs
 and corpus remain in `_artifacts/campaigns/a063c71df498-nb78ebzw`. It has not been
 investigated or resolved. Non-AFL checks and the Eio soak continue separately.
+
+## Input format boundary
+
+Both retained `.seed` files are historical generator entropy, not captured HTTP
+wire or lexical input. The old Crowbar byte generator reads up to64 decoded bytes,
+stops at NUL and uses byte1 as an escape. The request seed contains an early NUL;
+feeding the complete seed directly to the current request parser changes the
+experiment. Selection bytes and generator revisions also matter. The native
+generator now includes length-boundary cases, so its positional entropy replay
+cannot establish equivalence to the original generator merely by reusing a file.
+
+`native-fuzz --input` is appropriate for captured property bytes, not an automatic
+substitute for these historical seeds. Preserve original source/binary/generator
+identity before investigating decoded cases. Neither successful wrong-format
+replay nor the new checked-input counters resolves the historical timeouts. Both
+remain unresolved; no AFL campaign was run during this beta implementation.

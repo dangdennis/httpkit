@@ -18,4 +18,6 @@
 (test
  (name native_fuzz_test)
  (modules native_fuzz_test)
- (libraries devlib))
+ (libraries devlib)
+ (deps ../fuzz/engine_fuzz.exe)
+ (action (run %{test} %{exe:../fuzz/engine_fuzz.exe})))
