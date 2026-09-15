@@ -5,6 +5,7 @@ module Queries = struct
 
   let insert = static T.(int -->. unit) "INSERT INTO items(id) VALUES (?)"
   let count = static T.(unit -->! int) "SELECT COUNT(*) FROM items"
+  let rows = static T.(unit -->* int) "SELECT id FROM items ORDER BY id"
   let pid = static T.(unit -->! int) "SELECT pg_backend_pid()"
 
   let timeout =
@@ -30,6 +31,72 @@ let migration =
   }
 
 exception Abort
+
+let callback_faults db =
+  List.iter
+    (fun convenience ->
+      List.iter
+        (fun failure ->
+          let blocked_write = ref false in
+          let callback (module C : Caqti_eio.CONNECTION) =
+            ok (C.exec Queries.insert 99);
+            (match failure with
+            | `Rows -> (
+                try ignore (C.iter_s Queries.rows (fun _ -> raise Abort) ())
+                with Abort -> ())
+            | `Call -> (
+                try ignore (C.call ~f:(fun _ -> raise Abort) Queries.rows ())
+                with Abort -> ())
+            | `Result -> (
+                match C.iter_s Queries.rows (fun _ -> Error `User_abort) () with
+                | Error `User_abort -> ()
+                | _ -> failwith "row callback error was not preserved")
+            | `Constraint -> (
+                match C.exec Queries.insert 99 with
+                | Error _ -> ()
+                | Ok () -> failwith "duplicate primary key accepted"));
+            try ok (C.exec Queries.insert 100)
+            with D.Connection_invalidated -> blocked_write := true
+          in
+          (match
+             if convenience then
+               D.use db (fun ((module C : Caqti_eio.CONNECTION) as c) ->
+                   ok
+                     (C.with_transaction (fun () ->
+                          callback c;
+                          Ok ())))
+             else D.transaction db callback
+           with
+          | () -> failwith "caught query failure became successful transaction"
+          | exception D.Connection_invalidated -> ());
+          check "write after caught failure blocked" !blocked_write;
+          D.use db (fun (module C : Caqti_eio.CONNECTION) ->
+              check "caught failure committed no rows"
+                (ok (C.find Queries.count ()) = 1)))
+        [ `Rows; `Call; `Result; `Constraint ])
+    [ false; true ];
+  D.use db (fun (module C : Caqti_eio.CONNECTION) ->
+      (match
+         C.with_transaction (fun () ->
+             ok (C.exec Queries.insert 99);
+             Error `User_abort)
+       with
+      | Error `User_abort -> ()
+      | _ -> failwith "transaction callback error was not preserved");
+      check "explicit error rolls back without poisoning healthy connection"
+        (ok (C.find Queries.count ()) = 1);
+      check "convenience transaction returns its successful value"
+        (ok (C.with_transaction (fun () -> C.find Queries.count ())) = 1));
+  D.use db (fun (module C : Caqti_eio.CONNECTION) ->
+      (try ignore (C.iter_s Queries.rows (fun _ -> raise Abort) ())
+       with Abort -> ());
+      check "driver exception invalidates a nontransactional lease too"
+        (try
+           ignore (C.find Queries.count ());
+           false
+         with D.Connection_invalidated -> true));
+  D.transaction db (fun (module C : Caqti_eio.CONNECTION) ->
+      check "healthy transaction after faults" (ok (C.find Queries.count ()) = 1))
 
 let backend_faults ~sw ~stdenv ~clock uri =
   let pid = Queries.pid
@@ -92,13 +159,15 @@ let backend_faults ~sw ~stdenv ~clock uri =
                               (fun id ->
                                 match C.exec Queries.insert id with
                                 | Error _ -> ()
+                                | exception D.Connection_invalidated -> ()
                                 | Ok () ->
                                     failwith
                                       "write retried outside lost transaction")
                               [ 100; 101 ]))
                   with
                   | () -> failwith "lost transaction query error became success"
-                  | exception Caqti.Error.Exn _ -> ())
+                  | exception (Caqti.Error.Exn _ | D.Connection_invalidated) ->
+                      ())
               | `Cancel ->
                   let killed, notify = Eio.Promise.create () in
                   Eio.Fiber.first
@@ -237,6 +306,7 @@ let () =
                       Eio.Fiber.await_cancel ()))
                 (fun () -> Eio.Promise.await inserted);
               check "cancellation rollback" (count () = 1);
+              callback_faults db;
               let corrupt =
                 {
                   migration with

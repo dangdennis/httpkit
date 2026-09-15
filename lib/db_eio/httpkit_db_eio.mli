@@ -7,6 +7,11 @@ type t
 
 exception Busy
 
+exception Connection_invalidated
+(** A previous query failed within the transaction, or a driver call raised.
+    Further queries and commit are refused; the pool retires this connection
+    after the lease. Rollback/close remain available for cleanup. *)
+
 val create :
   ?max_connections:int ->
   ?max_waiters:int ->
@@ -24,13 +29,16 @@ val use : t -> (connection -> 'a) -> 'a
 val transaction : t -> (connection -> 'a) -> 'a
 (** Commit on return; rollback on exceptions/cancellation. A failed rollback
     evicts the connection. No implicit retry or nested transaction support. The
-    callback must leave transaction/session control and connection validation to
-    the wrapper; it must not start, finish or reset the session. PostgreSQL
-    completion retains the driver's retry guard; a later lease may reconnect
-    during validation, with configured session settings restored. Losing a
-    connection during commit can leave the commit outcome unknown; an exception
-    does not prove that the database rolled back. Reconciliation and idempotency
-    belong to the application. *)
+    transaction cannot succeed after a query failure, even if the callback
+    catches it; subsequent operations raise [Connection_invalidated]. Such
+    invalidated connections are retired conservatively. The callback must leave
+    transaction/session control and connection validation to the wrapper; it
+    must not start, finish or reset the session. PostgreSQL completion retains
+    the driver's retry guard; a later lease may reconnect during validation,
+    with configured session settings restored. Losing a connection during commit
+    can leave the commit outcome unknown; an exception does not prove that the
+    database rolled back. Reconciliation and idempotency belong to the
+    application. *)
 
 val size : t -> int
 

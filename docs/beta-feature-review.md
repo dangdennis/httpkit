@@ -76,6 +76,17 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
   resource; fresh-allocation failures and cancellation still propagate.
   A connection lost during an actual commit exchange can still have an unknown
   outcome, so these schedules do not justify automatic transaction retries.
+- A row-processing callback exception exposed a second transaction-loss path:
+  the driver reset the connection; catching that exception allowed later writes
+  outside the original transaction and a false successful result. Query calls
+  now invalidate a transaction after an error result, and invalidate the lease
+  after a driver exception. Subsequent queries/commit raise
+  `Connection_invalidated`; rollback/close remain usable and the pool retires the
+  resource. Both transaction APIs use the guarded completion path. SQLite and
+  PostgreSQL controls cover caught row exceptions, low-level response callbacks,
+  callback error results, constraint errors, later writes, commit refusal and
+  pool recovery. This deliberately trades connection reuse after query failures
+  for deterministic failure; ordinary successful transactions keep their lease.
 
 ## Contracts that remain the application's responsibility
 
