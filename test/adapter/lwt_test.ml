@@ -670,13 +670,113 @@ let suspended_handler_cleanup () =
          Lwt.return_unit)
        [ false; true ])
 
+let early_final_write_case finalized written =
+  Lwt_main.run
+    (let module H = Httpkit_core in
+     let engine = ok (E.client ()) in
+     let request =
+       H.Request.create ~meth:H.Method.post
+         ~target:(ok (H.Target.of_string "/"))
+         ~headers:
+           (ok (H.Headers.of_list [ ("host", "x"); ("content-length", "3") ]))
+         ()
+     in
+     let id =
+       match ok (E.submit_request engine request) with
+       | E.Accepted id -> id
+       | _ -> assert false
+     in
+     let _, _, header_length = Option.get (E.output engine) in
+     ignore (ok (E.acknowledge engine header_length));
+     assert (E.send_data engine id "abc" = Ok (E.Accepted ()));
+     if finalized then assert (E.finish engine id = Ok (E.Accepted ()));
+     let started, start = Lwt.wait () in
+     let release_write, write_release = Lwt.wait () in
+     let finished, finish = Lwt.wait () in
+     let release_body, body_release = Lwt.wait () in
+     let reads = ref 0
+     and writes = ref 0
+     and closed = ref 0
+     and active = ref 0 in
+     let transport : A.transport =
+       {
+         read =
+           (fun dst off len ->
+             let* bytes =
+               match !reads with
+               | 0 ->
+                   let* () = started in
+                   Lwt.return
+                     "HTTP/1.1 413 Rejected\r\n\
+                      Connection: close\r\n\
+                      Content-Length: 3\r\n\
+                      \r\n"
+               | 1 ->
+                   let* () = release_body in
+                   Lwt.return "err"
+               | _ -> Lwt.return ""
+             in
+             incr reads;
+             assert (String.length bytes <= len);
+             Bytes.blit_string bytes 0 dst off (String.length bytes);
+             Lwt.return (String.length bytes));
+         write =
+           (fun bytes off len ->
+             incr writes;
+             incr active;
+             Lwt.finalize
+               (fun () ->
+                 assert (!writes = 1 && String.sub bytes off len = "abc");
+                 Lwt.wakeup_later start ();
+                 let* () = release_write in
+                 Lwt.return written)
+               (fun () ->
+                 decr active;
+                 Lwt.wakeup_later finish ();
+                 Lwt.return_unit));
+         close =
+           (fun () ->
+             incr closed;
+             Lwt.return_unit);
+       }
+     in
+     let* () =
+       A.with_connection transport engine (fun c ->
+           let* event = A.next_event c in
+           (match event with
+           | E.Response (owner, response) ->
+               assert (
+                 E.equal_id id owner
+                 && H.Status.to_int (H.Response.status response) = 413)
+           | _ -> assert false);
+           Lwt.wakeup_later write_release ();
+           let* () = finished in
+           let* () = Lwt.pause () in
+           Lwt.wakeup_later body_release ();
+           let* body, _ = A.collect_body c id in
+           assert (body = "err");
+           let* event = A.next_event c in
+           assert (event = E.Closed None);
+           Lwt.return_unit)
+     in
+     assert (!writes = 1 && !active = 0 && !closed = 1);
+     Lwt.return_unit)
+
+let early_final_write () =
+  List.iter
+    (fun finalized -> List.iter (early_final_write_case finalized) [ 1; 3 ])
+    [ false; true ]
+
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->
       match
         Harness_runtime.Watchdog.run ~seconds:10. (fun () ->
             try f ()
             with exn ->
-              prerr_endline (Printexc.to_string exn);
+              prerr_endline
+                (match exn with
+                | A.Error failure -> A.failure_to_string failure
+                | _ -> Printexc.to_string exn);
               Printexc.print_backtrace stderr;
               raise exn)
       with
@@ -691,6 +791,7 @@ let () =
           (fun (n, f) -> bounded n f)
           [
             ("fragmented reads and partial writes", partial);
+            ("early final during an in-flight upload write", early_final_write);
             ("write failure cannot become successful flush", error);
             ("handler cleanup", handler_error);
             ("suspended handler cleanup", suspended_handler_cleanup);

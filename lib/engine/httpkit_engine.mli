@@ -66,7 +66,9 @@ val finish : ?trailers:Headers.t -> t -> id -> (unit submission, error) result
 (** Backpressured commands have no effect and may be retried. Accepted commands
     must not be retried. Body/frame failures abort an already committed
     exchange. Client body commands, including empty-body finalization, wait for
-    100 Continue or [continue_request] when Expect is pending. *)
+    100 Continue or [continue_request] when Expect is pending. Accepted finish
+    completes encoding, not transport delivery; queued bytes still require
+    acknowledgement and can be cancelled by a closing final response. *)
 
 val continue_request : t -> id -> (unit, error) result
 (** Explicit client policy override for an Expect wait (e.g. an adapter
@@ -87,7 +89,10 @@ val poll_event : t -> event option
     never performs a read. Complete refers to incoming body completion. *)
 
 val output : t -> (string * int * int) option
-(** Stable queued bytes and slice until acknowledgement; no copy on polling. *)
+(** Stable queued bytes and slice until acknowledgement; no copy on polling.
+    Abort or an early final response can drop queued output. A transport write
+    already in flight cannot be recalled; if the queue was dropped, its result
+    must not acknowledge that queue or trigger another upload write. *)
 
 val acknowledge : t -> int -> (unit, error) result
 (** Retire a prefix of the currently offered output slice only. Invalid counts

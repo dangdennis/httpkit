@@ -481,9 +481,10 @@ let receive_head t meta =
           a.receiving <- Transferred_input;
           complete_output a)
         else (
-          (* Do not continue a queued upload after an early final response.
+          (* Finishing the encoder does not acknowledge transport output. A
+             closing final response also cancels a finalized, queued upload.
              Already acknowledged bytes cannot be recalled, so force close. *)
-          if not (send_done a) then (
+          if not (send_done a) || (not meta.persistent && t.queued > 0) then (
             complete_output a;
             a.close_after <- true;
             clear_output t);

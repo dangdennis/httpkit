@@ -21,3 +21,9 @@
  (modules reuse_test)
  (modes byte exe)
  (libraries http1_conformance engine_cases httpkit-core httpkit-http1 httpkit-engine alcotest))
+
+(test
+ (name client_response_test)
+ (modules client_response_test)
+ (modes byte exe)
+ (libraries http1_conformance engine_cases httpkit-core httpkit-http1 httpkit-engine alcotest))

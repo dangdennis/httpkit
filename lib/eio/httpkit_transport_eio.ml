@@ -247,7 +247,11 @@ let write_loop c =
         in
         if n <= 0 || n > len then
           raise (Error (Transport (Invalid_argument "transport write count")));
-        ignore (checked (Engine.acknowledge c.engine n));
+        (* An early final response may drop the queue while this write is
+           suspended. Its returned bytes are already in flight; they cannot
+           acknowledge cancelled output or authorize another upload write. *)
+        if Engine.queued_output_bytes c.engine > 0 then
+          ignore (checked (Engine.acknowledge c.engine n));
         signal c;
         loop ()
   in

@@ -63,6 +63,13 @@ No vendor dependency or unbounded event queue. Preserve response-enqueue versus
 transport-progress and peer-receipt semantics. Change APIs only for evidenced
 misuse/ownership problems; keep existing package/runtime boundaries.
 
+Current technical focus remains HTTP/1 security and conformance. Client
+early-final controls now distinguish encoder completion from transport
+acknowledgement: closing responses cancel finalized queued uploads, and both
+adapters preserve response delivery when an in-flight write completes after that
+cancellation. The 72-case segmented engine matrix and both-runtime controls are
+regressions for this boundary; broader sequencing and fuzz campaigns remain open.
+
 Capacity workloads use1/16/64 concurrent connections and128 attempted connections
 for overload, with slow headers, stalled bodies, slow readers, idle keep-alive,
 unread bodies, disconnected uploads/streams and shutdown during cleanup. Require

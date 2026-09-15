@@ -260,7 +260,11 @@ let write_loop c =
             Lwt.fail
               (Error (Transport (Invalid_argument "transport write count")))
           else (
-            ignore (checked (Engine.acknowledge c.engine n));
+            (* A closing response can cancel queued output while this write
+               is suspended. Do not acknowledge the dropped queue when the
+               already in-flight write completes. *)
+            if Engine.queued_output_bytes c.engine > 0 then
+              ignore (checked (Engine.acknowledge c.engine n));
             signal c;
             let* () = Lwt.pause () in
             loop ())

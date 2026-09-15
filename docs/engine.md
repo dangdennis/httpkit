@@ -27,6 +27,17 @@ A final server response before upload completion aborts the incoming body, emits
 
 A client receiving an early final response stops an unfinished upload, drops unsent queued upload bytes, and prevents reuse. It never transparently retries. Expect blocks body commands until a 100 response or explicit `continue_request` policy decision. Informational responses have a configurable finite count, default 16.
 
+An accepted `finish` completes encoding, not transport delivery. A final response
+with `Connection: close` or close-delimited framing also drops any remaining
+queued upload after `finish`. A persistent final response preserves an already
+finalized upload; reuse still waits for its acknowledgements. This distinguishes
+the general continued-transmission guidance in [RFC 9110 §7.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5)
+from the rejection/closing case in [RFC 9112 §9.5](https://www.rfc-editor.org/rfc/rfc9112.html#section-9.5).
+Aborting a writer that the caller has not finished remains httpkit's conservative
+early-final policy. Already in-flight bytes cannot be recalled. Both adapters
+ignore a successful write's acknowledgement when its queue was cancelled during
+the write, while retaining write-count validation and transport-error handling.
+
 Shutdown stops admission and closes after the active exchange finishes. An adapter owns its deadline and aborts on expiry. Abort is idempotent, preserves the first failure, drops pending work and exposes one Closed event. A peer half-close after a complete request still permits the server to finish its response.
 
 ## Handoff
@@ -36,6 +47,16 @@ CONNECT and 101 responses require matching request context. Upgrade selection mu
 ## Evidence
 
 The suite tests both roles, pipeline suffixes, input/output backpressure, stale/foreign IDs, early responses, discard, informational/Expect behavior, abort/EOF/shutdown, invalid acknowledgement, body mismatch, readiness, and handoff. An independent model checks acknowledged bytes against a literal expected prefix under generated command schedules. A client model checks fragmented response identity/order. Independent connections are tested on 1, 2, and 4 domains.
+
+`test/engine/client_response_test.ml` checks 72 client response configurations:
+fixed/chunked uploads, Expect and open writers, finalized output at partial/full
+acknowledgement boundaries, persistent/closing/EOF framing, and 200/413 finals
+after 103. Every case uses whole, bytewise, every-split and seeded segmentation
+with work budgets 1, 7 and 16384. It checks exact response suffix ownership,
+response-body delivery, output cancellation or preservation, event identities,
+closure and reuse. Eio/Lwt controls also hold a transport write across the final
+head, complete it partially or fully, and require the response body plus joined
+cleanup with no further upload writes.
 
 Native AFL targets reuse these models; the runner preserves findings and replays queue entries without instrumentation. The installed engine consumer runs in bytecode/native modes without runtime adapters. The native adapter suites establish transport, deadline, cancellation and cleanup behavior; pure engine tests do not establish those properties.
 
