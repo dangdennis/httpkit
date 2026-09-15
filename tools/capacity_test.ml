@@ -42,4 +42,46 @@ let () =
         (row
         |> Benchmarks.setj "opened" (`Int 15)
         |> Benchmarks.setj "closed" (`Int (-1))));
-  print_endline "PASS capacity admission and accounting rejection controls"
+  assert (Slow_client.select "body,header" = [ "body"; "header" ]);
+  List.iter
+    (fun value -> rejects (fun () -> Slow_client.select value))
+    [ ""; "header,header"; "unknown"; "body," ];
+  let with_socket f =
+    let fd, peer = Unix.socketpair Unix.PF_UNIX Unix.SOCK_STREAM 0 in
+    Unix.set_nonblock fd;
+    let c = Network.of_fd fd in
+    Fun.protect
+      ~finally:(fun () ->
+        Network.close c;
+        Unix.close peer)
+      (fun () -> f c peer)
+  in
+  let wait c minimum deadline =
+    Slow_client.await_closed ~minimum ~deadline [| Some c |]
+      [| monotonic () |]
+      (fun () -> ())
+  in
+  with_socket (fun c peer ->
+      Unix.shutdown peer Unix.SHUTDOWN_SEND;
+      rejects (fun () -> wait c 10. (monotonic () +. 1.)));
+  with_socket (fun c _ -> rejects (fun () -> wait c 0. (monotonic () -. 1.)));
+  with_socket (fun c peer ->
+      Unix.shutdown peer Unix.SHUTDOWN_SEND;
+      let deadline = monotonic () +. 0.2 and sampled = ref false in
+      rejects (fun () ->
+          Slow_client.await_closed ~minimum:0. ~deadline [| Some c |]
+            [| monotonic () |]
+            (fun () ->
+              sampled := true;
+              while monotonic () <= deadline do
+                sleep 0.01
+              done));
+      assert !sampled);
+  with_socket (fun c peer ->
+      ignore (Unix.write_substring peer "error" 0 5);
+      Unix.shutdown peer Unix.SHUTDOWN_SEND;
+      let row = wait c 0. (monotonic () +. 1.) in
+      assert (field "response_bytes" row = `List [ `Int 5 ]);
+      assert c.closed);
+  print_endline
+    "PASS capacity accounting and slow-client deadline rejection controls"

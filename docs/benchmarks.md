@@ -562,6 +562,35 @@ stalled/unread bodies, blocked readers, disconnect and shutdown stress at all
 capacities and the final frozen-candidate campaigns remain separate requirements.
 `PASS` here never marks a release ready.
 
+## Incomplete input, disconnect and shutdown controls
+
+`tools/dev slow-client` exercises1/16/64 confirmed admitted connections with
+partial headers, trickled header bytes, stalled bodies, client reset mid-body and
+SIGTERM with incomplete bodies. Select a subset with `--capacities 1,64` and
+`--scenarios header,drip-header,body,disconnect-body,shutdown-body`. Shutdown runs
+last because it consumes the server. All selected scenarios at a capacity share
+one server; the next capacity gets a fresh process.
+
+The runner uses unchanged production defaults:10s absolute header and30s body-idle
+deadlines. The trickle sends one byte per sample (roughly each second) for the
+first8s and requires at least5 drips, demonstrating that progress cannot slide
+the header deadline. Closure must occur within the deadline plus5s scheduling
+tolerance; response/closure earlier than2s before expiry is rejected. These are
+real-socket timing controls, complementing deterministic mock-clock phase tests.
+SIGTERM allows the existing15s process-exit bound; every client then observes
+closure. Reset/shutdown begin after incomplete input has been sent on confirmed
+connections; this runner does not instrument handler entry.
+
+Reports in `_artifacts/framework/slow-client-*/` record per-connection closure
+times, bounded response-byte counts, process RSS/descriptor samples, drained
+accounting and final zero-live-connection shutdown. Per-scenario sample files
+remain available on failure. Sampling needs no additional HTTP connection while
+every slot is occupied. Server runtime tuning/instrumentation is cleared; inherited
+load-client overrides are reported. Source and binary changes invalidate the run.
+This is development-profile functional evidence, not sustained-memory acceptance,
+blocked-reader proof or a production-ready claim. Unread-body reuse, blocked output
+and the long frozen-candidate stress campaign remain separate work.
+
 ## WebSocket segmented-input allocation control
 
 `test/web/websocket_buffer_test.ml` measures cumulative GC allocation, excluding

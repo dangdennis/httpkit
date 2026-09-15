@@ -170,6 +170,8 @@ let cycle ~capacity app =
         (response.status = 200 && response.body = "ok\n")
         "Queued request failed after slot release";
       let handoff_seconds = monotonic () -. released in
+      require (handoff_seconds <= 5.)
+        "Queued response completed after handoff deadline";
       let after = held_snapshot ~capacity app replacement in
       require
         (int (field "opened" after) = int (field "opened" before) + 1

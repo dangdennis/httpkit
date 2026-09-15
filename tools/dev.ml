@@ -18,7 +18,7 @@ let () =
           "httpkit developer tools: validate, consumer, framework-test, \
            routing-test, databases, coverage, mutations, interop, performance, \
            bench, profile-bodies, endpoint-profile, capacity-stress, \
-           framework-load, personal-load, framework-validate, \
+           slow-client, framework-load, personal-load, framework-validate, \
            personal-validate, native-fuzz, native-minimize, native-campaign, \
            fuzz, fuzz-smoke, triage-timeout, release, selftest, \
            protocol-spikes, fingerprint, packages"
@@ -119,6 +119,11 @@ let () =
           ~values:[ "--capacities"; "--seconds" ]
           ~flags:[] args;
         Capacity.main args
+    | "slow-client" :: args ->
+        Common.validate_options
+          ~values:[ "--capacities"; "--scenarios" ]
+          ~flags:[] args;
+        Slow_client.main args
     | "framework-load" :: args ->
         Common.validate_options
           ~values:[ "--mode"; "--seconds"; "--binary"; "--database" ]
