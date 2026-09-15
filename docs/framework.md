@@ -9,8 +9,9 @@ The framework is three optional packages above the HTTP primitives:
 - `httpkit-db-eio`: Caqti pools, transactions and migrations for PostgreSQL and
   file-backed SQLite. Existing typed Caqti requests remain directly usable.
 
-The existing core, HTTP codecs, router and middleware APIs are unchanged. The new
-application layer is Eio-only; pure helpers can also be composed with Lwt.
+The core, HTTP codecs, router and middleware remain independently composable.
+This guide covers the Eio application layer. `httpkit-lwt` provides native Lwt
+application dispatch, sessions and realtime helpers; see [extensions](extensions.md).
 
 ## Run the example
 

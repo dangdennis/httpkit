@@ -487,9 +487,58 @@ let () =
           ("GET", "/missing", 10, 404);
           ("GET", "/.secret", 10, 404);
           ("GET", "/", 10, 404);
-        ]);
+        ];
+      Unix.mkfifo (Filename.concat directory "pipe") 0o600;
+      Unix.symlink "asset.bin" (Filename.concat directory "inside-link");
+      Unix.symlink "missing" (Filename.concat directory "dangling-link");
+      let outside = Filename.temp_file "httpkit-static-outside-" "" in
+      Fun.protect
+        ~finally:(fun () -> Sys.remove outside)
+        (fun () ->
+          let out = open_out_bin outside in
+          output_string out "private-file-contents";
+          close_out out;
+          Unix.symlink outside (Filename.concat directory "outside-link");
+          let empty = Filename.concat directory "empty-directory" in
+          Unix.mkdir empty 0o700;
+          Fun.protect
+            ~finally:(fun () -> Unix.rmdir empty)
+            (fun () ->
+              List.iter
+                (fun (url, status) ->
+                  request_case
+                    (fun env ->
+                      App.Files.static
+                        ~root:Eio.Path.(Eio.Stdenv.fs env / directory)
+                        url)
+                    (fun response ->
+                      response_status status response;
+                      if status = 200 then
+                        check "confined symlink exact contents"
+                          (String.ends_with ~suffix:"bytes" response)))
+                [
+                  ("/inside-link", 200);
+                  ("/outside-link", 404);
+                  ("/dangling-link", 404);
+                  ("/empty-directory", 404);
+                  ("/pipe", 404);
+                  ("/%00", 400);
+                  ("/%2e%2e/asset.bin", 400);
+                  ("/%2Fasset.bin", 400);
+                  ("/%5Casset.bin", 400);
+                ]));
+      request_case ~meth:"HEAD"
+        (fun env ->
+          App.Files.static
+            ~root:Eio.Path.(Eio.Stdenv.fs env / directory)
+            "/asset.bin")
+        (fun response ->
+          response_status 200 response;
+          check "static HEAD suppresses collected body"
+            (String.ends_with ~suffix:"\r\n\r\n" response)));
   print_endline
-    "PASS confined static files, MIME types and size/method rejection"
+    "PASS confined static files, symlinks, nonregular files, HEAD and path \
+     limits"
 
 let () =
   let directory = Filename.temp_file "httpkit-upload-scope-" "" in
