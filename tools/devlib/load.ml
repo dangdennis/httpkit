@@ -67,7 +67,7 @@ let descriptors pid =
              (String.sub s 1 (String.length s - 1)))
     |> List.length
 
-let resources port pid persistent =
+let resources ?(capacity = 16) port pid persistent =
   let deadline = monotonic () +. 10. in
   let rec await () =
     let r = with_connection port (fun c -> request c "GET" "/stats") in
@@ -82,7 +82,7 @@ let resources port pid persistent =
   let row = await () in
   require
     (field "unexpected_errors" row = `Int 0
-    && int (field "peak_active" row) <= 16
+    && int (field "peak_active" row) <= capacity
     && int (field "opened" row)
        = int (field "closed" row) + int (field "active" row))
     "Application ownership/admission errors";
@@ -98,7 +98,8 @@ let resources port pid persistent =
         ("descriptors", `Int (descriptors pid));
       ])
 
-let check_resources rows =
+let check_resources ?(rss_limit_kib = 262144) rows =
+  require (rss_limit_kib > 0) "Invalid RSS limit";
   require (rows <> []) "Missing resource observations";
   List.iter
     (fun r ->
@@ -119,8 +120,8 @@ let check_resources rows =
     (range (values "live_words" warm) <= 131072.)
     "Post-GC live heap growth exceeds 1 MiB";
   require
-    (List.for_all (fun r -> int (field "rss_kib" r) <= 262144) rows)
-    "RSS exceeds 256 MiB";
+    (List.for_all (fun r -> int (field "rss_kib" r) <= rss_limit_kib) rows)
+    (Printf.sprintf "RSS exceeds %d KiB" rss_limit_kib);
   if List.length warm >= 8 then
     let n = max 2 Stdlib.(List.length warm / 4) in
     let values = Array.of_list (values "rss_kib" warm) in
@@ -342,6 +343,12 @@ let epoch ~port ~seconds ~concurrency ~rate ~seed ~modes operation =
       ("operations", `Int operations);
       ("operations_per_second", `Float (float operations /. elapsed));
       ("concurrency", `Int concurrency);
+      ( "worker_operations",
+        `List
+          (List.map
+             (fun (counts, _, _, _) ->
+               `Int (Hashtbl.fold (fun _ count total -> count + total) counts 0))
+             rows) );
       ("offered_operations_per_second", if rate = 0. then `Null else `Float rate);
       ("counts", `Assoc (sorted counts (fun n -> `Int n)));
       ("payload_bytes", `Int !transferred);

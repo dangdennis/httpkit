@@ -4,6 +4,9 @@ module App = Httpkit_eio
 module Db = Httpkit_db_eio
 
 let () =
+  let max_connections =
+    Config.max_connections (Sys.getenv_opt "HTTPKIT_MAX_CONNECTIONS")
+  in
   Eio_main.run (fun env ->
       Eio.Switch.run (fun sw ->
           let clock = Eio.Stdenv.mono_clock env in
@@ -55,7 +58,8 @@ let () =
                 App.route Method.get "/health" (fun _ -> text "ok\n");
                 App.route Method.get "/bench-stats" (fun _ ->
                     if testing then
-                      App.reply (W.Reply.json (Metrics.counters ()))
+                      App.reply
+                        (W.Reply.json (Metrics.counters ~max_connections ()))
                     else text ~status:404 "Not found\n");
                 App.route Method.get "/plaintext" (fun _ ->
                     text "Hello, world!\n");
@@ -193,7 +197,8 @@ let () =
           in
           if port < 0 || port > 65535 then invalid_arg "PORT";
           let socket =
-            Eio.Net.listen ~sw ~reuse_addr:true ~backlog:32 (Eio.Stdenv.net env)
+            Eio.Net.listen ~sw ~reuse_addr:true
+              ~backlog:(max 32 max_connections) (Eio.Stdenv.net env)
               (`Tcp (Eio.Net.Ipaddr.V4.any, port))
           in
           let stop, notify = Eio.Promise.create () and signalled = ref false in
@@ -216,7 +221,7 @@ let () =
                 | _ -> assert false
               in
               Printf.printf "LISTEN %d\n%!" actual;
-              App.serve ~clock ~random ~stop
+              App.serve ~max_connections ~clock ~random ~stop
                 ~accept:(fun () ->
                   let flow, peer = Eio.Net.accept ~sw socket in
                   ( Metrics.transport metrics

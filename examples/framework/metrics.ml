@@ -52,12 +52,13 @@ let snapshot t =
     ]
 
 (* Sampling does not force GC; process counters include the small sampling cost. *)
-let counters () =
+let counters ~max_connections () =
   let gc = Gc.quick_stat () and cpu = Unix.times () in
   `Assoc
     [
       ("ocaml_version", `String Sys.ocaml_version);
       ("runtime", `String "eio");
+      ("max_connections", `Int max_connections);
       ( "allocated_words",
         `Float (gc.minor_words +. gc.major_words -. gc.promoted_words) );
       ("word_bytes", `Int (Sys.word_size / 8));

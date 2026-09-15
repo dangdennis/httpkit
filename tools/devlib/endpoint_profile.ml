@@ -70,13 +70,14 @@ let operation case c _rng _mode =
     ("Endpoint payload mismatch: " ^ case.name);
   (case.name, String.length case.body + String.length case.expected)
 
-let counters app =
+let counters ~capacity app =
   let r = Framework.request app "GET" "/bench-stats" in
   require (r.status = 200) "Missing benchmark counters";
   let row = Yojson.Basic.from_string r.body in
   require
     (field "ocaml_version" row = `String Build.version
-    && field "runtime" row = `String "eio")
+    && field "runtime" row = `String "eio"
+    && field "max_connections" row = `Int capacity)
     "Unexpected endpoint server runtime/compiler";
   row
 
@@ -108,7 +109,26 @@ let summary ~operations ~seconds before after =
       ("cpu_percent_one_core", `Float (100. *. cpu /. seconds));
     ]
 
+let concurrencies value =
+  let values =
+    String.split_on_char ',' value
+    |> List.map (fun value ->
+        require
+          (value <> "" && String.for_all (fun c -> c >= '0' && c <= '9') value)
+          "Concurrency must be a comma-separated list of integers in 1..64";
+        int_of_string value)
+  in
+  require
+    (List.length values <= 64
+    && List.for_all (fun n -> n > 0 && n <= 64) values
+    && List.length values = List.length (List.sort_uniq Int.compare values))
+    "Concurrency must contain distinct integers in 1..64";
+  values
+
 let main args =
+  let concurrencies = concurrencies (option args "--concurrencies" "1,4,8") in
+  let capacity = List.fold_left max 16 concurrencies in
+  let rss_limit_kib = if capacity > 16 then 524288 else 262144 in
   let seconds = float_of_string (option args "--seconds" "10")
   and repetitions = int_of_string (option args "--repetitions" "3") in
   require
@@ -123,7 +143,11 @@ let main args =
   require
     (binary = "" || not (List.mem "--profile" args))
     "An external binary cannot assert a build profile";
-  let env = Build.measurement_environment () in
+  let env =
+    set
+      (Build.measurement_environment ())
+      "HTTPKIT_MAX_CONNECTIONS" (string_of_int capacity)
+  in
   let build_dir =
     if profile = "release" then "_build-bench-" ^ Build.version
     else "_build-pkg-" ^ Build.version
@@ -177,6 +201,9 @@ let main args =
            ("available_domains", `Int (Domain.recommended_domain_count ()));
            ("seconds_requested", `Float seconds);
            ("repetitions", `Int repetitions);
+           ("concurrencies", `List (List.map (fun n -> `Int n) concurrencies));
+           ("max_connections", `Int capacity);
+           ("rss_limit_kib", `Int rss_limit_kib);
            ("warmup_seconds_per_configuration", `Float 1.);
            ("keep_alive", `Bool true);
            ( "measurement_note",
@@ -209,12 +236,19 @@ let main args =
                   require
                     (Build.source_hash () = digest)
                     "Sources changed during endpoint profile";
-                  let before = counters app in
+                  let before = counters ~capacity app in
                   let epoch =
                     Load.epoch ~port:app.port ~seconds ~concurrency ~rate:0.
                       ~seed:42 ~modes:1 (operation case)
                   in
-                  let after = counters app in
+                  require
+                    (List.length (list (field "worker_operations" epoch))
+                     = concurrency
+                    && List.for_all
+                         (fun n -> int n > 0)
+                         (list (field "worker_operations" epoch)))
+                    "Endpoint epoch did not exercise every concurrent worker";
+                  let after = counters ~capacity app in
                   let measured =
                     summary
                       ~operations:(int (field "operations" epoch))
@@ -227,14 +261,15 @@ let main args =
                        :: ("repetition", `Int repetition)
                        :: ("server", measured) :: assoc epoch));
                   append "observations"
-                    (Load.resources app.port app.child.pid false);
-                  Load.check_resources (list (field "observations" !report));
+                    (Load.resources ~capacity app.port app.child.pid false);
+                  Load.check_resources ~rss_limit_kib
+                    (list (field "observations" !report));
                   save_report ();
                   Printf.printf
                     "Endpoint %s concurrency %d repetition %d/%d\n%!" case.name
                     concurrency repetition repetitions
                 done)
-              [ 1; 4; 8 ])
+              concurrencies)
           cases;
         Framework.close app;
         let final = Option.value ~default:`Null app.final in

@@ -451,6 +451,9 @@ tools/dev endpoint-profile --seconds 10 --repetitions 3
 tools/dev endpoint-profile --profile release --seconds 10 --repetitions 3
 # Functional check of every endpoint/concurrency combination:
 tools/dev endpoint-profile --seconds 0.1 --repetitions 1
+# Approved beta capacity profile, opt-in; five samples per configuration:
+tools/dev endpoint-profile --profile release --concurrencies 1,4,8,16,64 \
+  --seconds 30 --repetitions 5
 ```
 
 This local OCaml runner starts the Eio framework example with no database and
@@ -475,7 +478,8 @@ not a minimal codec or release-optimized framework comparison.
 | GET /small-stream | Empty | 4096 bytes in four 1024-byte sends |
 | GET /large-stream | Empty | 1 MiB in 128 8192-byte sends |
 
-Each configuration uses concurrency 1, 4 and 8, one second of untimed warm-up,
+The default configurations use concurrency 1, 4 and 8. `--concurrencies` accepts
+distinct integers in1..64; the beta profile uses1,4,8,16,64. Each gets one second of untimed warm-up,
 then the requested repetitions. Payload contents and status are checked on every
 operation. The report under `_artifacts/framework/endpoints-*/report.json` records
 source, binary and workload hashes; lock metadata hash (full lock files also enter
@@ -486,6 +490,21 @@ connection observations; and final shutdown accounting. CPU utilization is a
 percentage of one core. Allocated words are `minor_words + major_words - promoted_words`,
 not an allocation-object count. Counter validation rejects decreases, invalid
 word size and nonfinite values.
+
+The runner sets the example's `HTTPKIT_MAX_CONNECTIONS` to at least16 and the
+largest selected concurrency, and verifies the server reports that exact setting.
+Library and ordinary example defaults remain16. The example accepts explicit
+connection limits in1..1024 and uses a listen backlog of at least32 or that limit;
+the backlog is separate from admitted application scopes. Profiles above16 use
+the approved512MiB RSS ceiling; smaller profiles retain256MiB. Both retain existing
+descriptor, live-heap and warmed RSS growth checks. Per-worker completed operation
+counts must all be positive, preventing a short run from silently measuring fewer
+workers than requested. The report records both configuration and these counts.
+
+These measurements establish successful concurrent endpoint traffic. They do not
+by themselves establish simultaneous admission at capacity, continuous peak RSS,
+slow-client safety, or overload behavior; the dedicated capacity campaigns cover
+those boundaries separately.
 
 The test-only `/bench-stats` endpoint samples process counters without forcing GC.
 Counter intervals include boundary requests and connection setup/teardown, so
