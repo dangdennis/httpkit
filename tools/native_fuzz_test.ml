@@ -20,18 +20,19 @@ let () =
   let counts =
     `Assoc
       [
-        ("schema", `Int 1);
+        ("schema", `Int 2);
         ("generated", `Int 3);
         ("checked", `Int 2);
         ("skipped", `Int 1);
         ("failed", `Int 0);
         ("maximum_input_bytes", `Int 1025);
         ("maximum_checked_input_bytes", `Int 1024);
+        ("seconds", `Float 0.1);
       ]
   in
-  Native_fuzz.check_counts ~rounds:3 counts;
+  Native_fuzz.check_counts ~rounds:3 ~wall_seconds:1. counts;
   let rejects_counts data =
-    match Native_fuzz.check_counts ~rounds:3 data with
+    match Native_fuzz.check_counts ~rounds:3 ~wall_seconds:1. data with
     | () -> failwith "Invalid native counts accepted"
     | exception Common.Error _ -> ()
   in
@@ -47,7 +48,10 @@ let () =
       ("maximum_input_bytes", `Int 65537);
       ("maximum_checked_input_bytes", `Int 1026);
       ("maximum_checked_input_bytes", `Int (-1));
-      ("schema", `Int 2);
+      ("schema", `Int 1);
+      ("seconds", `Float (-1.));
+      ("seconds", `Float 2.);
+      ("seconds", `Float Float.nan);
     ];
   rejects_counts (`Assoc (("checked", `Int 2) :: Common.assoc counts));
   let binary =
@@ -73,7 +77,7 @@ let () =
       let result = Process.run ~env [ binary; "-r"; "200"; "-s"; "42" ] in
       Native_fuzz.check_log result.stdout;
       let data = Common.json stats in
-      Native_fuzz.check_counts ~rounds:200 data;
+      Native_fuzz.check_counts ~rounds:200 ~wall_seconds:60. data;
       assert (Common.int (Common.field "skipped" data) > 0);
       assert (Common.int (Common.field "maximum_checked_input_bytes" data) > 64);
       let input = Filename.concat directory "oversized.input" in

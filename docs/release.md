@@ -84,7 +84,7 @@ Required report names and payload contracts:
 | `interop` | Exact six-lane `results` inventory |
 | `mutations`, `framework-mutations` | Exact curated `results`: `name`, `compiled: true`, `status: KILLED` |
 | `coverage/core`, `/framework`, `/extensions` | `visited`, `total`, `percent`, `missing_files: []`, `critical_paths_reviewed: true`, `metric: instrumented points, not branches` |
-| `native/<target>` | `target`, `mode: NATIVE`, `runs` with seed/status/exit/seconds/checked/skipped/generated/binary_sha256; `regression_inventory_replayed`, `negative_controls_passed`, empty `unresolved_findings` |
+| `native/<target>` | `target`, `mode: NATIVE`, `runs` with seed/status/exit/seconds/checked/skipped/generated/failed/binary_sha256 and `timing_scope: child_campaign`; each batch has checked inputs and zero failures; `regression_inventory_replayed`, `negative_controls_passed`, empty `unresolved_findings` |
 | `internal-review`, `reference-differential`, `proxy-observers`, `stable-performance`, `soak`, `contract-coverage`, `dependencies`, `packaging` | `reviewed_by`, `acceptance_passed: true`, empty `unresolved_findings`, with substantive supporting attachments |
 | `support-scope` | Exact `features` inventory with `BETA_TESTED` status, `websocket: EXPERIMENTAL`, `public_production_claim: false` |
 | `security-review`, `api-review` | `reviewer`, `approved: true`, `independent_of_implementation: true`, `identity_verified_by`, empty `unresolved_findings`; owner-verified independent review attachments |

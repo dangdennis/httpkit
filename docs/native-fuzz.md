@@ -19,12 +19,20 @@ processes. A timeout is a failed investigation, never a passing shorter run.
 Reports under `_artifacts/native-fuzz/run-*/` preserve source, catalog and binary
 hashes, compiler, selected case, seed, command, requested trials, elapsed time,
 exit status and each process's raw log. A passing exit without exactly one
-passing registered property is rejected. Schema2 also records generated, checked,
+passing registered property is rejected. Schema3 also records generated, checked,
 skipped and failed callbacks, maximum generated/checked input lengths, and the
 hash of a separate counter file. Checked means the property returned successfully;
 it is not a count of assertions or unique paths. Counts must account for every
 requested trial, with no failed callbacks and at least one checked input.
 Missing, inconsistent, negative or duplicate counters cannot yield PASS.
+Each run's `seconds` is measured inside the child, from its first property
+callback until final counter export (`timing_scope: child_campaign`). It includes
+generation between callbacks and final child reporting, but excludes startup before
+the first callback, parent polling, build and source/report verification. This is
+elapsed time, not CPU time. `wait_seconds` and `wall_seconds` record parent waiting
+and total batch/verification time separately. Incomplete children have no accepted
+campaign duration; reported child time cannot exceed the parent batch elapsed time. Earlier reports included verification in their elapsed
+field and cannot satisfy the release-duration contract by relabeling that value.
 Failure or interruption preserves a
 FAIL report and the active batch's diagnostic log. Completed batch logs remain
 available. Tracked sources must stay unchanged throughout a campaign.

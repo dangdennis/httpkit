@@ -72,11 +72,11 @@ let counts () =
     maximum_checked_input_bytes = 0;
   }
 
-let encode_counts t =
+let encode_counts ~seconds t =
   Printf.sprintf
-    "{\"schema\":1,\"generated\":%d,\"checked\":%d,\"skipped\":%d,\"failed\":%d,\"maximum_input_bytes\":%d,\"maximum_checked_input_bytes\":%d}\n"
+    "{\"schema\":2,\"generated\":%d,\"checked\":%d,\"skipped\":%d,\"failed\":%d,\"maximum_input_bytes\":%d,\"maximum_checked_input_bytes\":%d,\"seconds\":%.17g}\n"
     t.generated t.checked t.skipped t.failed t.maximum_input_bytes
-    t.maximum_checked_input_bytes
+    t.maximum_checked_input_bytes seconds
 
 let run t ~max_length f data =
   t.generated <- t.generated + 1;
@@ -105,7 +105,13 @@ let record ~max_length f data =
   if not !registered then (
     registered := true;
     Option.iter
-      (fun path -> at_exit (fun () -> save path (encode_counts totals)))
+      (fun path ->
+        let started = Mtime_clock.counter () in
+        at_exit (fun () ->
+            let seconds =
+              Mtime.Span.to_float_ns (Mtime_clock.count started) /. 1e9
+            in
+            save path (encode_counts ~seconds totals)))
       (Sys.getenv_opt "HTTP_KIT_FUZZ_STATS"));
   run totals ~max_length f data
 

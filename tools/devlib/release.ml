@@ -179,12 +179,14 @@ let native_valid policy target data =
   && field "regression_inventory_replayed" data = `Bool true
   && field "negative_controls_passed" data = `Bool true
   && rows <> []
-  && List.for_all (( <= ) 0) checked
+  && List.for_all (( < ) 0) checked
   && List.for_all (fun n -> Float.is_finite n && n >= 0.) seconds
   && List.for_all
        (fun r ->
          field "status" r = `String "PASS"
          && field "exit" r = `Int 0
+         && field "failed" r = `Int 0
+         && field "timing_scope" r = `String "child_campaign"
          && int (field "skipped" r) >= 0
          && int (field "checked" r) <= int (field "generated" r)
          && int (field "skipped" r)

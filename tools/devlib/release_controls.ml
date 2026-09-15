@@ -141,6 +141,8 @@ let run () =
                 ("status", `String "PASS");
                 ("exit", `Int 0);
                 ("seconds", `Float 90.);
+                ("timing_scope", `String "child_campaign");
+                ("failed", `Int 0);
                 ("checked", `Int 5000);
                 ("skipped", `Int 10);
                 ("generated", `Int 5010);
@@ -256,6 +258,8 @@ let run () =
                      runs))))
         [
           ("seconds", `Float 0.1);
+          ("timing_scope", `String "batch_with_validation");
+          ("failed", `Int 1);
           ("checked", `Int 0);
           ("exit", `Int 7);
           ("status", `String "TIMEOUT");

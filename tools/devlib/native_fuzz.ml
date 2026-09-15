@@ -6,7 +6,7 @@ let check_log log =
     (match rows with [ row ] -> ends ~suffix:": PASS" row | _ -> false)
     "Native fuzz target did not report exactly one passing property"
 
-let check_counts ~rounds data =
+let check_counts ~rounds ~wall_seconds data =
   require
     (List.sort String.compare (List.map fst (assoc data))
     = List.sort String.compare
@@ -18,6 +18,7 @@ let check_counts ~rounds data =
           "failed";
           "maximum_input_bytes";
           "maximum_checked_input_bytes";
+          "seconds";
         ])
     "Invalid or duplicated native fuzz counter fields";
   let generated = int (field "generated" data)
@@ -26,12 +27,15 @@ let check_counts ~rounds data =
   and failed = int (field "failed" data)
   and maximum = int (field "maximum_input_bytes" data)
   and checked_maximum = int (field "maximum_checked_input_bytes" data) in
+  let seconds = number (field "seconds" data) in
   require
-    (field "schema" data = `Int 1
+    (field "schema" data = `Int 2
     && generated = rounds && checked > 0 && skipped >= 0 && checked <= generated
     && skipped = generated - checked
     && failed = 0 && maximum >= 0 && maximum <= 65536 && checked_maximum >= 0
-    && checked_maximum <= maximum)
+    && checked_maximum <= maximum && Float.is_finite seconds && seconds >= 0.
+    && Float.is_finite wall_seconds
+    && seconds <= wall_seconds)
     "Native fuzz counters do not prove completed checks for requested trials"
 
 let read_input path =
@@ -104,7 +108,7 @@ let main args =
       (directory / "report.json")
       (`Assoc
          ([
-            ("schema", `Int 2);
+            ("schema", `Int 3);
             ("status", `String status);
             ("source_sha256", `String digest);
             ("compiler", `String Build.version);
@@ -198,6 +202,8 @@ let main args =
                    ("binary_sha256", `String (sha (read binary)));
                    ("log", `String log);
                    ("counters_path", `String stats);
+                   ("timing_scope", `String "child_campaign");
+                   ("seconds", `Null);
                    ( "replay_input",
                      if replay then `String replay_path else `Null );
                    ("failure_input", `Null);
@@ -209,7 +215,12 @@ let main args =
           let start = monotonic () in
           (try
              Process.with_child ~env ~log command (fun child ->
+                 let running = monotonic () in
                  let status = Process.wait child (start +. timeout) in
+                 row :=
+                   Benchmarks.setj "wait_seconds"
+                     (`Float (monotonic () -. running))
+                     !row;
                  row :=
                    Benchmarks.setj "exit"
                      (`Int (Process.status_code status))
@@ -220,7 +231,7 @@ let main args =
              check_log (read log);
              let raw_counts = read_input stats in
              let counts = Yojson.Basic.from_string raw_counts in
-             check_counts ~rounds counts;
+             check_counts ~rounds ~wall_seconds:(monotonic () -. start) counts;
              List.iter
                (fun key -> row := Benchmarks.setj key (field key counts) !row)
                [
@@ -230,6 +241,7 @@ let main args =
                  "failed";
                  "maximum_input_bytes";
                  "maximum_checked_input_bytes";
+                 "seconds";
                ];
              row :=
                Benchmarks.setj "counters_sha256" (`String (sha raw_counts)) !row;
@@ -257,9 +269,12 @@ let main args =
              row :=
                Benchmarks.setj "error" (`String (Printexc.to_string exn)) !row;
              row :=
-               Benchmarks.setj "seconds" (`Float (monotonic () -. start)) !row;
+               Benchmarks.setj "wall_seconds"
+                 (`Float (monotonic () -. start))
+                 !row;
              raise exn);
-          row := Benchmarks.setj "seconds" (`Float (monotonic () -. start)) !row;
+          row :=
+            Benchmarks.setj "wall_seconds" (`Float (monotonic () -. start)) !row;
           report "RUNNING" [];
           if replay then
             Printf.printf "Native fuzz %s raw replay: PASS\n%!" name
