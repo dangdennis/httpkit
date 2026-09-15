@@ -25,6 +25,10 @@ type event =
       close_status : close_status;
     }
   | Shutdown_started of { active_connections : int }
+  | Admission_saturated of { active_connections : int; capacity : int }
+  | Shutdown_progress of { active_connections : int }
+  | Shutdown_finished
+  | Body_limit_rejected of { connection : int64; request : int64; limit : int }
   | Connection_failed of { connection : int64; failure : failure }
   | Request_started of { connection : int64; request : int64 }
   | Callback_finished of {

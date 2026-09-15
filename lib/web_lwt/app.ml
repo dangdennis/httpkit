@@ -11,6 +11,7 @@ type request = {
   read_next : unit -> string option Lwt.t;
   request_id : string;
   peer : string;
+  observation : Runtime_observer.scope option;
 }
 
 type payload =
@@ -36,8 +37,9 @@ let body ?(limit = 1048576) r =
     read r >>= function
     | None -> Lwt.return (Buffer.contents b)
     | Some s ->
-        if String.length s > limit - Buffer.length b then
-          Lwt.fail (A.Error (A.Engine E.Resource_limit))
+        if String.length s > limit - Buffer.length b then (
+          Runtime_observer.body_limit r.observation limit;
+          Lwt.fail (A.Error (A.Engine E.Resource_limit)))
         else (
           Buffer.add_string b s;
           loop ())
@@ -147,8 +149,9 @@ let exchange ~scope ~body_limit ~random ~on_error handler c id head peer =
   let rec next () =
     A.next_event c >>= function
     | E.Data (owner, data) when E.equal_id owner id ->
-        if String.length data > body_limit - !total then
-          Lwt.fail (A.Error (A.Engine E.Resource_limit))
+        if String.length data > body_limit - !total then (
+          Runtime_observer.body_limit scope body_limit;
+          Lwt.fail (A.Error (A.Engine E.Resource_limit)))
         else (
           total := !total + String.length data;
           Lwt.return_some data)
@@ -190,6 +193,7 @@ let exchange ~scope ~body_limit ~random ~on_error handler c id head peer =
           params = [];
           read_next;
           peer;
+          observation = scope;
           request_id =
             Base64.encode_string ~pad:false ~alphabet:Base64.uri_safe_alphabet
               raw;
@@ -268,7 +272,10 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
   then invalid_arg "server limits";
   let engine () = Result.get_ok (E.server ~output_limit ?limits ()) in
   ignore (engine ());
-  let observation = Runtime_observer.create ?observe ~now:clock.A.now () in
+  let observation =
+    Runtime_observer.create ?observe ~capacity:max_connections ~now:clock.A.now
+      ()
+  in
   let connections = ref [] and stopping = ref false in
   let rec worker () =
     if !stopping then Lwt.return_unit
@@ -327,4 +334,5 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
       Lwt.join
         (List.map
            (fun p -> Lwt.catch (fun () -> p) (fun _ -> Lwt.return_unit))
-           workers))
+           workers)
+      >|= fun () -> Runtime_observer.shutdown_finished observation)

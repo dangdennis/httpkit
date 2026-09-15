@@ -15,12 +15,21 @@ type mode =
   | Handler_timeout
   | Stream_timeout
   | Enqueued
+  | Body_limit
+  | Collection_limit
 
 exception Sink_failed
 exception Close_failed
 exception Write_failed
 
 let wire = function
+  | Body_limit | Collection_limit ->
+      "POST / HTTP/1.1\r\n\
+       Host: private\r\n\
+       Content-Length: 2\r\n\
+       Connection: close\r\n\
+       \r\n\
+       xx"
   | Upgrade ->
       "GET /socket HTTP/1.1\r\n\
        Host: private\r\n\
@@ -48,6 +57,14 @@ let verify mode events read written closes handled =
       events
   in
   check "single connection acceptance" (opened = [ (0L, 1) ]);
+  if mode <> Sink_cancel then
+    check "saturation reports owned slots, not rejected connections"
+      (List.filter_map
+         (function
+           | O.Admission_saturated x -> Some (x.active_connections, x.capacity)
+           | _ -> None)
+         events
+      = [ (1, 1) ]);
   if mode = Normal || mode = Sink_error || mode = Upgrade then
     check "explicit graceful stop observed once"
       (List.length
@@ -55,6 +72,11 @@ let verify mode events read written closes handled =
             (function O.Shutdown_started _ -> true | _ -> false)
             events)
       = 1);
+  if mode = Normal || mode = Sink_error || mode = Upgrade then (
+    check "shutdown scope finished once"
+      (List.length (List.filter (( = ) O.Shutdown_finished) events) = 1);
+    check "shutdown ended after scope retirement"
+      (List.hd (List.rev events) = O.Shutdown_finished));
   let closed =
     List.filter (function O.Connection_closed _ -> true | _ -> false) events
   in
@@ -82,7 +104,15 @@ let verify mode events read written closes handled =
     if mode = Invalid_write || mode = Write_failure then
       check "failed write not counted" (written = 0)
     else if
-      not (List.mem mode [ Stream_error; Handler_timeout; Stream_timeout ])
+      not
+        (List.mem mode
+           [
+             Stream_error;
+             Handler_timeout;
+             Stream_timeout;
+             Body_limit;
+             Collection_limit;
+           ])
     then check "response written" (written > 0));
   let starts =
     List.filter_map
@@ -111,6 +141,9 @@ let verify mode events read written closes handled =
       | Stream_error ->
           check "stream failure category"
             (outcome = O.Failed O.Application_error)
+      | Body_limit | Collection_limit ->
+          check "body rejection remains a resource failure"
+            (outcome = O.Failed O.Resource_limit)
       | Upgrade -> check "handoff outcome" (outcome = O.Upgraded)
       | Normal | Sink_error | Close_failure | Handler_error | Enqueued ->
           check "response enqueue outcome" (outcome = O.Response_enqueued)
@@ -126,6 +159,9 @@ let verify mode events read written closes handled =
   | Handler_error ->
       check "handler failure precedes recovery"
         (callbacks = [ (O.Handler, Some O.Application_error) ])
+  | Body_limit | Collection_limit ->
+      check "body rejection callback failure"
+        (callbacks = [ (O.Handler, Some O.Resource_limit) ])
   | Stream_error ->
       check "stream failure observed separately"
         (callbacks
@@ -144,6 +180,19 @@ let verify mode events read written closes handled =
       (function O.Response_headers_enqueued x -> Some x.status | _ -> None)
       events
   in
+  let rejected =
+    List.filter_map
+      (function
+        | O.Body_limit_rejected x -> Some (x.connection, x.request, x.limit)
+        | _ -> None)
+      events
+  in
+  (match (mode, starts) with
+  | (Body_limit | Collection_limit), [ (connection, request) ] ->
+      check "exact request body rejection identity/limit"
+        (rejected = [ (connection, request, 1) ]);
+      check "rejection does not invent a response" (statuses = [])
+  | _ -> check "no spurious body rejection" (rejected = []));
   if mode = Handler_error then
     check "recovered status is 500" (statuses = [ 500 ]);
   if mode = Handler_timeout || mode = Sink_cancel then
@@ -217,7 +266,9 @@ let eio mode =
           | _ -> ()
       in
       (try
-         App.serve ~max_connections:1 ~request_timeout ~observe ~clock ~stop
+         App.serve ~max_connections:1
+           ~body_limit:(if mode = Body_limit then 1 else 1048576)
+           ~request_timeout ~observe ~clock ~stop
            ~random:(fun n -> String.make n 'x')
            ~accept:(fun () ->
              if !accepted then Eio.Fiber.await_cancel ();
@@ -228,6 +279,11 @@ let eio mode =
              handled := true;
              if mode = Handler_error then raise Sink_failed;
              if mode = Handler_timeout then Eio.Fiber.await_cancel ();
+             if mode = Body_limit || mode = Collection_limit then
+               ignore
+                 (App.body
+                    ~limit:(if mode = Collection_limit then 1 else 3)
+                    request);
              if mode = Upgrade then
                App.websocket ~allowed_origins:[ "https://example.test" ] request
                  (fun transport _ ->
@@ -316,8 +372,9 @@ let lwt mode =
   in
   Lwt.catch
     (fun () ->
-      App.serve ~max_connections:1 ~request_timeout ~observe
-        ~clock:A.monotonic_clock ~stop
+      App.serve ~max_connections:1
+        ~body_limit:(if mode = Body_limit then 1 else 1048576)
+        ~request_timeout ~observe ~clock:A.monotonic_clock ~stop
         ~random:(fun n -> String.make n 'x')
         ~accept:(fun () ->
           if !accepted then fst (Lwt.task ())
@@ -331,6 +388,9 @@ let lwt mode =
           handled := true;
           if mode = Handler_error then Lwt.fail Sink_failed
           else if mode = Handler_timeout then fst (Lwt.task ())
+          else if mode = Body_limit || mode = Collection_limit then
+            App.body ~limit:(if mode = Collection_limit then 1 else 3) request
+            >|= fun _ -> App.reply (Httpkit.Reply.text "unexpected")
           else
             Lwt.return
               (if mode = Upgrade then
@@ -377,6 +437,8 @@ let () =
       Handler_timeout;
       Stream_timeout;
       Enqueued;
+      Body_limit;
+      Collection_limit;
     ]
   in
   List.iter eio modes;

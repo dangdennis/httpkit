@@ -47,6 +47,20 @@ type event =
       close_status : close_status;
     }
   | Shutdown_started of { active_connections : int }
+  | Admission_saturated of { active_connections : int; capacity : int }
+      (** All configured application worker slots are occupied. No connection
+          rejection or external backlog size is implied. *)
+  | Shutdown_progress of { active_connections : int }
+      (** Snapshot after graceful-stop observation and subsequent scope changes.
+          Late accepts can increase the count; zero alone does not mean
+          finished. *)
+  | Shutdown_finished
+      (** Explicit graceful stop was observed and all worker scopes joined.
+          Close errors remain visible separately; this does not prove every
+          user-supplied close operation succeeded. *)
+  | Body_limit_rejected of { connection : int64; request : int64; limit : int }
+      (** Application read or collection quota, in bytes. Does not identify
+          codec, multipart or other quotas, or promise an HTTP 413 response. *)
   | Connection_failed of { connection : int64; failure : failure }
   | Request_started of { connection : int64; request : int64 }
   | Callback_finished of {

@@ -88,6 +88,32 @@ No exception messages or request contents are included.
 
 The production observation tests cover recovery, streams, application deadlines,
 every transport timeout phase, identity matching and enqueue-versus-drain behavior.
-Queue depth, dedicated rejection/WebSocket events, richer shutdown progress and
-enabled-hook allocation budgets remain separate work. These events establish no
+Queue depth, dedicated WebSocket events and enabled-hook allocation budgets
+remain separate work. These events establish no
 production-readiness or peer-delivery claim.
+
+## Admission, body quotas and shutdown progress
+
+`Admission_saturated` follows acceptance that occupies the last configured worker
+slot. Its count includes cleanup and upgraded connections. It does not mean a
+connection was rejected: `serve` stops calling `accept` while its workers are busy,
+and cannot measure the caller's or kernel's backlog. Use subsequent connection
+counts to observe when a slot becomes available.
+
+`Body_limit_rejected` identifies the request and byte quota enforced by the
+application reader or `body` collector. It is emitted before raising the existing
+resource-limit error. It does not identify codec, multipart, JSON or other limits,
+and does not invent an HTTP413 response after partially consumed input.
+
+`Shutdown_progress` reports active owned scopes after the explicit stop signal,
+then after acceptance/retirement while draining. A late accept can increase the
+count: zero is a snapshot, not a completion promise. `Shutdown_finished` follows
+joined worker cleanup when no scope remains. Failed close operations still have
+their separate close outcomes; finished does not certify descriptor closure by
+an arbitrary failing transport. External cancellation without an observed graceful
+stop emits none of these graceful-shutdown events.
+
+Tests cover both body quotas, one/three-slot saturation, ordinary sink exceptions,
+and a late-accept schedule with counts1→2→1→0. They require shutdown completion
+to remain absent while close is suspended. New event constructors require users
+with exhaustive matches to handle them when updating before API stabilization.

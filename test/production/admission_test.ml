@@ -19,8 +19,14 @@ let check_events observed events capacity =
           check "observed close count and outcome"
             (x.active_connections = !active
             && !active >= 0 && x.close_status = O.Closed)
-      | O.Shutdown_started _ ->
+      | O.Shutdown_started _ | O.Shutdown_progress _ | O.Shutdown_finished ->
           failwith "external cancellation is not graceful stop"
+      | O.Admission_saturated x ->
+          check "saturation matches configured and occupied slots"
+            (!active = capacity
+            && x.active_connections = capacity
+            && x.capacity = capacity)
+      | O.Body_limit_rejected _ -> failwith "spurious body rejection"
       | O.Connection_failed _ | O.Request_started _ | O.Callback_finished _
       | O.Response_headers_enqueued _ | O.Request_finished _ ->
           ())

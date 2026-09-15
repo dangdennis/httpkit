@@ -1,6 +1,16 @@
 let check label condition = if not condition then failwith label
 let wire = "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
 
+let progress events =
+  List.filter_map
+    (function
+      | Httpkit.Observation.Shutdown_progress x -> Some x.active_connections
+      | _ -> None)
+    events
+
+let shutdown_observed events =
+  List.mem Httpkit.Observation.Shutdown_finished events
+
 let eio observed =
   let module App = Httpkit_eio in
   let module A = Httpkit_transport_eio in
@@ -19,6 +29,7 @@ let eio observed =
       and close_cancelled = ref false
       and released = ref false in
       let closes = Array.make 2 0 in
+      let events = ref [] in
       let release_once () =
         if not !released then (
           released := true;
@@ -27,9 +38,11 @@ let eio observed =
       let observe =
         if observed then
           Some
-            (function
-            | Httpkit.Observation.Shutdown_started _ -> stopping := true
-            | _ -> ())
+            (fun event ->
+              events := !events @ [ event ];
+              match event with
+              | Httpkit.Observation.Shutdown_started _ -> stopping := true
+              | _ -> ())
         else None
       in
       let accept () =
@@ -96,10 +109,17 @@ let eio observed =
               done;
               check "Eio shutdown must join late close"
                 ((not !done_) && (not !close_cancelled) && not !close_complete);
+              check "no premature Eio shutdown-finished observation"
+                (not (shutdown_observed !events));
               release_once ();
               Eio.Promise.await finished));
       check "Eio close operations completed exactly once"
-        (!close_complete && closes = [| 1; 1 |]))
+        (!close_complete && closes = [| 1; 1 |]);
+      if observed then (
+        check "Eio progress counts late accepted ownership"
+          (progress !events = [ 1; 2; 1; 0 ]);
+        check "Eio shutdown completion observed after close"
+          (shutdown_observed !events)))
 
 let lwt observed =
   let open Lwt.Infix in
@@ -115,15 +135,18 @@ let lwt observed =
   let accepted = ref 0 and stopping = ref false and done_ = ref false in
   let close_complete = ref false and close_cancelled = ref false in
   let closes = Array.make 2 0 in
+  let events = ref [] in
   let release_once () =
     if Lwt.is_sleeping release then Lwt.wakeup_later finish_close ()
   in
   let observe =
     if observed then
       Some
-        (function
-        | Httpkit.Observation.Shutdown_started _ -> stopping := true
-        | _ -> ())
+        (fun event ->
+          events := !events @ [ event ];
+          match event with
+          | Httpkit.Observation.Shutdown_started _ -> stopping := true
+          | _ -> ())
     else None
   in
   let accept () =
@@ -190,10 +213,17 @@ let lwt observed =
       yield 16 >>= fun () ->
       check "Lwt shutdown must join late close"
         ((not !done_) && (not !close_cancelled) && not !close_complete);
+      check "no premature Lwt shutdown-finished observation"
+        (not (shutdown_observed !events));
       release_once ();
       server >|= fun () ->
       check "Lwt close operations completed exactly once"
-        (!close_complete && closes = [| 1; 1 |]))
+        (!close_complete && closes = [| 1; 1 |]);
+      if observed then (
+        check "Lwt progress counts late accepted ownership"
+          (progress !events = [ 1; 2; 1; 0 ]);
+        check "Lwt shutdown completion observed after close"
+          (shutdown_observed !events)))
     (fun () ->
       release_once ();
       Lwt.cancel server;

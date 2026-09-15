@@ -30,7 +30,7 @@ invented. Existing main commit/push authorization remains in effect.
 | 1 | Beta/production gates, policy and evidence manifests | Profile separation and rejection controls implemented; actual candidate campaign evidence remains pending |
 | 2 | Multipart controls and WebSocket allocation investigation | Multipart controls fixed; incremental/coalesced WebSocket quadratic copying reproduced and replaced with buffered parsing; segmented protocol and allocation regressions pass |
 | 3 | Feature security, lifecycle and ownership review | [Feature/ownership matrix](beta-feature-review.md), static controls and bounded password-worker example implemented; historical causes and remaining fault campaigns stay open |
-| 4 | Queue/rejection/admission/shutdown diagnostics and API contracts | Accurate observations preserve backpressure and cleanup; safe installed examples and migration notes |
+| 4 | Queue/rejection/admission/shutdown diagnostics and API contracts | Body rejection, saturation and shutdown progress implemented with both-runtime controls; queue occupancy and remaining API/installation review pending |
 | 5 | Checked/skipped native fuzz accounting, resumable campaigns, coverage/mutations | Accounting and length-boundary generators implemented; resumable 14-target30min/100000-checked/20-seed campaigns and fresh95/85/80% coverage remain pending |
 | 6 | Capacity, slow-client/overload stress, allocation profiles | 64-connection profile bounded; SQLite30min/PostgreSQL2h and idle/slow/overload30min campaigns pass |
 | 7 | Reproducible local platforms and approved hosted staging | Linux x86_64/macOS arm64 on5.5.0; real direct-edge contract and lifecycle evidence; cost-approved isolated synthetic campaign |

@@ -10,6 +10,7 @@ type request = {
   read_next : unit -> string option;
   request_id : string;
   peer : string;
+  observation : Runtime_observer.scope option;
 }
 
 type payload =
@@ -35,8 +36,9 @@ let body ?(limit = 1048576) r =
     match read r with
     | None -> Buffer.contents b
     | Some s ->
-        if String.length s > limit - Buffer.length b then
-          raise (A.Error (A.Engine E.Resource_limit));
+        if String.length s > limit - Buffer.length b then (
+          Runtime_observer.body_limit r.observation limit;
+          raise (A.Error (A.Engine E.Resource_limit)));
         Buffer.add_string b s;
         loop ()
   in
@@ -139,8 +141,9 @@ let exchange ~scope ~body_limit ~random ~on_error handler c id head =
   let rec next () =
     match A.next_event c with
     | E.Data (owner, data) when E.equal_id owner id ->
-        if String.length data > body_limit - !total then
-          raise (A.Error (A.Engine E.Resource_limit));
+        if String.length data > body_limit - !total then (
+          Runtime_observer.body_limit scope body_limit;
+          raise (A.Error (A.Engine E.Resource_limit)));
         total := !total + String.length data;
         Some data
     | E.Trailers (owner, _) when E.equal_id owner id -> next ()
@@ -180,6 +183,7 @@ let exchange ~scope ~body_limit ~random ~on_error handler c id head =
             params = [];
             read_next;
             peer;
+            observation = scope;
             request_id =
               Base64.encode_string ~pad:false ~alphabet:Base64.uri_safe_alphabet
                 raw;
@@ -254,7 +258,7 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
   ignore (engine ());
   let timeout = Eio.Time.Timeout.seconds clock request_timeout in
   let observation =
-    Runtime_observer.create ?observe
+    Runtime_observer.create ?observe ~capacity:max_connections
       ~now:(fun () ->
         Int64.to_float (Mtime.to_uint64_ns (Eio.Time.Mono.now clock)) /. 1e9)
       ()
@@ -294,18 +298,21 @@ let serve ?(max_connections = 16) ?(body_limit = 1048576)
     in
     loop ()
   in
-  Eio.Fiber.first
-    (fun () -> Eio.Fiber.all (List.init max_connections (fun _ -> worker)))
+  Fun.protect
+    ~finally:(fun () -> Runtime_observer.shutdown_finished observation)
     (fun () ->
-      Eio.Promise.await stop;
-      stopping := true;
-      Runtime_observer.shutdown observation;
-      Eio.Fiber.all
-        (List.map
-           (fun (c, scope) () ->
-             try A.shutdown c with
-             | Eio.Cancel.Cancelled _ as exn -> raise exn
-             | exn ->
-                 Runtime_observer.connection_failed scope exn;
-                 on_error exn)
-           !connections))
+      Eio.Fiber.first
+        (fun () -> Eio.Fiber.all (List.init max_connections (fun _ -> worker)))
+        (fun () ->
+          Eio.Promise.await stop;
+          stopping := true;
+          Runtime_observer.shutdown observation;
+          Eio.Fiber.all
+            (List.map
+               (fun (c, scope) () ->
+                 try A.shutdown c with
+                 | Eio.Cancel.Cancelled _ as exn -> raise exn
+                 | exn ->
+                     Runtime_observer.connection_failed scope exn;
+                     on_error exn)
+               !connections)))
