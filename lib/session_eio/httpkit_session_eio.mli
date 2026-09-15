@@ -20,7 +20,13 @@ val create :
     are stored as SHA-256 digests. A namespace isolates applications. *)
 
 val issue : t -> subject:string -> string -> session
+
 val find : t -> string -> session option
+(** Invalid/missing/expired tokens return [None]. A stored subject/value that
+    violates issuance constraints, or an invalid stored CSRF token, raises
+    [Failure "invalid stored session"] rather than authenticating corrupt data.
+    Database errors propagate; the connection remains scoped to the operation.
+*)
 
 val rotate : t -> string -> subject:string -> string -> session option
 (** Atomic replacement: concurrent attempts using an old token have one winner.

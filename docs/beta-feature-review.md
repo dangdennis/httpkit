@@ -45,8 +45,15 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
   OIDC metadata/callback/token-document rejection. Cookie fixtures use upstream
   AEAD with a test key to reach validation beyond authentication; no cryptographic
   algorithm is implemented locally. Authorization-code form escaping is checked
-  separately from callback policy. SQL session HTTP middleware and additional
-  backend fault combinations remain separate acceptance work.
+  separately from callback policy.
+- SQL-session lookup previously checked stored payload size and CSRF format but
+  could return subjects/values that issuance rejects. The corruption regression
+  failed before the fix; reads now enforce the same nonempty subject, UTF-8,
+  NUL and size constraints. SQL tests also drive authentication, duplicate/malformed
+  cookies, CSRF origin/token rejection, cookie attachment and shared logout through
+  real HTTP codecs and the Eio application with a controlled transport. Invalid
+  configuration, clocks and entropy, bounded collision retries and lease reuse
+  have explicit controls. Additional backend fault combinations remain open.
 
 ## Contracts that remain the application's responsibility
 

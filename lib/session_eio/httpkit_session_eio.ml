@@ -74,16 +74,17 @@ let fresh t =
   if String.length s <> 32 then invalid_arg "session entropy";
   Base64.encode_string ~pad:false ~alphabet:Base64.uri_safe_alphabet s
 
+let valid_payload t ~subject value =
+  subject <> ""
+  && String.length subject <= 256
+  && String.length value <= t.max_payload
+  && (not (String.contains subject '\000'))
+  && String.is_valid_utf_8 subject
+  && (not (String.contains value '\000'))
+  && String.is_valid_utf_8 value
+
 let prepare t ~subject value =
-  if
-    subject = ""
-    || String.length subject > 256
-    || String.contains subject '\000'
-    || (not (String.is_valid_utf_8 subject))
-    || String.contains value '\000'
-    || (not (String.is_valid_utf_8 value))
-    || String.length value > t.max_payload
-  then invalid_arg "session value";
+  if not (valid_payload t ~subject value) then invalid_arg "session value";
   {
     token = fresh t;
     csrf = fresh t;
@@ -164,7 +165,7 @@ let find t token =
         Caqti_eio.or_fail
           (C.find_opt Q.find (t.namespace, digest token, current)))
     |> Option.map (fun (subject, value, csrf, expires) ->
-        if String.length value > t.max_payload || not (token_valid csrf) then
+        if (not (valid_payload t ~subject value)) || not (token_valid csrf) then
           failwith "invalid stored session";
         { token; subject; value; csrf; expires })
 
