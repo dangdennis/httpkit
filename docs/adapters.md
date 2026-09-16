@@ -31,6 +31,15 @@ Installed-package tests copy only the declared runtime closure, compile and exec
 
 The broader plan still calls for reset/half-close permutations, fault coverage measurements, long stress campaigns, interop and independent security review. These tests establish the implemented adapter boundary; they do not certify the complete release plan.
 
+Client handoff controls suspend request-header writes across informational and
+Upgrade/CONNECT response headers. Both runtimes preserve the exact binary suffix,
+wait for full or partial writes to finish, reject a second handoff claim, and
+close once on unclaimed handoff, callback failure after claiming, or callback
+failure while the write remains suspended. Claimed successful handoffs transfer
+close ownership. Failed CONNECT responses deliver normal HTTP bodies; segmented
+premature EOF fails and closes. These controls do not cover every cancellation
+or TLS handshake schedule.
+
 ## Configuring connection admission
 
 Both `serve_connections` helpers accept `?limits`, `?output_limit` and

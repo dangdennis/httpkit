@@ -570,6 +570,164 @@ let early_final_write () =
     (fun finalized -> List.iter (early_final_write_case finalized) [ 1; 3 ])
     [ false; true ]
 
+let client_handoff () =
+  run (fun clock ->
+      List.iter
+        (fun upgrade ->
+          List.iter
+            (fun partial ->
+              List.iter
+                (fun outcome ->
+                  let module H = Httpkit_core in
+                  let started, start = Eio.Promise.create () in
+                  let release, release_write = Eio.Promise.create () in
+                  let writes = ref 0
+                  and active = ref 0
+                  and reads = ref 0
+                  and closed = ref 0 in
+                  let request =
+                    H.Request.create
+                      ~meth:(if upgrade then H.Method.get else H.Method.connect)
+                      ~target:
+                        (ok
+                           (H.Target.of_string
+                              (if upgrade then "/" else "x:443")))
+                      ~headers:
+                        (ok
+                           (H.Headers.of_list
+                              ([ ("host", if upgrade then "x" else "x:443") ]
+                              @
+                              if upgrade then
+                                [
+                                  ("connection", "upgrade");
+                                  ("upgrade", "proto/V1");
+                                ]
+                              else [])))
+                      ()
+                  in
+                  let wire =
+                    "HTTP/1.1 103 Hints\r\n\r\n"
+                    ^ (if upgrade then
+                         "HTTP/1.1 101 Switching\r\n\
+                          Connection: upgrade\r\n\
+                          Upgrade: proto/V1\r\n\
+                          \r\n"
+                       else "HTTP/1.1 200 Established\r\n\r\n")
+                    ^ "\000TLS\r\n"
+                  in
+                  let transport : A.transport =
+                    {
+                      read =
+                        (fun dst off len ->
+                          Eio.Promise.await started;
+                          incr reads;
+                          assert (!reads = 1 && String.length wire <= len);
+                          Bytes.blit_string wire 0 dst off (String.length wire);
+                          String.length wire);
+                      write =
+                        (fun _ _ len ->
+                          incr writes;
+                          incr active;
+                          Fun.protect
+                            ~finally:(fun () -> decr active)
+                            (fun () ->
+                              if !writes = 1 then (
+                                Eio.Promise.resolve start ();
+                                Eio.Promise.await release);
+                              if partial && !writes = 1 then 1 else len));
+                      close =
+                        (fun () ->
+                          assert (!active = 0);
+                          incr closed);
+                    }
+                  in
+                  let engine = ok (E.client ()) in
+                  let claimed = ref None in
+                  (try
+                     A.with_connection ~clock transport engine (fun c ->
+                         let id = A.submit_request c request in
+                         A.finish c id;
+                         (match A.next_event c with
+                         | E.Informational (owner, _) ->
+                             assert (E.equal_id id owner)
+                         | _ -> assert false);
+                         (match A.next_event c with
+                         | E.Response (owner, _) -> assert (E.equal_id id owner)
+                         | _ -> assert false);
+                         assert (!active = 1 && E.queued_output_bytes engine > 0);
+                         if outcome = `Abort then raise Exit;
+                         Eio.Promise.resolve release_write ();
+                         assert (A.next_event c = E.Handoff id);
+                         assert (
+                           !active = 0
+                           && E.queued_output_bytes engine = 0
+                           && !reads = 1);
+                         if outcome <> `Unclaimed then (
+                           let t, suffix = A.take_handoff c in
+                           assert (suffix = "\000TLS\r\n");
+                           claimed := Some t;
+                           try
+                             ignore (A.take_handoff c);
+                             assert false
+                           with A.Error (A.Engine E.Invalid_command) -> ());
+                         if outcome = `Fail_claim then raise Exit);
+                     assert (outcome = `Claim || outcome = `Unclaimed)
+                   with Exit ->
+                     assert (outcome = `Abort || outcome = `Fail_claim));
+                  assert (!active = 0 && !reads = 1);
+                  if outcome = `Claim then (
+                    assert (!closed = 0);
+                    (Option.get !claimed).close ();
+                    assert (!closed = 1))
+                  else assert (!closed = 1))
+                [ `Claim; `Unclaimed; `Fail_claim; `Abort ])
+            [ false; true ])
+        [ false; true ])
+
+let failed_connect_body () =
+  run (fun clock ->
+      List.iter
+        (fun fragment ->
+          List.iter
+            (fun truncated ->
+              let module H = Httpkit_core in
+              let wire =
+                "HTTP/1.1 403 Refused\r\n\
+                 Content-Length: 3\r\n\
+                 Connection: close\r\n\
+                 \r\n"
+                ^ if truncated then "ab" else "abc"
+              in
+              let transport, closed, _ = mock ~fragment wire in
+              (try
+                 A.with_connection ~clock transport
+                   (ok (E.client ()))
+                   (fun c ->
+                     let id =
+                       A.submit_request c
+                         (H.Request.create ~meth:H.Method.connect
+                            ~target:(ok (H.Target.of_string "x:443"))
+                            ~headers:
+                              (ok (H.Headers.of_list [ ("host", "x:443") ]))
+                            ())
+                     in
+                     A.finish c id;
+                     (match A.next_event c with
+                     | E.Response (owner, r) ->
+                         assert (
+                           E.equal_id id owner
+                           && H.Status.to_int (H.Response.status r) = 403)
+                     | _ -> assert false);
+                     let body, _ = A.collect_body c id in
+                     assert (body = "abc" && not truncated));
+                 assert (not truncated)
+               with
+               | A.Error (A.Engine (E.Protocol Httpkit_http1.Unexpected_eof)) ->
+                 assert truncated);
+              assert (!closed = 1))
+            [ false; true ])
+        [ 1; 7; 16384 ])
+
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->
       match
@@ -602,6 +760,8 @@ let () =
             ("cancel and join read", cancel_read);
             ("absolute header timeout", header_timeout);
             ("handoff residual and close ownership", handoff);
+            ("client suspended-write handoff ownership", client_handoff);
+            ("failed CONNECT body and EOF", failed_connect_body);
             ("real socket streaming", sockets);
             ("read failure, invalid read and premature EOF", read_failures);
             ("body, write, idle and graceful deadlines", body_shutdown_deadlines);

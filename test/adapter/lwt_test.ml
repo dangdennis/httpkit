@@ -767,6 +767,203 @@ let early_final_write () =
     (fun finalized -> List.iter (early_final_write_case finalized) [ 1; 3 ])
     [ false; true ]
 
+let client_handoff () =
+  Lwt_main.run
+    (Lwt_list.iter_s
+       (fun upgrade ->
+         Lwt_list.iter_s
+           (fun partial ->
+             Lwt_list.iter_s
+               (fun outcome ->
+                 let module H = Httpkit_core in
+                 let started, start = Lwt.wait () in
+                 let release, release_write = Lwt.task () in
+                 let writes = ref 0
+                 and active = ref 0
+                 and reads = ref 0
+                 and closed = ref 0 in
+                 let request =
+                   H.Request.create
+                     ~meth:(if upgrade then H.Method.get else H.Method.connect)
+                     ~target:
+                       (ok
+                          (H.Target.of_string
+                             (if upgrade then "/" else "x:443")))
+                     ~headers:
+                       (ok
+                          (H.Headers.of_list
+                             ([ ("host", if upgrade then "x" else "x:443") ]
+                             @
+                             if upgrade then
+                               [
+                                 ("connection", "upgrade");
+                                 ("upgrade", "proto/V1");
+                               ]
+                             else [])))
+                     ()
+                 in
+                 let wire =
+                   "HTTP/1.1 103 Hints\r\n\r\n"
+                   ^ (if upgrade then
+                        "HTTP/1.1 101 Switching\r\n\
+                         Connection: upgrade\r\n\
+                         Upgrade: proto/V1\r\n\
+                         \r\n"
+                      else "HTTP/1.1 200 Established\r\n\r\n")
+                   ^ "\000TLS\r\n"
+                 in
+                 let transport : A.transport =
+                   {
+                     read =
+                       (fun dst off len ->
+                         let* () = started in
+                         incr reads;
+                         assert (!reads = 1 && String.length wire <= len);
+                         Bytes.blit_string wire 0 dst off (String.length wire);
+                         Lwt.return (String.length wire));
+                     write =
+                       (fun _ _ len ->
+                         incr writes;
+                         incr active;
+                         Lwt.finalize
+                           (fun () ->
+                             let* () =
+                               if !writes = 1 then (
+                                 Lwt.wakeup_later start ();
+                                 release)
+                               else Lwt.return_unit
+                             in
+                             Lwt.return
+                               (if partial && !writes = 1 then 1 else len))
+                           (fun () ->
+                             decr active;
+                             Lwt.return_unit));
+                     close =
+                       (fun () ->
+                         assert (!active = 0);
+                         incr closed;
+                         Lwt.return_unit);
+                   }
+                 in
+                 let engine = ok (E.client ()) in
+                 let claimed = ref None in
+                 let* () =
+                   Lwt.catch
+                     (fun () ->
+                       let* () =
+                         A.with_connection transport engine (fun c ->
+                             let* id = A.submit_request c request in
+                             let* () = A.finish c id in
+                             let* event = A.next_event c in
+                             (match event with
+                             | E.Informational (owner, _) ->
+                                 assert (E.equal_id id owner)
+                             | _ -> assert false);
+                             let* event = A.next_event c in
+                             (match event with
+                             | E.Response (owner, _) ->
+                                 assert (E.equal_id id owner)
+                             | _ -> assert false);
+                             assert (
+                               !active = 1 && E.queued_output_bytes engine > 0);
+                             if outcome = `Abort then Lwt.fail Exit
+                             else (
+                               Lwt.wakeup_later release_write ();
+                               let* event = A.next_event c in
+                               assert (event = E.Handoff id);
+                               assert (
+                                 !active = 0
+                                 && E.queued_output_bytes engine = 0
+                                 && !reads = 1);
+                               if outcome <> `Unclaimed then (
+                                 let t, suffix = A.take_handoff c in
+                                 assert (suffix = "\000TLS\r\n");
+                                 claimed := Some t;
+                                 try
+                                   ignore (A.take_handoff c);
+                                   assert false
+                                 with A.Error (A.Engine E.Invalid_command) ->
+                                   ());
+                               if outcome = `Fail_claim then Lwt.fail Exit
+                               else Lwt.return_unit))
+                       in
+                       assert (outcome = `Claim || outcome = `Unclaimed);
+                       Lwt.return_unit)
+                     (function
+                       | Exit ->
+                           assert (outcome = `Abort || outcome = `Fail_claim);
+                           Lwt.return_unit
+                       | e -> Lwt.fail e)
+                 in
+                 assert (!active = 0 && !reads = 1);
+                 if outcome = `Claim then (
+                   assert (!closed = 0);
+                   let* () = (Option.get !claimed).close () in
+                   assert (!closed = 1);
+                   Lwt.return_unit)
+                 else (
+                   assert (!closed = 1);
+                   Lwt.return_unit))
+               [ `Claim; `Unclaimed; `Fail_claim; `Abort ])
+           [ false; true ])
+       [ false; true ])
+
+let failed_connect_body () =
+  Lwt_main.run
+    (Lwt_list.iter_s
+       (fun fragment ->
+         Lwt_list.iter_s
+           (fun truncated ->
+             let module H = Httpkit_core in
+             let wire =
+               "HTTP/1.1 403 Refused\r\n\
+                Content-Length: 3\r\n\
+                Connection: close\r\n\
+                \r\n"
+               ^ if truncated then "ab" else "abc"
+             in
+             let transport, closed, _ = mock ~fragment wire in
+             let* () =
+               Lwt.catch
+                 (fun () ->
+                   let* () =
+                     A.with_connection transport
+                       (ok (E.client ()))
+                       (fun c ->
+                         let* id =
+                           A.submit_request c
+                             (H.Request.create ~meth:H.Method.connect
+                                ~target:(ok (H.Target.of_string "x:443"))
+                                ~headers:
+                                  (ok (H.Headers.of_list [ ("host", "x:443") ]))
+                                ())
+                         in
+                         let* () = A.finish c id in
+                         let* event = A.next_event c in
+                         (match event with
+                         | E.Response (owner, r) ->
+                             assert (
+                               E.equal_id id owner
+                               && H.Status.to_int (H.Response.status r) = 403)
+                         | _ -> assert false);
+                         let* body, _ = A.collect_body c id in
+                         assert (body = "abc" && not truncated);
+                         Lwt.return_unit)
+                   in
+                   assert (not truncated);
+                   Lwt.return_unit)
+                 (function
+                   | A.Error
+                       (A.Engine (E.Protocol Httpkit_http1.Unexpected_eof)) ->
+                       assert truncated;
+                       Lwt.return_unit
+                   | e -> Lwt.fail e)
+             in
+             assert (!closed = 1);
+             Lwt.return_unit)
+           [ false; true ])
+       [ 1; 7; 16384 ])
+
 let bounded name f =
   Alcotest.test_case name `Quick (fun () ->
       match
@@ -798,6 +995,8 @@ let () =
             ("configured admission and diagnostics", configured_admission);
             ("cancel and join read", cancel_read);
             ("handoff residual and close ownership", handoff);
+            ("client suspended-write handoff ownership", client_handoff);
+            ("failed CONNECT body and EOF", failed_connect_body);
             ("real socket streaming", sockets);
             ("read failure, invalid read and premature EOF", read_failures);
             ("body, write, idle and graceful deadlines", other_deadlines);
