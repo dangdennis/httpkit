@@ -1,3 +1,4 @@
 (library (name httpkit_client_lwt) (public_name httpkit-client-lwt)
+ (private_modules network)
  (libraries httpkit-client httpkit-transport-lwt tls-lwt lwt.unix domain-name ipaddr x509)
  (instrumentation (backend bisect_ppx)))

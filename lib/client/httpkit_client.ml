@@ -2,7 +2,7 @@ open Httpkit_core
 
 exception Unframed_https_response
 
-let check_response ~tls response =
+let check_response ?(meth = Method.get) ~tls response =
   let status = Status.to_int (Response.status response) in
   let absent name =
     Headers.get_all
@@ -11,7 +11,9 @@ let check_response ~tls response =
     = []
   in
   if
-    tls && status <> 204 && status <> 304 && absent "content-length"
+    tls
+    && (not (Method.equal meth Method.head))
+    && status <> 204 && status <> 304 && absent "content-length"
     && absent "transfer-encoding"
   then raise Unframed_https_response
 
@@ -26,12 +28,24 @@ let check_timeout seconds =
   if (not (Float.is_finite seconds)) || seconds <= 0. then
     invalid_arg "httpkit client: timeout must be finite and positive"
 
-let prepare ?(headers = Headers.empty) url =
+type framing = [ `Empty | `Fixed of int64 | `Chunked ]
+
+let same_origin a b =
+  String.lowercase_ascii a.host = String.lowercase_ascii b.host
+  && a.port = b.port && a.tls = b.tls
+
+let prepare ?(headers = Headers.empty) ?(meth = Method.get) ?(body = `Empty)
+    ?(keep_alive = false) url =
   let error () =
     Error "httpkit client: invalid HTTP/HTTPS URL or request headers"
   in
   if
-    String.length url > 8192
+    (not
+       (List.mem (Method.to_string meth)
+          [ "GET"; "HEAD"; "POST"; "PUT"; "PATCH"; "DELETE"; "OPTIONS" ]))
+    || (Method.equal meth Method.head && body <> `Empty)
+    || (match body with `Fixed n -> n < 0L | _ -> false)
+    || String.length url > 8192
     || String.exists
          (fun c -> Char.code c <= 32 || Char.code c >= 127 || c = '\\')
          url
@@ -111,15 +125,21 @@ let prepare ?(headers = Headers.empty) url =
                 match
                   ( Target.of_string target,
                     Headers.of_list
-                      (("host", authority) :: ("connection", "close") :: fields)
-                  )
+                      (("host", authority)
+                       ::
+                       (if keep_alive then [] else [ ("connection", "close") ])
+                      @ (match body with
+                        | `Empty -> []
+                        | `Fixed n -> [ ("content-length", Int64.to_string n) ]
+                        | `Chunked -> [ ("transfer-encoding", "chunked") ])
+                      @ fields) )
                 with
                 | Ok target, Ok headers -> (
-                    let request =
-                      Request.create ~meth:Method.get ~target ~headers ()
-                    in
+                    let request = Request.create ~meth ~target ~headers () in
                     match Httpkit_http1.encode_request request with
                     | Ok _ -> Ok { host; port; tls; request }
                     | Error _ -> error ())
                 | _ -> error ())
     with Invalid_argument _ | Failure _ | Not_found -> error ()
+
+exception Tls_truncated

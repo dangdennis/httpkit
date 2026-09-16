@@ -24,10 +24,12 @@ let scenario tls mode =
               Fun.protect
                 ~finally:(fun () -> Eio.Flow.close flow)
                 (fun () ->
+                  let notify = ref (fun () -> ()) in
                   let transport =
-                    if tls then
-                      Httpkit_transport_eio.of_flow
-                        (Tls_eio.server_of_flow (F.server ()) flow)
+                    if tls then (
+                      let secure = Tls_eio.server_of_flow (F.server ()) flow in
+                      (notify := fun () -> Eio.Flow.shutdown secure `Send);
+                      Httpkit_transport_eio.of_flow secure)
                     else Httpkit_transport_eio.of_flow flow
                   in
                   let head = Buffer.create 128 and b = Bytes.create 1 in
@@ -45,9 +47,14 @@ let scenario tls mode =
                       (Buffer.contents head));
                   (if mode <> `Head_timeout then
                      let bytes =
-                       if mode = `Redirect then F.redirect
+                       if mode = `Body_timeout then
+                         "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n"
+                       else if mode = `Redirect then F.redirect
                        else if mode = `Large then F.large
-                       else if mode = `Unframed then F.unframed
+                       else if
+                         mode = `Unframed || mode = `Unframed_clean
+                         || mode = `Cut_tls
+                       then F.unframed
                        else if mode = `Truncated then F.short
                        else F.wire
                      in
@@ -60,8 +67,11 @@ let scenario tls mode =
                          write (off + n))
                      in
                      write 0);
-                  if mode = `Truncated || mode = `Unframed then
-                    Eio.Flow.shutdown flow `Send;
+                  if mode = `Cut_tls then
+                    Eio.Flow.copy_string "\x17\x03\x03\x00\x10abc" flow;
+                  if mode = `Unframed_clean then !notify ();
+                  if mode = `Truncated || mode = `Unframed || mode = `Cut_tls
+                  then Eio.Flow.shutdown flow `Send;
                   let rec eof () =
                     try
                       let n = transport.read b 0 1 in
@@ -79,16 +89,16 @@ let scenario tls mode =
                 C.with_response ~net ~clock
                   ~authenticator:(F.authenticator true)
                   ~timeout:
-                    (if mode = `Head_timeout || mode = `Callback_timeout then
-                       0.1
+                    (if
+                       mode = `Head_timeout || mode = `Body_timeout
+                       || mode = `Callback_timeout
+                     then 0.1
                      else 2.)
                   url
                   (fun response body ->
                     assert (
                       H.Status.to_int (H.Response.status response)
                       = if mode = `Redirect then 302 else 200);
-                    if mode = `Unframed then
-                      failwith "unframed HTTPS response exposed";
                     escaped := Some body;
                     match mode with
                     | `Abandon -> ()
@@ -124,17 +134,27 @@ let scenario tls mode =
                                 H.Header.Value.to_string (H.Header.value h) ))
                             (H.Headers.to_list (Option.get (C.trailers body)))
                           =
-                          if mode = `Large || mode = `Redirect then []
+                          if
+                            mode = `Large || mode = `Redirect
+                            || mode = `Unframed_clean
+                          then []
                           else [ ("digest", "done") ]));
                 assert (
                   mode = `Normal || mode = `Abandon || mode = `Large
-                  || mode = `Redirect)
+                  || mode = `Redirect || mode = `Unframed_clean)
               with
-              | Httpkit_client.Unframed_https_response ->
-                  assert (mode = `Unframed)
+              | Httpkit_client.Unframed_https_response -> assert false
+              | Httpkit_transport_eio.Error
+                  (Httpkit_transport_eio.Transport Httpkit_client.Tls_truncated)
+                ->
+                  assert (
+                    tls
+                    && (mode = `Unframed || mode = `Truncated || mode = `Cut_tls))
               | Exit -> assert (mode = `Callback_error)
               | Eio.Time.Timeout ->
-                  assert (mode = `Head_timeout || mode = `Callback_timeout)
+                  assert (
+                    mode = `Head_timeout || mode = `Body_timeout
+                    || mode = `Callback_timeout)
               | Httpkit_transport_eio.Error
                   (Httpkit_transport_eio.Engine
                      (Httpkit_engine.Protocol Httpkit_http1.Unexpected_eof)) ->
@@ -150,6 +170,7 @@ let scenario tls mode =
             !escaped))
 
 let tls_rejection trusted host =
+  let produced = ref false in
   Eio_main.run (fun env ->
       Eio.Switch.run (fun sw ->
           let net = Eio.Stdenv.net env and clock = Eio.Stdenv.mono_clock env in
@@ -175,10 +196,15 @@ let tls_rejection trusted host =
             (fun () ->
               try
                 C.with_response ~net ~clock ~timeout:2.
+                  ~upload:
+                    (C.upload (fun () ->
+                         produced := true;
+                         None))
                   ~authenticator:(F.authenticator trusted)
-                  (Printf.sprintf "https://%s:%d/" host port) (fun _ _ -> ());
+                  (Printf.sprintf "https://%s:%d/" host port)
+                  (fun _ _ -> ());
                 assert false
-              with Tls_eio.Tls_failure _ -> ())))
+              with Tls_eio.Tls_failure _ -> assert (not !produced))))
 
 let handshake_timeout () =
   Eio_main.run (fun env ->
@@ -215,50 +241,58 @@ let handshake_timeout () =
 
 let () =
   Mirage_crypto_rng_unix.use_default ();
-  let bounded name f =
-    Alcotest.test_case name `Quick (fun () ->
-        match
-          Harness_runtime.Watchdog.run ~seconds:10. (fun () ->
-              try f ()
-              with e ->
-                prerr_endline (Printexc.to_string e);
-                raise e)
-        with
-        | Exited 0 -> ()
-        | _ -> Alcotest.fail "client child failed or hung")
-  in
-  Alcotest.run "Eio fetch"
-    [
-      ( "lifecycle",
-        [
-          bounded "HTTP streaming and cleanup" (fun () ->
-              List.iter (scenario false)
-                [
-                  `Normal;
-                  `Large;
-                  `Redirect;
-                  `Abandon;
-                  `Callback_error;
-                  `Truncated;
-                  `Head_timeout;
-                  `Callback_timeout;
-                ]);
-          bounded "HTTPS streaming and cleanup" (fun () ->
-              List.iter (scenario true)
-                [
-                  `Normal;
-                  `Large;
-                  `Redirect;
-                  `Abandon;
-                  `Callback_error;
-                  `Truncated;
-                  `Head_timeout;
-                  `Callback_timeout;
-                ]);
-          bounded "unframed TLS rejection" (fun () -> scenario true `Unframed);
-          bounded "TLS handshake deadline cleanup" handshake_timeout;
-          bounded "untrusted certificate" (fun () ->
-              tls_rejection false "localhost");
-          bounded "wrong hostname" (fun () -> tls_rejection true "127.0.0.1");
-        ] );
-    ]
+  if Measure.enabled () then Measure.run "eio" scenario
+  else
+    let bounded name f =
+      Alcotest.test_case name `Quick (fun () ->
+          match
+            Harness_runtime.Watchdog.run ~seconds:10. (fun () ->
+                try f ()
+                with e ->
+                  prerr_endline (Printexc.to_string e);
+                  raise e)
+          with
+          | Exited 0 -> ()
+          | _ -> Alcotest.fail "client child failed or hung")
+    in
+    Alcotest.run "Eio fetch"
+      [
+        ( "lifecycle",
+          [
+            bounded "HTTP streaming and cleanup" (fun () ->
+                List.iter (scenario false)
+                  [
+                    `Normal;
+                    `Large;
+                    `Redirect;
+                    `Abandon;
+                    `Callback_error;
+                    `Truncated;
+                    `Head_timeout;
+                    `Body_timeout;
+                    `Callback_timeout;
+                  ]);
+            bounded "HTTPS streaming and cleanup" (fun () ->
+                List.iter (scenario true)
+                  [
+                    `Normal;
+                    `Large;
+                    `Redirect;
+                    `Abandon;
+                    `Callback_error;
+                    `Truncated;
+                    `Head_timeout;
+                    `Body_timeout;
+                    `Callback_timeout;
+                  ]);
+            bounded "authenticated TLS close-delimited" (fun () ->
+                scenario true `Unframed_clean);
+            bounded "abrupt TLS EOF rejected" (fun () ->
+                scenario true `Unframed);
+            bounded "cut TLS record rejected" (fun () -> scenario true `Cut_tls);
+            bounded "TLS handshake deadline cleanup" handshake_timeout;
+            bounded "untrusted certificate" (fun () ->
+                tls_rejection false "localhost");
+            bounded "wrong hostname" (fun () -> tls_rejection true "127.0.0.1");
+          ] );
+      ]

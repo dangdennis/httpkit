@@ -61,6 +61,43 @@ let () =
                   "trailer";
                   "te";
                 ]);
+          Alcotest.test_case "owned upload framing and origin isolation" `Quick
+            (fun () ->
+              let endpoint =
+                ok
+                  (C.prepare ~meth:H.Method.post ~body:(`Fixed 3L)
+                     ~keep_alive:true "https://example.org/upload")
+              in
+              let wire, _ =
+                ok (Httpkit_http1.encode_request endpoint.request)
+              in
+              assert (
+                String.starts_with ~prefix:"POST /upload HTTP/1.1\r\n" wire);
+              let get name =
+                H.Headers.get_all
+                  (ok (H.Header.Name.of_string name))
+                  (H.Request.headers endpoint.request)
+              in
+              assert (
+                List.length (get "content-length") = 1 && get "connection" = []);
+              assert (
+                Result.is_error (C.prepare ~body:(`Fixed (-1L)) "http://x/"));
+              assert (
+                Result.is_error (C.prepare ~meth:H.Method.connect "http://x/"));
+              assert (
+                Result.is_error
+                  (C.prepare ~meth:H.Method.head ~body:`Chunked "http://x/"));
+              assert (
+                C.same_origin endpoint
+                  (ok (C.prepare "https://EXAMPLE.org:443/elsewhere")));
+              assert (
+                not
+                  (C.same_origin endpoint
+                     (ok (C.prepare "http://example.org/"))));
+              assert (
+                not
+                  (C.same_origin endpoint
+                     (ok (C.prepare "https://example.org:444/")))));
           Alcotest.test_case "deadline validation" `Quick (fun () ->
               List.iter
                 (fun v ->

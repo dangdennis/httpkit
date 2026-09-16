@@ -1,0 +1,22 @@
+#!/bin/sh
+# Run after every client slice. Store output outside the source fingerprint.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+out=${1:-_artifacts/client-feedback/current}
+mkdir -p "$out"
+case "$out" in /*) ;; *) out="$root/$out" ;; esac
+tools/dev fingerprint > "$out/source-before.json"
+tools/dune-pkg runtest --force test/client test/engine test/adapter > "$out/security.log" 2>&1
+tools/dune-pkg build test/client/eio_test.exe test/client/lwt_test.exe test/client/eio_pool_test.exe test/client/lwt_pool_test.exe test/client/eio_resource_test.exe test/client/lwt_resource_test.exe
+cd "$root/_build-pkg-5.5.0/default/test/client"
+case "$(uname -s)" in Darwin) time_flag=-l ;; *) time_flag=-v ;; esac
+for runtime in eio lwt; do
+  /usr/bin/time "$time_flag" env HTTPKIT_CLIENT_BENCH=1 "./${runtime}_test.exe" > "$out/$runtime.jsonl" 2> "$out/$runtime.resources"
+  /usr/bin/time "$time_flag" env HTTPKIT_CLIENT_BENCH=1 "./${runtime}_pool_test.exe" > "$out/$runtime-pool.jsonl" 2> "$out/$runtime-pool.resources"
+  /usr/bin/time "$time_flag" env HTTPKIT_CLIENT_BENCH=1 "./${runtime}_resource_test.exe" > "$out/$runtime-resource.jsonl" 2> "$out/$runtime-resource.resources"
+done
+cd "$root"
+tools/dev fingerprint > "$out/source-after.json"
+cmp "$out/source-before.json" "$out/source-after.json"
+printf 'Client security and performance checks passed: %s\n' "$out"

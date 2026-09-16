@@ -312,7 +312,17 @@ let with_connection ?(policy = Timeout.default) ?on_output_queue ~clock
         then
           match c.failure with
           | Some failure -> Error (Error failure)
-          | None -> Error exn
+          | None -> (
+              (* A command can abort the engine while the event owner observes
+                 the same Closed error, without a driver failure being stored. *)
+              match errors with
+              | (Error (Engine first), _) :: rest
+                when List.for_all
+                       (function
+                         | Error (Engine next), _ -> first = next | _ -> false)
+                       rest ->
+                  Error (Error (Engine first))
+              | _ -> Error exn)
         else Error exn
     | exn -> Error exn
   in
@@ -374,3 +384,8 @@ let serve_connections ?limits ?output_limit ?informational_limit
     worker ()
   in
   Eio.Fiber.all (List.init max_connections (fun _ -> worker))
+
+let reusable c =
+  c.failure = None && (not c.ended) && (not c.claimed)
+  && c.offset = String.length c.input
+  && Engine.reusable c.engine

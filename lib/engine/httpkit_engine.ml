@@ -52,6 +52,7 @@ type exchange = {
   mutable receiving : receiving;
   mutable sending : sending;
   mutable final_sent : bool;
+  mutable upload_aborted : bool;
   mutable close_after : bool;
   mutable handoff : bool;
   mutable complete_pending : bool;
@@ -299,6 +300,7 @@ let make_exchange id request incoming writer =
       | None -> Awaiting_response
       | Some encoder -> Writing encoder);
     final_sent = false;
+    upload_aborted = false;
     close_after = not request.persistent;
     handoff = false;
     complete_pending = false;
@@ -484,7 +486,8 @@ let receive_head t meta =
           (* Finishing the encoder does not acknowledge transport output. A
              closing final response also cancels a finalized, queued upload.
              Already acknowledged bytes cannot be recalled, so force close. *)
-          if not (send_done a) || (not meta.persistent && t.queued > 0) then (
+          if (not (send_done a)) || ((not meta.persistent) && t.queued > 0) then (
+            a.upload_aborted <- true;
             complete_output a;
             a.close_after <- true;
             clear_output t);
@@ -615,3 +618,15 @@ let input_state t =
 
 let max_send_size t =
   max 0 (min (Codec.step_limit t.limits) (t.output_limit - 32))
+
+let reusable t =
+  settle t;
+  (not t.server) && (not t.stopped) && (not t.shutting) && (not t.peer_eof)
+  && t.active = None && t.pending = None && t.queued = 0
+
+let upload_aborted t id =
+  (not t.server)
+  &&
+  match t.active with
+  | Some a -> equal_id a.id id && a.upload_aborted
+  | None -> false

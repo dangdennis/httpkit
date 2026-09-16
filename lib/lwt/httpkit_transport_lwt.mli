@@ -102,3 +102,7 @@ val serve_connections :
 (** Bounded native workers, default 1024. The caller owns listener/backlog.
     Connection errors are reported after cleanup; accept/on_error failure and
     cancellation stop and join every worker. No detached Lwt.async tasks. *)
+
+val reusable : connection -> bool
+(** Check idle client state including unconsumed transport staging. Call after
+    Complete and flush; a stale peer may still fail the next request. *)

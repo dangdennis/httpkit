@@ -66,8 +66,9 @@ misuse/ownership problems; keep existing package/runtime boundaries.
 Current technical focus remains HTTP/1 security and conformance. Client
 adapter handoff controls now cover suspended header writes and close ownership
 in both runtimes, plus failed CONNECT bodies and EOF. The user subsequently
-approved a [streaming HTTP/HTTPS fetch client](client.md); its initial scoped GET
-API is experimental and does not add pooling or automatic redirect/retry policy.
+approved a [streaming HTTP/HTTPS fetch client](client.md); it now supports scoped streaming uploads, bounded origin pools, and authenticated
+TLS EOF. The API remains experimental; its review is deferred by request. No
+automatic redirect/retry policy is added.
 Client
 informational/Upgrade/CONNECT sequencing now has a 124-case authored segmented
 matrix shared with the existing native client fuzz target; count-limit and

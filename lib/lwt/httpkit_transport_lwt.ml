@@ -410,3 +410,8 @@ let serve_connections ?limits ?output_limit ?informational_limit
         (List.map
            (fun p -> Lwt.catch (fun () -> p) (fun _ -> Lwt.return_unit))
            workers))
+
+let reusable c =
+  c.failure = None && (not c.ended) && (not c.claimed)
+  && c.offset = String.length c.input
+  && Engine.reusable c.engine

@@ -75,9 +75,13 @@ let scenario tls mode =
         if mode = `Head_timeout then Lwt.return_unit
         else
           let bytes =
-            if mode = `Redirect then F.redirect
+            if mode = `Body_timeout then
+              "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n"
+            else if mode = `Redirect then F.redirect
             else if mode = `Large then F.large
-            else if mode = `Unframed then F.unframed
+            else if
+              mode = `Unframed || mode = `Unframed_clean || mode = `Cut_tls
+            then F.unframed
             else if mode = `Truncated then F.short
             else F.wire
           in
@@ -90,9 +94,24 @@ let scenario tls mode =
           write 0
       in
       let* () =
-        if mode = `Peer_notify then transport.close () else Lwt.return_unit
+        if mode = `Peer_notify || mode = `Unframed_clean then transport.close ()
+        else Lwt.return_unit
       in
-      if mode = `Truncated || mode = `Unframed then
+      let* () =
+        if mode = `Cut_tls then
+          let bytes = "\x17\x03\x03\x00\x10abc" in
+          let rec write off =
+            if off = String.length bytes then Lwt.return_unit
+            else
+              let* n =
+                Lwt_unix.write_string fd bytes off (String.length bytes - off)
+              in
+              write (off + n)
+          in
+          write 0
+        else Lwt.return_unit
+      in
+      if mode = `Truncated || mode = `Unframed || mode = `Cut_tls then
         Lwt_unix.shutdown fd Unix.SHUTDOWN_SEND;
       let rec eof () =
         Lwt.catch
@@ -103,6 +122,12 @@ let scenario tls mode =
               Lwt.return_unit)
             else eof ())
           (function
+            | Unix.Unix_error (Unix.ECONNRESET, _, _) when mode = `Peer_notify
+              ->
+                (* A fully framed response can finish before the peer alert is
+                   read. Closing with unread TCP bytes may reset the peer. *)
+                closed := true;
+                Lwt.return_unit
             | End_of_file ->
                 closed := true;
                 Lwt.return_unit
@@ -120,15 +145,16 @@ let scenario tls mode =
           let* () =
             C.with_response ~authenticator:(F.authenticator true)
               ~timeout:
-                (if mode = `Head_timeout || mode = `Callback_timeout then 0.1
+                (if
+                   mode = `Head_timeout || mode = `Body_timeout
+                   || mode = `Callback_timeout
+                 then 0.1
                  else 2.)
               url
               (fun response body ->
                 assert (
                   H.Status.to_int (H.Response.status response)
                   = if mode = `Redirect then 302 else 200);
-                if mode = `Unframed then
-                  failwith "unframed HTTPS response exposed";
                 escaped := Some body;
                 match mode with
                 | `Abandon -> Lwt.return_unit
@@ -165,23 +191,31 @@ let scenario tls mode =
                             H.Header.Value.to_string (H.Header.value h) ))
                         (H.Headers.to_list (Option.get (C.trailers body)))
                       =
-                      if mode = `Large || mode = `Redirect then []
+                      if
+                        mode = `Large || mode = `Redirect
+                        || mode = `Unframed_clean
+                      then []
                       else [ ("digest", "done") ]);
                     Lwt.return_unit)
           in
           assert (
             mode = `Peer_notify || mode = `Normal || mode = `Abandon
-            || mode = `Large || mode = `Redirect);
+            || mode = `Large || mode = `Redirect || mode = `Unframed_clean);
           Lwt.return_unit)
         (function
-          | Httpkit_client.Unframed_https_response ->
-              assert (mode = `Unframed);
+          | Httpkit_client.Unframed_https_response -> assert false
+          | Httpkit_transport_lwt.Error
+              (Httpkit_transport_lwt.Transport Httpkit_client.Tls_truncated) ->
+              assert (
+                tls && (mode = `Unframed || mode = `Truncated || mode = `Cut_tls));
               Lwt.return_unit
           | Exit ->
               assert (mode = `Callback_error);
               Lwt.return_unit
           | Lwt_unix.Timeout ->
-              assert (mode = `Head_timeout || mode = `Callback_timeout);
+              assert (
+                mode = `Head_timeout || mode = `Body_timeout
+                || mode = `Callback_timeout);
               Lwt.return_unit
           | Httpkit_transport_lwt.Error
               (Httpkit_transport_lwt.Engine
@@ -202,6 +236,7 @@ let scenario tls mode =
     !escaped
 
 let tls_rejection trusted host =
+  let produced = ref false in
   with_server
     (fun fd ->
       Lwt.catch
@@ -217,11 +252,19 @@ let tls_rejection trusted host =
         (fun () ->
           let* () =
             C.with_response ~timeout:2. ~authenticator:(F.authenticator trusted)
-              (Printf.sprintf "https://%s:%d/" host port) (fun _ _ ->
-                assert false)
+              ~upload:
+                (C.upload (fun () ->
+                     produced := true;
+                     Lwt.return_none))
+              (Printf.sprintf "https://%s:%d/" host port)
+              (fun _ _ -> assert false)
           in
           assert false)
-        (function Tls_lwt.Tls_failure _ -> Lwt.return_unit | e -> Lwt.fail e))
+        (function
+          | Tls_lwt.Tls_failure _ ->
+              assert (not !produced);
+              Lwt.return_unit
+          | e -> Lwt.fail e))
 
 let handshake_timeout () =
   let closed = ref false in
@@ -250,52 +293,60 @@ let handshake_timeout () =
 
 let () =
   Mirage_crypto_rng_unix.use_default ();
-  let bounded name f =
-    Alcotest.test_case name `Quick (fun () ->
-        match
-          Harness_runtime.Watchdog.run ~seconds:10. (fun () ->
-              try f ()
-              with e ->
-                prerr_endline (Printexc.to_string e);
-                raise e)
-        with
-        | Exited 0 -> ()
-        | _ -> Alcotest.fail "client child failed or hung")
-  in
-  Alcotest.run "Lwt fetch"
-    [
-      ( "lifecycle",
-        [
-          bounded "HTTP streaming and cleanup" (fun () ->
-              List.iter (scenario false)
-                [
-                  `Normal;
-                  `Large;
-                  `Redirect;
-                  `Abandon;
-                  `Callback_error;
-                  `Truncated;
-                  `Head_timeout;
-                  `Callback_timeout;
-                ]);
-          bounded "HTTPS streaming and cleanup" (fun () ->
-              List.iter (scenario true)
-                [
-                  `Normal;
-                  `Large;
-                  `Redirect;
-                  `Abandon;
-                  `Callback_error;
-                  `Truncated;
-                  `Head_timeout;
-                  `Callback_timeout;
-                ]);
-          bounded "peer TLS close before client teardown" (fun () ->
-              scenario true `Peer_notify);
-          bounded "unframed TLS rejection" (fun () -> scenario true `Unframed);
-          bounded "TLS handshake deadline cleanup" handshake_timeout;
-          bounded "untrusted certificate" (fun () ->
-              tls_rejection false "localhost");
-          bounded "wrong hostname" (fun () -> tls_rejection true "127.0.0.1");
-        ] );
-    ]
+  if Measure.enabled () then Measure.run "lwt" scenario
+  else
+    let bounded name f =
+      Alcotest.test_case name `Quick (fun () ->
+          match
+            Harness_runtime.Watchdog.run ~seconds:10. (fun () ->
+                try f ()
+                with e ->
+                  prerr_endline (Printexc.to_string e);
+                  raise e)
+          with
+          | Exited 0 -> ()
+          | _ -> Alcotest.fail "client child failed or hung")
+    in
+    Alcotest.run "Lwt fetch"
+      [
+        ( "lifecycle",
+          [
+            bounded "HTTP streaming and cleanup" (fun () ->
+                List.iter (scenario false)
+                  [
+                    `Normal;
+                    `Large;
+                    `Redirect;
+                    `Abandon;
+                    `Callback_error;
+                    `Truncated;
+                    `Head_timeout;
+                    `Body_timeout;
+                    `Callback_timeout;
+                  ]);
+            bounded "HTTPS streaming and cleanup" (fun () ->
+                List.iter (scenario true)
+                  [
+                    `Normal;
+                    `Large;
+                    `Redirect;
+                    `Abandon;
+                    `Callback_error;
+                    `Truncated;
+                    `Head_timeout;
+                    `Body_timeout;
+                    `Callback_timeout;
+                  ]);
+            bounded "peer TLS close before client teardown" (fun () ->
+                scenario true `Peer_notify);
+            bounded "authenticated TLS close-delimited" (fun () ->
+                scenario true `Unframed_clean);
+            bounded "abrupt TLS EOF rejected" (fun () ->
+                scenario true `Unframed);
+            bounded "cut TLS record rejected" (fun () -> scenario true `Cut_tls);
+            bounded "TLS handshake deadline cleanup" handshake_timeout;
+            bounded "untrusted certificate" (fun () ->
+                tls_rejection false "localhost");
+            bounded "wrong hostname" (fun () -> tls_rejection true "127.0.0.1");
+          ] );
+      ]

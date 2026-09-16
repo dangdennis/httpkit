@@ -502,16 +502,26 @@ let clients () =
           project c;
           let call =
             if adapter = "eio" then
-              "Eio_main.run (fun env -> try Httpkit_client_eio.with_response \
-               ~net:(Eio.Stdenv.net env) ~clock:(Eio.Stdenv.mono_clock env) \
-               ~authenticator \"http://x:/\" (fun _ _ -> ()); assert false \
-               with Invalid_argument _ -> ())"
+              {|Eio_main.run (fun env ->
+                let net = Eio.Stdenv.net env and clock = Eio.Stdenv.mono_clock env in
+                (try Httpkit_client_eio.with_response ~net ~clock ~authenticator "http://x:/"
+                  (fun _ _ -> ()); assert false with Invalid_argument _ -> ());
+                Httpkit_client_eio.with_pool ~net ~clock ~authenticator "http://localhost/" (fun pool ->
+                  let upload = Httpkit_client_eio.upload ~length:0L (fun () -> assert false) in
+                  try Httpkit_client_eio.request pool ~meth:Httpkit_core.Method.post ~upload "http://other.invalid/"
+                    (fun _ _ -> ()); assert false with Invalid_argument _ -> ()))|}
             else
-              "Lwt_main.run (Lwt.catch (fun () -> Lwt.bind \
-               (Httpkit_client_lwt.with_response ~authenticator \"http://x:/\" \
-               (fun _ _ -> Lwt.return_unit)) (fun () -> assert false)) \
-               (function Invalid_argument _ -> Lwt.return_unit | e -> Lwt.fail \
-               e))"
+              {|Lwt_main.run (Lwt.bind
+                (Lwt.catch (fun () -> Lwt.bind
+                  (Httpkit_client_lwt.with_response ~authenticator "http://x:/" (fun _ _ -> Lwt.return_unit))
+                  (fun () -> assert false))
+                  (function Invalid_argument _ -> Lwt.return_unit | e -> Lwt.fail e)) (fun () ->
+                Httpkit_client_lwt.with_pool ~authenticator "http://localhost/" (fun pool ->
+                  let upload = Httpkit_client_lwt.upload ~length:0L (fun () -> assert false) in
+                  Lwt.catch (fun () -> Lwt.bind
+                    (Httpkit_client_lwt.request pool ~meth:Httpkit_core.Method.post ~upload "http://other.invalid/"
+                      (fun _ _ -> Lwt.return_unit)) (fun () -> assert false))
+                    (function Invalid_argument _ -> Lwt.return_unit | e -> Lwt.fail e))))|}
           in
           write (c / "consumer.ml")
             ("let () =\n\

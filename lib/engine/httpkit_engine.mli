@@ -123,3 +123,15 @@ val input_state : t -> [ `Idle | `Head | `Body | `Blocked | `Closed ]
 val max_send_size : t -> int
 (** Largest data chunk that can fit with framing, independent of currently
     queued output. Zero means this configuration cannot send body data. *)
+
+val reusable : t -> bool
+(** True only for a live, idle client after incoming completion has been
+    consumed and all outgoing bytes acknowledged. Transport staging/health must
+    also be checked by the adapter. Does not prove that a peer will accept
+    another request. *)
+
+val upload_aborted : t -> id -> bool
+(** Whether the active client's final response cancelled this upload. Allows its
+    producer to stop after a rejected send/finish without hiding unrelated
+    errors. False for foreign/retired IDs; stop the producer before consuming
+    the response body through Complete. *)

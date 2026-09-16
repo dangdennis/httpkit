@@ -2,3 +2,7 @@
  (libraries httpkit-client-eio eio_main ca-certs mirage-crypto-rng.unix))
 (executable (name fetch_lwt) (modules fetch_lwt)
  (libraries httpkit-client-lwt lwt.unix ca-certs mirage-crypto-rng.unix))
+(executable (name upload_eio) (modules upload_eio)
+ (libraries httpkit-client-eio eio_main ca-certs mirage-crypto-rng.unix))
+(executable (name upload_lwt) (modules upload_lwt)
+ (libraries httpkit-client-lwt lwt.unix ca-certs mirage-crypto-rng.unix))

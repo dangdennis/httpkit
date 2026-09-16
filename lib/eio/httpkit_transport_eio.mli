@@ -100,3 +100,7 @@ val serve_connections :
     admitted connections by default. Owns connection scopes; the caller owns the
     listener and its backlog. Connection failures call on_error after cleanup.
     Accept/on_error failure cancels and joins all workers. *)
+
+val reusable : connection -> bool
+(** Check idle client state including unconsumed transport staging. Call after
+    Complete and flush; a stale peer may still fail the next request. *)

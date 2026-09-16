@@ -7,7 +7,7 @@ for streaming clients and servers.
 Core has no dependencies beyond the OCaml standard library. Each adapter uses its
 runtime's native concurrency and cancellation model.
 
-For outbound GET requests, try the experimental [streaming HTTP/HTTPS client](docs/client.md).
+For outbound requests, try the experimental [streaming HTTP/HTTPS client](docs/client.md).
 
 Current focus: [production confidence](docs/protocol-libraries-plan.md) behind
 [Railway, with optional Caddy](docs/deployment.md).
