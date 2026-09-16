@@ -209,7 +209,7 @@ let compiler () =
   Benchmark_test.selection ();
   Cli_test.main ();
   List.iter Consumers.dispatch
-    [ "core"; "protocol"; "adapter"; "middleware"; "router" ];
+    [ "core"; "protocol"; "adapter"; "middleware"; "router"; "client" ];
   Interop.routing ();
   Framework.main [];
   Consumers.framework ();

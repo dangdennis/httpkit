@@ -9,6 +9,8 @@ let package = function
   | "db_eio" -> "httpkit-db-eio"
   | "session_eio" -> "httpkit-session-eio"
   | "oidc_eio" -> "httpkit-oidc-eio"
+  | "client_eio" -> "httpkit-client-eio"
+  | "client_lwt" -> "httpkit-client-lwt"
   | s -> "httpkit-" ^ s
 
 let project dir =
@@ -485,6 +487,57 @@ let extensions () =
         ];
       print_endline "PASS extension dependency isolation")
 
+let clients () =
+  List.iter
+    (fun (adapter, runtime, forbidden) ->
+      let client = "client_" ^ adapter in
+      with_install
+        [ "core"; "http1"; "engine"; adapter; "client"; client ]
+        [ runtime; "tls-" ^ adapter; "uri"; "mtime.clock.os"; "ipaddr" ]
+        (fun t ->
+          require
+            (not (Sys.file_exists (t.dir / "deps" / forbidden)))
+            "Opposite client runtime dependency";
+          let c = t.dir / "consumer" in
+          project c;
+          let call =
+            if adapter = "eio" then
+              "Eio_main.run (fun env -> try Httpkit_client_eio.with_response \
+               ~net:(Eio.Stdenv.net env) ~clock:(Eio.Stdenv.mono_clock env) \
+               ~authenticator \"http://x:/\" (fun _ _ -> ()); assert false \
+               with Invalid_argument _ -> ())"
+            else
+              "Lwt_main.run (Lwt.catch (fun () -> Lwt.bind \
+               (Httpkit_client_lwt.with_response ~authenticator \"http://x:/\" \
+               (fun _ _ -> Lwt.return_unit)) (fun () -> assert false)) \
+               (function Invalid_argument _ -> Lwt.return_unit | e -> Lwt.fail \
+               e))"
+          in
+          write (c / "consumer.ml")
+            ("let () =\n\
+              let authenticator = X509.Authenticator.chain_of_trust ~time:(fun \
+              () -> None) [] in\n" ^ call
+           ^ "; print_endline \"client installed\"\n");
+          write (c / "dune")
+            (stanza "consumer" ("httpkit-client-" ^ adapter ^ " " ^ runtime));
+          require
+            (execute t c "consumer" = "client installed\n")
+            "Installed client failed";
+          write (c / "opposite.ml")
+            ("let _ = "
+            ^ (if adapter = "eio" then "Lwt.return_unit" else "Eio.Fiber.yield")
+            ^ "\n");
+          write (c / "dune")
+            (stanza ~modules:"opposite" "opposite"
+               ("httpkit-client-" ^ adapter));
+          check_failure
+            (dune t ~check:false c [ "build"; "opposite.exe" ])
+            "Unbound module"))
+    [ ("eio", "eio_main", "lwt"); ("lwt", "lwt.unix", "eio") ];
+  print_endline
+    "PASS separately installed native/bytecode clients and opposite-runtime \
+     isolation"
+
 let dispatch = function
   | "core" -> basic "core"
   | "middleware" -> basic "middleware"
@@ -493,4 +546,5 @@ let dispatch = function
   | "adapter" -> adapters ()
   | "framework" -> framework ()
   | "extensions" -> extensions ()
+  | "client" -> clients ()
   | name -> fail "Unknown consumer: %s" name

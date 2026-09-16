@@ -25,6 +25,10 @@ depends: [
   "httpkit-oidc"
   "httpkit-oidc-eio"
   "httpkit-lwt"
+  "httpkit-client"
+  "httpkit-client-eio"
+  "httpkit-client-lwt"
+  "ca-certs" {= "1.0.3"}
   "eio_main"
   "routes" {= "2.0.0"}
   "httpaf" {= "0.7.1"}

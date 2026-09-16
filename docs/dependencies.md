@@ -19,6 +19,14 @@ free of database, authentication, TLS and runtime-backend dependencies.
 | Cookie protection | Mirage Crypto 2.4.1 plus its RNG | Upstream authenticated encryption; our key/nonce/configuration and expiry policy |
 | Passwords | ocaml-argon2 1.0.2 plus native libargon2 | Synchronous native work, cost limits and caller-owned worker admission |
 | OIDC | jose 0.11.0, oidc 0.2.0, upstream cryptographic dependencies | Algorithm/key policy, verification, claims and remote-client trust |
+| Outbound fetch | Uri 4.4.0; tls-eio/tls-lwt 2.1.2 and existing TLS/X509 stack | Separate client packages; hostname/IP authentication, ALPN, framing and cleanup |
+
+The fetch examples use ca-certs1.0.3 for system trust discovery; it adds bos0.3.0
+and rresult0.7.0 to the harness closure. The client libraries accept an explicit
+authenticator and do not depend on CA-store discovery. Both lockfiles retain
+every existing package file, including the exact patched Caqti and Bisect pins;
+only the five new dependency entries and dependency hashes change. This is a
+dependency-boundary review, not a refreshed comprehensive advisory audit.
 
 These are separate trust boundaries, not reasons to write replacement crypto.
 The development harness also installs comparison, test and profiling packages;

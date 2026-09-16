@@ -1,0 +1,4 @@
+(executable (name fetch_eio) (modules fetch_eio)
+ (libraries httpkit-client-eio eio_main ca-certs mirage-crypto-rng.unix))
+(executable (name fetch_lwt) (modules fetch_lwt)
+ (libraries httpkit-client-lwt lwt.unix ca-certs mirage-crypto-rng.unix))

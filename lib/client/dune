@@ -1,0 +1,3 @@
+(library (name httpkit_client) (public_name httpkit-client)
+ (libraries httpkit-core httpkit-http1 uri)
+ (instrumentation (backend bisect_ppx)))

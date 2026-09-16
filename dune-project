@@ -71,6 +71,18 @@
  (synopsis "Composable Lwt web application server")
  (depends httpkit httpkit-router httpkit-middleware httpkit-transport-lwt lwt base64 yojson (ocaml (= 5.5.0))))
 (package
+ (name httpkit-client)
+ (synopsis "Validated HTTP/HTTPS fetch request policy")
+ (depends httpkit-core httpkit-http1 uri (ocaml (= 5.5.0))))
+(package
+ (name httpkit-client-eio)
+ (synopsis "Scoped streaming HTTP/HTTPS GET client for Eio")
+ (depends httpkit-client httpkit-transport-eio (tls-eio (= 2.1.2)) eio domain-name ipaddr x509 (ocaml (= 5.5.0))))
+(package
+ (name httpkit-client-lwt)
+ (synopsis "Scoped streaming HTTP/HTTPS GET client for Lwt")
+ (depends httpkit-client httpkit-transport-lwt (tls-lwt (= 2.1.2)) lwt domain-name ipaddr x509 (ocaml (= 5.5.0))))
+(package
  (name httpkit-harness)
  (synopsis "Development-only contract harness for httpkit")
  (depopts bisect_ppx)
@@ -91,6 +103,10 @@
   httpkit-oidc
   httpkit-oidc-eio
   httpkit-lwt
+  httpkit-client
+  httpkit-client-eio
+  httpkit-client-lwt
+  (ca-certs (= 1.0.3))
   eio_main
   (routes (= 2.0.0))
   (httpaf (= 0.7.1))

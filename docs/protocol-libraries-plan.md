@@ -379,7 +379,12 @@ optimizations, autoindex and cache-server behavior need concrete application dem
 
 ## P2 — useful later, only with demonstrated demand
 
-Typed application validators/negotiation, an outbound client convenience layer,
+The user approved a streaming HTTP/HTTPS fetch consumer on2026-09-16.
+The initial [scoped GET client](client.md) uses the existing engine and native
+adapters, with upstream TLS and explicit authentication. Request-body APIs,
+pooling and broader client policy still require concrete follow-up demand.
+
+Typed application validators/negotiation,
 additional runtime-specific filesystem/DB parity, WebSocket client/subprotocols,
 and opt-in body/message compression may be useful. Reuse existing APIs/upstream
 libraries first. Their previous package names and delivery estimates are no longer

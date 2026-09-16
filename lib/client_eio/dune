@@ -1,0 +1,3 @@
+(library (name httpkit_client_eio) (public_name httpkit-client-eio)
+ (libraries httpkit-client httpkit-transport-eio tls-eio eio domain-name ipaddr x509)
+ (instrumentation (backend bisect_ppx)))
