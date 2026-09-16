@@ -64,6 +64,11 @@ transport-progress and peer-receipt semantics. Change APIs only for evidenced
 misuse/ownership problems; keep existing package/runtime boundaries.
 
 Current technical focus remains HTTP/1 security and conformance. Client
+informational/Upgrade/CONNECT sequencing now has a 124-case authored segmented
+matrix shared with the existing native client fuzz target; count-limit and
+premature-handoff negative controls detect deliberately introduced faults.
+No production behavior change was needed for these cases. Broader adapter
+handoff races and sustained campaigns remain open. Client
 early-final controls now distinguish encoder completion from transport
 acknowledgement: closing responses cancel finalized queued uploads, and both
 adapters preserve response delivery when an in-flight write completes after that

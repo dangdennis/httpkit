@@ -8,5 +8,8 @@ let () =
         Fuzz_input.add ~max_length:1024 ~name run)
     [
       ("server", Engine_scenarios.run);
-      ("client", Engine_scenarios.client_fragments);
+      ( "client",
+        fun bytes ->
+          Engine_scenarios.client_fragments bytes;
+          Engine_scenarios.client_sequences bytes );
     ]

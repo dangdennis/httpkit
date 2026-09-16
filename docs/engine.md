@@ -60,6 +60,19 @@ cleanup with no further upload writes.
 
 Native AFL targets reuse these models; the runner preserves findings and replays queue entries without instrumentation. The installed engine consumer runs in bytecode/native modes without runtime adapters. The native adapter suites establish transport, deadline, cancellation and cleanup behavior; pure engine tests do not establish those properties.
 
+`test/engine/client_sequence_test.ml` exercises 124 authored informational,
+Upgrade and CONNECT scenarios at work budgets 1/7/16384 under whole, bytewise,
+every-split and eight seeded schedules, with four request-header acknowledgement
+states. It checks count boundaries, Expect transitions, EOF before final headers,
+strict framing failures, protocol selection, exact suffix ownership, once-only
+handoff/completion and counter/identity isolation on a second exchange. Protocol
+names compare without case; protocol versions retain case. Multiple selected
+protocol layers remain unsupported by the current single-selection policy.
+The existing native `client` fuzz target runs the same scenario model with
+generated case, segmentation, budget and acknowledgement choices, alongside its
+original chunked-body model. These are bounded functional controls, not a
+release-duration campaign or proof of sustained resource safety.
+
 Expect gates both payload writes and final framing, including empty-body
 finalization. Backpressure leaves the writer and output queue unchanged.
 

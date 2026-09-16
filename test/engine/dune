@@ -1,5 +1,7 @@
 (library (name engine_scenarios) (modules engine_scenarios) (libraries httpkit-core httpkit-http1 httpkit-engine))
 (library (name engine_cases) (modules engine_cases) (libraries httpkit-core httpkit-http1 httpkit-engine engine_scenarios qcheck-core))
+(test (name client_sequence_test) (modules client_sequence_test) (modes byte exe)
+ (libraries http1_conformance engine_scenarios alcotest))
 (test (name engine_test) (modules engine_test) (libraries engine_cases harness alcotest))
 
 (test (name boundary_test) (modules boundary_test) (libraries httpkit-core httpkit-http1 httpkit-engine alcotest))
