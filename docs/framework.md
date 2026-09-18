@@ -15,6 +15,8 @@ application dispatch, sessions and realtime helpers; see [extensions](extensions
 
 ## Run the example
 
+Starting outside this repository? Follow the [GitHub + database starter](internal-use.md).
+
 ```sh
 tools/dune-pkg exec examples/framework/server.exe
 ```

@@ -1,5 +1,9 @@
 # Production-readiness audit map
 
+This document records an earlier plan or review. See [current status](status.md)
+for completed validation and unresolved issues, and the [starter guide](internal-use.md)
+for new applications. Unchecked items here are not a fresh acceptance result.
+
 Baseline: `88c8ed5`, 2026-09-14. This is a repository inspection and an initial
 correctness-test slice, not an independent security audit or production approval.
 No new feature packages are justified by this audit. The active backlog is the

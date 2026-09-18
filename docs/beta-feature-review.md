@@ -1,5 +1,9 @@
 # Beta feature and ownership review
 
+This document records an earlier plan or review. See [current status](status.md)
+for completed validation and unresolved issues, and the [starter guide](internal-use.md)
+for new applications. Unchecked items here are not a fresh acceptance result.
+
 Review started 2026-09-14 against `1186858`, followed by the static-path controls
 listed below. This is an internal implementation review, not independent security
 approval. [The beta plan](beta-plan.md) owns acceptance; this matrix records what

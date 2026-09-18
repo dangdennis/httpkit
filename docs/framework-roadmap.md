@@ -1,5 +1,9 @@
 # Composable web framework roadmap
 
+This document records an earlier plan or review. See [current status](status.md)
+for completed validation and unresolved issues, and the [starter guide](internal-use.md)
+for new applications. Unchecked items here are not a fresh acceptance result.
+
 Scope: complete the web application layer above httpkit, Eio first, with both
 PostgreSQL and SQLite. Keep runtime-neutral protocol helpers independent of the
 server and database packages. Existing APIs remain available. README stays brief.

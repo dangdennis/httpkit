@@ -3,6 +3,10 @@
 These examples use OCaml 5.5.0 and the locked dependencies. They are executable
 starting points; they are not a production deployment or security approval.
 
+For a complete starter with routes, migrations and SQLite/PostgreSQL, follow
+[the new-repository tutorial](internal-use.md). Its source is
+[`examples/starter/main.ml`](../examples/starter/main.ml).
+
 ## In-memory streaming, without a runtime adapter
 
 ```sh

@@ -1,5 +1,9 @@
 # Benchmark experiments and remaining work
 
+This document records an earlier plan or review. See [current status](status.md)
+for completed validation and unresolved issues, and the [starter guide](internal-use.md)
+for new applications. Unchecked items here are not a fresh acceptance result.
+
 Owner: the httpkit repository. Updated 2026-09-14. This is the persistent
 benchmark backlog; checked items mean implemented and exercised, not a production
 performance or security approval. Commands and comparison boundaries live in

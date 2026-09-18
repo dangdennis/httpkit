@@ -1,7 +1,8 @@
 # Development
 
 Build and validate httpkit from a repository checkout. For usage, start with the
-[README](../README.md) and [examples](examples.md).
+[README](../README.md) and [new-application guide](internal-use.md). The
+[documentation index](index.md) separates usage, validation and historical plans.
 
 ## Toolchain and dependencies
 

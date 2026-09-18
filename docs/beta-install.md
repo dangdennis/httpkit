@@ -1,5 +1,8 @@
 # Installing the beta candidate from source
 
+For a new repository, use the [GitHub installation and database-app tutorial](internal-use.md).
+See [current validation status](status.md) before selecting a candidate.
+
 Package version: `0.1.0~beta1`, under [MIT](../LICENSE). The planned GitHub
 prerelease is `v0.1.0-beta.1`; it has not been published. There is no central opam
 submission yet. Publication requires owner review after the [beta plan](beta-plan.md).
@@ -28,7 +31,7 @@ opam pin add --kind=path --no-action .
 opam install dune.3.24.1 httpkit-eio eio_main
 ```
 
-The pin discovers all 17 package definitions; `--no-action` avoids installing the
+The pin discovers all 20 package definitions; `--no-action` avoids installing the
 whole workspace. Install only what your application uses. `httpkit-harness` is
 for development and is unnecessary for applications. An Eio executable selects
 `eio_main`; `httpkit-eio` itself needs only Eio interfaces. For a pure codec, use
@@ -74,6 +77,9 @@ Run `dune exec --root . ./main.exe`. This checks the installed API; listener and
 lifetime setup are covered in the [application guide](framework.md).
 
 ## Retained installation evidence
+
+This section describes an older archive, not current-candidate approval. The three
+client packages were added later; the current tree has 19 runtime packages.
 
 On 2026-09-15, all 16 runtime packages installed from a Git archive of `a21d8ee`
 on macOS arm64 into a fresh opam root, with Dune 3.24.1 and the repository snapshot

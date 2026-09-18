@@ -1,5 +1,10 @@
 # Eio personal-use acceptance
 
+Historical acceptance profile. Start new applications with the
+[installation and starter guide](internal-use.md); see [status](status.md) for
+completed campaigns and remaining issues. The budgets below remain historical
+requirements, not claims that the current checkout has passed them.
+
 Scope: OCaml 5.5.0, HTTP/1.1, Eio first, bounded local applications. This is a
 separate acceptance profile; the public-release policy is unchanged. README stays
 focused on using the packages.
@@ -14,8 +19,8 @@ requirements remain unchanged. Use `tools/dev personal-validate --long --skip-af
 
 ## Ordered work
 
-1. Investigate the retained request timeout with its original AFL 512 MiB / 2 s
-   limits. Preserve findings; passing replays alone do not establish root cause.
+1. Preserve the retained request timeout and its original AFL 512 MiB / 2 s
+   limits. Investigation remains deferred; passing replays alone do not establish root cause.
    Refresh compiler/tests/docs/installed consumers, coverage and direct/proxy interop.
 2. Add a complete Eio application with incremental uploads/downloads, routing,
    middleware, bounded admission/body/output, cancellation and graceful shutdown.

@@ -12,6 +12,9 @@ This document records the current package names and implemented core contracts. 
 | `httpkit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Implemented in `lib/engine` |
 | `httpkit-transport-eio` | Native Eio transport, cancellation, clocks, and body streams | Implemented |
 | `httpkit-transport-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Implemented |
+| `httpkit-client` | Runtime-neutral URL and request policy | Experimental |
+| `httpkit-client-eio` | Scoped streaming HTTP/HTTPS client and bounded pools | Experimental |
+| `httpkit-client-lwt` | Scoped streaming HTTP/HTTPS client and bounded pools | Experimental |
 | `httpkit-middleware` | Basic, typed-context and transition handler composition | Implemented |
 | `httpkit-router` | Bounded raw-path matching with explicit method outcomes | Implemented |
 | `httpkit` | Runtime-neutral web primitives: URL/forms, JSON, cookies, HTML, multipart and realtime codecs | Implemented |

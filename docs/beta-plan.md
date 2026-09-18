@@ -1,123 +1,69 @@
-# Approved public beta delivery plan
+# Public beta plan
 
-Approved 2026-09-14. Target: GitHub prerelease `v0.1.0-beta.1`, package version
-`0.1.0~beta1`, MIT, pin-install instructions, no central opam submission yet.
-All existing HTTP/application/auth/session/database/upload features are in the
-beta acceptance scope. WebSockets stay available and experimental. Production
-claims require a later independent security/API review.
+Approved 2026-09-14. The public beta target remains GitHub prerelease
+`v0.1.0-beta.1`, opam version `0.1.0~beta1`, MIT, with source-pin installation and
+no central opam submission. It has not been published.
 
-## Execution and checkpoints
+For today's results and open issues, read [validation status](status.md).
+For a new private application, use [the GitHub/database tutorial](internal-use.md).
+This plan records public release scope, not current approval.
 
-Preserve changes; work on main in small tested commits, pushing each completed
-slice. Keep README concise. No Python, custom crypto, AFL or hosted CI work.
-GitHub Actions quota is exhausted; do not wait for it or treat unavailability as
-failure/success. Lwt correctness remains required; benchmark parity is deferred.
+## Scope
 
-Defaults selected in the planning conversation: 64 concurrent connections, a
-512 MiB app-memory budget, resumable validation sessions capped at 12 hours.
-Existing constructor defaults remain unchanged; this is an opt-in tested profile.
-Fix measured pathological behavior and capacity failures before broader tuning.
+Existing HTTP, application, authentication, session, database and upload features
+are in scope. WebSockets remain experimental. The streaming HTTP/HTTPS client
+supports uploads and bounded origin pools; its API review remains deferred by
+request. HTTP/2/3, new infrastructure, custom cryptography and speculative package
+expansion are outside this work.
 
-Two owner checkpoints remain: approve an exact hosted staging resource/cost plan
-before creating paid resources; approve the prepared beta before publishing a
-release. The repository is already public (verified 2026-09-15); no visibility
-change is planned. No external-review approval is invented. Existing main
-commit/push authorization remains in effect.
+Eio is the first deployment target. Lwt correctness is required; benchmark parity
+is deferred. Railway direct is the planned hosted topology, with Caddy optional.
+No hosted environment is implied by passing local tests.
 
-## Ordered slices and exit conditions
+## Delivery work
 
-| Slice | Work | Exit condition / status |
+| Area | Implemented / historical evidence | Remaining acceptance |
 | --- | --- | --- |
-| 1 | Beta/production gates, policy and evidence manifests | Profile separation and rejection controls implemented; actual candidate campaign evidence remains pending |
-| 2 | Multipart controls and WebSocket allocation investigation | Multipart controls fixed; incremental/coalesced WebSocket quadratic copying reproduced and replaced with buffered parsing; segmented protocol and allocation regressions pass |
-| 3 | Feature security, lifecycle and ownership review | [Feature/ownership matrix](beta-feature-review.md), static controls and bounded password-worker example implemented; historical causes and remaining fault campaigns stay open |
-| 4 | Queue/rejection/admission/shutdown diagnostics and API contracts | Queue occupancy, body rejection, saturation and shutdown progress implemented with both-runtime controls; remaining API/installation review pending |
-| 5 | Checked/skipped native fuzz accounting, resumable campaigns, coverage/mutations | Accounting, length-boundary generators and identity-checked resumable runner implemented; actual14-target30min/100000-checked/20-seed campaigns and fresh95/85/80% coverage remain pending |
-| 6 | Capacity, slow-client/overload stress, allocation profiles | Opt-in64-connection endpoint profile,1/16/64-slot admission/backlog, incomplete-input, blocked-output and unread/consumed-body isolation runners implemented; sustained bounded-capacity proof, stable profiles, SQLite30min/PostgreSQL2h and idle/slow/overload30min campaigns pending |
-| 7 | Reproducible local platforms and approved hosted staging | [Local Linux/macOS recipe](local-validation.md) implemented; Linux x86_64/posix validation and actual direct-edge contract/lifecycle evidence remain acceptance work; hosted campaign requires cost approval |
-| 8 | MIT/notices, dependency inventory, private reporting, archive/pin installs and release notes | MIT and beta metadata prepared; private reporting enabled and verified; macOS archive install of all runtime packages and native/bytecode consumers pass; complete dependency/notices review, Linux and final archive checks, release notes and owner publication review pending |
+| Protocol and lifecycle | Segmentation, framing, quotas, cancellation, handoff and early-response regressions | Candidate-matched evidence and unresolved findings |
+| Application features | Multipart controls, buffered WebSocket parsing, bounded password example and feature ownership review | Application-specific fault/deployment checks |
+| Diagnostics | Queue/admission/shutdown observations and opt-in profiler worker snapshots | Resolve or bound the runtime/socket hang |
+| Fuzz and coverage | Earlier 14-target campaign, seven curated mutations and coverage above configured thresholds completed | Fresh manifest for the selected candidate |
+| Resources | Earlier capacity, slow-client, SQLite and PostgreSQL campaigns completed | Stable profiling and the intended deployment budget |
+| Platforms and installation | Local macOS/Linux checks and archive consumers completed on earlier candidates | Final candidate archive and target-environment checks |
+| Distribution | MIT, package metadata, private reporting and install instructions prepared | Final dependency/notices review, release notes and owner publication approval |
 
-For every substantial change: identify invariant/test, implement smallest fix,
-run narrow then relevant regression suites, inspect security/performance effects,
-update semantics documentation and commit. Reintroduce confirmed defects only in
-temporary validation copies to prove the regression detects them.
+Earlier successful reports are not transferable to a changed source hash. The
+fixture fix and diagnostic additions each have their own validation records.
+The unresolved hang remains visible even when a later profile passes.
 
-## Detailed acceptance boundaries
+## Acceptance requirements
 
-Multipart covers illegal controls, legal SP/HTAB, boundary prefixes, quotas,
-segmentation, terminal errors and callback cleanup. WebSocket measurements cover
-complete/incremental/fragmented frames, coalesced input and allocation scaling;
-experimental status does not excuse a confirmed resource defect.
+[Release policy](release.md) defines the exact inventories, fingerprints and
+report contracts. Keep its requirements intact:
 
-Feature review includes confined static/nonregular/symlink paths; upload
-write/close/unlink and cancellation; cookie replay/rotation/CSRF/expiry; SQL
-rotation/revocation; OIDC claims/browser binding/remote limits; bounded synchronous
-password-work admission; lease escape, rollback and pool shutdown; parsing,
-handler and streaming cancellation and connection reuse. Preserve historical
-replay artifacts and distinguish generator entropy from raw HTTP bytes. Passing
-an unrelated or wrong-format replay does not resolve a finding.
+- Native fuzz: each of 14 targets needs 1,800 successful child seconds,
+  100,000 checked inputs and 20 distinct seeds, with no unresolved findings.
+- Coverage: at least 95% core/codec/engine, 85% framework and 80% extensions;
+  all seven curated mutations must compile and be detected by real tests.
+- Platforms: OCaml 5.5.0 on local macOS arm64 and Linux x86_64, installed
+  native/bytecode consumers, plus required interoperability lanes.
+- Capacity: exercise 1/16/64 connections and overload. Keep RSS below 512 MiB,
+  post-warmup RSS growth within 32 MiB, equivalent-idle live heap within 1 MiB,
+  descriptors within two of baseline, zero unexpected errors and complete cleanup.
+- Sustained work: SQLite 30 minutes, PostgreSQL two hours, idle/slow/overload
+  campaigns, and five 30-second endpoint samples at each selected concurrency.
+- Deployment: verify real proxy trust, TLS, persistence, shutdown and recovery;
+  timings from shared or emulated hosts remain advisory.
 
-Diagnostics add queue occupancy, body-limit rejection, admission saturation and
-shutdown progress without inventing rejection when work waits outside the app.
-No vendor dependency or unbounded event queue. Preserve response-enqueue versus
-transport-progress and peer-receipt semantics. Change APIs only for evidenced
-misuse/ownership problems; keep existing package/runtime boundaries.
+## Workflow and approvals
 
-Current technical focus remains HTTP/1 security and conformance. Client
-adapter handoff controls now cover suspended header writes and close ownership
-in both runtimes, plus failed CONNECT bodies and EOF. The user subsequently
-approved a [streaming HTTP/HTTPS fetch client](client.md); it now supports scoped streaming uploads, bounded origin pools, and authenticated
-TLS EOF. The API remains experimental; its review is deferred by request. No
-automatic redirect/retry policy is added.
-Client
-informational/Upgrade/CONNECT sequencing now has a 124-case authored segmented
-matrix shared with the existing native client fuzz target; count-limit and
-premature-handoff negative controls detect deliberately introduced faults.
-No production behavior change was needed for these cases. Broader adapter
-handoff races and sustained campaigns remain open. Client
-early-final controls now distinguish encoder completion from transport
-acknowledgement: closing responses cancel finalized queued uploads, and both
-adapters preserve response delivery when an in-flight write completes after that
-cancellation. The 72-case segmented engine matrix and both-runtime controls are
-regressions for this boundary; broader sequencing and fuzz campaigns remain open.
+Work on main in small validated commits. Freeze source, docs, locks and tools
+before collecting release evidence; preserve failed and interrupted attempts.
+Do not fabricate missing approvals or convert historical reports into current ones.
+Hosted CI and AFL remain excluded; use the approved local/native checks. No API
+review is being performed in this task.
 
-Capacity workloads use1/16/64 concurrent connections and128 attempted connections
-for overload, with slow headers, stalled bodies, slow readers, idle keep-alive,
-unread bodies, disconnected uploads/streams and shutdown during cleanup. Require
-RSS<512MiB, post-warmup RSS median growth<=32MiB, equivalent-idle post-GC live-heap
-variation<=1MiB, idle descriptor return within2 of baseline, zero unexpected
-errors, complete admitted-connection closure and effective deadlines. Preserve
-existing lower-concurrency resource tests. Record scheduling tolerance explicitly.
-
-Profile the five existing endpoints at1/4/8/16/64 concurrency using five30s samples
-per configuration, release build, recording throughput/latency/CPU/GC/allocation
-and RSS. Keep timing advisory until a repeatable controlled comparison exists.
-Do not confuse cumulative allocation with retained memory or load-client changes
-with server improvements. Optimize only measured problems or capacity failures.
-
-Staging proposal: separate Eio app and PostgreSQL, synthetic data and capped
-separate load generator, exact duration/resource/cost/teardown plan. Real direct
-Railway acceptance follows budget approval; optional Caddy remains local and
-Cloudflare chains unverified. Keep forwarded identity disabled unless peer
-isolation and normalization are demonstrated; configured canonical origins are
-an acceptable profile. Capture exact image/deployment identities, run bounded
-canary plus2h mixed workload, export evidence and perform approved teardown.
-
-The publication checklist includes a verified private reporting channel, actual
-production native/transitive dependencies and licenses, exact archive installs,
-public-history/material review, and no credentials/private artifacts in the
-public evidence summary. Do not rewrite history automatically on a finding.
-
-## Evidence freeze and later production claim
-
-Finish tracked source/docs/locks before final campaigns. Resume only with matching
-source/binary/toolchain/policy identities; source changes invalidate release
-acceptance. Keep failures/timeouts as failures and old reports as history.
-[Release policy](release.md) defines profile results and manifest fields. Evidence
-collection is separate from pretending required work has happened.
-
-After beta, resolve real independent security/API findings before a production
-recommendation. Broader optimization, full WebSocket certification, larger
-capacity, hosted multi-proxy acceptance and Lwt benchmark parity are separate
-follow-ups. HTTP/2/3, public TLS management, reverse proxying and new feature
-libraries remain excluded.
+Approve the exact hosted resource/cost plan before creating paid staging. Approve
+the prepared beta before publishing it. A production claim additionally requires
+the independent security/API reviews defined by release policy. Neither an internal
+setup guide nor a successful push waives those requirements.

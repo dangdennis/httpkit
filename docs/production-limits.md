@@ -1,6 +1,6 @@
 # Production limits inventory
 
-Inspection baseline `88c8ed5`; values are current constructor defaults, not a
+Inspection baseline `88c8ed5`; values are constructor defaults at that baseline, not a
 validated aggregate production profile. P0-07 owns the complete units/defaults/
 configuration audit. Do not replace them all with one global mutable config.
 
@@ -115,5 +115,6 @@ Controlled-clock tests in `test/production/timeouts_test.ml` exercise all five
 phases through each public application server with a two-second custom duration,
 checking timeout category and exactly one transport close. Eio can aggregate
 simultaneous native shutdown exceptions; every contained error must still match
-the expected phase. Aggregate memory acceptance and long stress evidence remain
-open; exposing these knobs does not establish a measured production budget.
+the expected phase. See [status](status.md) for completed stress campaigns and
+remaining issues. Aggregate application memory acceptance remains open; exposing
+these knobs does not establish a measured production budget.

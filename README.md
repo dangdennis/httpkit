@@ -9,8 +9,8 @@ runtime's native concurrency and cancellation model.
 
 For outbound requests, try the experimental [streaming HTTP/HTTPS client](docs/client.md).
 
-Current focus: [production confidence](docs/protocol-libraries-plan.md) behind
-[Railway, with optional Caddy](docs/deployment.md).
+Start a separate application with the [GitHub + SQLite/PostgreSQL guide](docs/internal-use.md).
+See [validation status](docs/status.md) for passed checks and the unresolved profiling hang.
 
 ## Get started
 
@@ -73,6 +73,9 @@ tools/dune-pkg exec ./examples/runtime/lwt_example.exe
 | `httpkit-engine` | Sans-I/O client/server connections with bounded queues and backpressure |
 | `httpkit-transport-eio` | Native Eio transport, streaming, deadlines and cancellation |
 | `httpkit-transport-lwt` | Native Lwt transport, streaming, deadlines and cancellation |
+| `httpkit-client` | URL and outbound request policy |
+| `httpkit-client-eio` | Eio streaming HTTP/HTTPS requests and origin pools |
+| `httpkit-client-lwt` | Lwt streaming HTTP/HTTPS requests and origin pools |
 | `httpkit-middleware` | Basic wrappers, typed contexts and typed context transitions |
 | `httpkit-router` | Declaration-ordered path matching and explicit method outcomes |
 | `httpkit` | URL/forms, JSON, cookies, sessions, HTML, multipart, SSE and WebSocket primitives |
@@ -90,6 +93,8 @@ other runtimes through their explicit input, output and event interfaces.
 
 ## Documentation
 
+- [Documentation index](docs/index.md) and [current validation status](docs/status.md)
+- [Start a new application from GitHub](docs/internal-use.md)
 - [Install candidate packages with opam](docs/beta-install.md)
 - [Eio web application guide](docs/framework.md)
 - [Sessions, login and Lwt applications](docs/extensions.md)
@@ -101,5 +106,6 @@ other runtimes through their explicit input, output and event interfaces.
 
 ## Status
 
-Experimental; APIs may change and release validation is incomplete.
+Experimental; APIs may change. Local suites have passed, but broad internal
+rollout and public release are not yet signed off. [Remaining work](docs/status.md).
 See the [security policy](SECURITY.md) for reporting guidance.

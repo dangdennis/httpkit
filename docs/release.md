@@ -1,5 +1,9 @@
 # Beta and production release evidence
 
+For current results, read [validation status](status.md). For private application
+setup, use [the internal-use guide](internal-use.md). This document defines the
+public release assessor; its gates are unchanged by internal adoption work.
+
 The approved [beta delivery plan](beta-plan.md) covers all existing application
 features with WebSockets explicitly experimental. Public beta publication is a
 separate owner-approved step after the beta evidence passes. Neither a successful
@@ -41,7 +45,8 @@ identity and checked/skipped/generated counts, and satisfy their accounting.
 Timeouts, skipped-only batches, reused seeds, incomplete regression replay and
 unresolved findings cannot qualify. Source and binary identity must remain frozen.
 The native runner records checked-input accounting and supports resumable
-duration campaigns; actual frozen-candidate long evidence remains pending.
+duration campaigns. Earlier long campaigns completed; a new candidate still
+needs evidence matching its own source and binaries.
 Historical 420,000-trial smoke reports do not qualify.
 
 Coverage minima are 95% core/codec/engine, 85% framework and 80% extensions. Reports

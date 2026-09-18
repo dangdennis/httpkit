@@ -1,5 +1,9 @@
 # Production-confidence roadmap
 
+This document records an earlier plan or review. See [current status](status.md)
+for completed validation and unresolved issues, and the [starter guide](internal-use.md)
+for new applications. Unchecked items here are not a fresh acceptance result.
+
 Updated 2026-09-14 after the [repository audit](production-audit.md), baseline
 `88c8ed5`. This supersedes the feature-expansion and Caddy-first delivery plans.
 Strict HTTP/1.1 is the production protocol target. Implementation is substantial;

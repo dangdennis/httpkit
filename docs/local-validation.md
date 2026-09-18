@@ -59,7 +59,9 @@ host architecture as well as the container architecture. These commands do not
 run the long fuzz/soak campaigns, establish hosted deployment behavior or satisfy
 every release gate. Keep source/compiler/image identities attached to results.
 
-The first clean-clone run on9dc7e2f built5.5.0 and reached the fast scenario suite,
+The first clean-clone run on `9dc7e2f` built 5.5.0 and reached the fast scenario suite,
 but failed because the validation coordinator had not created `_artifacts`
 before writing reports. The coordinator now creates its owned output directory.
 That failed run remains historical evidence; it is not a Linux acceptance pass.
+Later Linux checks passed on other candidates; see [current status](status.md)
+for their scope and source identities.

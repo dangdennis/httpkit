@@ -1,5 +1,9 @@
 # Code quality consolidation plan
 
+This document records an earlier plan or review. See [current status](status.md)
+for completed validation and unresolved issues, and the [starter guide](internal-use.md)
+for new applications. Unchecked items here are not a fresh acceptance result.
+
 Status: implemented; validation is tracked by source-matched local evidence. Created 2026-09-11 from the
 three-agent code review and focused reproduction probes.
 
