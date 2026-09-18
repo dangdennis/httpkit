@@ -18,7 +18,7 @@ let run ?(count = 3) ?(expire = false) ?(uploading = false)
            | _ -> assert false
          in
          let origin =
-           Printf.sprintf "%s://localhost:%d"
+           Printf.sprintf "%s://127.0.0.1:%d"
              (if tls then "https" else "http")
              port
          in
@@ -36,7 +36,7 @@ let run ?(count = 3) ?(expire = false) ?(uploading = false)
                        Lwt.return (Httpkit_transport_lwt.of_fd raw)
                      else
                        let* flow =
-                         Tls_lwt.Unix.server_of_fd (F.server ()) raw
+                         Tls_lwt.Unix.server_of_fd (F.server ~ip:true ()) raw
                        in
                        Lwt.return
                          {
@@ -118,7 +118,9 @@ let run ?(count = 3) ?(expire = false) ?(uploading = false)
            serve (if abandon || expire || server_close then count else 1)
          in
          let client =
-           C.with_pool ~authenticator:(F.authenticator true) ~max_connections:1
+           C.with_pool
+             ~authenticator:(F.authenticator ~ip:true true)
+             ~max_connections:1
              ~idle_timeout:(if expire then 0.000001 else 30.)
              origin
              (fun pool ->
@@ -202,7 +204,7 @@ let scope_cancellation () =
            | Unix.ADDR_INET (_, p) -> p
            | _ -> assert false
          in
-         let origin = Printf.sprintf "http://localhost:%d/" port in
+         let origin = Printf.sprintf "http://127.0.0.1:%d/" port in
          let entered, signal = Lwt.wait () in
          let cleaned = ref false
          and closed = ref false
@@ -241,7 +243,7 @@ let scope_cancellation () =
          in
          let client =
            let* () =
-             C.with_pool ~authenticator:(F.authenticator true) origin
+             C.with_pool ~authenticator:(F.authenticator ~ip:true true) origin
                (fun pool ->
                  let request =
                    C.request pool origin (fun _ _ ->

@@ -1,7 +1,7 @@
 module C = Httpkit_client_eio
 module F = Client_fixtures
 
-let run ?(count = 3) ?(expire = false) ?(uploading = false)
+let run ?(collision = false) ?(count = 3) ?(expire = false) ?(uploading = false)
     ?(server_close = false) tls abandon =
   Eio_main.run (fun env ->
       Eio.Switch.run (fun sw ->
@@ -15,8 +15,17 @@ let run ?(count = 3) ?(expire = false) ?(uploading = false)
             | `Tcp (_, p) -> p
             | _ -> assert false
           in
+          (if collision then
+             let other =
+               Eio.Net.listen ~sw ~backlog:1 net
+                 (`Tcp (Eio.Net.Ipaddr.V6.loopback, port))
+             in
+             Eio.Fiber.fork_daemon ~sw (fun () ->
+                 let flow, _ = Eio.Net.accept ~sw other in
+                 Eio.Flow.close flow;
+                 `Stop_daemon));
           let origin =
-            Printf.sprintf "%s://localhost:%d"
+            Printf.sprintf "%s://127.0.0.1:%d"
               (if tls then "https" else "http")
               port
           in
@@ -31,7 +40,7 @@ let run ?(count = 3) ?(expire = false) ?(uploading = false)
                 let t =
                   if tls then
                     Httpkit_transport_eio.of_flow
-                      (Tls_eio.server_of_flow (F.server ()) raw)
+                      (Tls_eio.server_of_flow (F.server ~ip:true ()) raw)
                   else Httpkit_transport_eio.of_flow raw
                 in
                 Fun.protect ~finally:t.close (fun () ->
@@ -81,7 +90,8 @@ let run ?(count = 3) ?(expire = false) ?(uploading = false)
                     requests ())
               done)
             (fun () ->
-              C.with_pool ~net ~clock ~authenticator:(F.authenticator true)
+              C.with_pool ~net ~clock
+                ~authenticator:(F.authenticator ~ip:true true)
                 ~max_connections:1
                 ~idle_timeout:(if expire then 0.000001 else 30.)
                 origin
@@ -142,7 +152,7 @@ let scope_cancellation () =
             | `Tcp (_, p) -> p
             | _ -> assert false
           in
-          let origin = Printf.sprintf "http://localhost:%d/" port in
+          let origin = Printf.sprintf "http://127.0.0.1:%d/" port in
           let entered, signal = Eio.Promise.create () in
           let cleaned = ref false
           and closed = ref false
@@ -166,8 +176,9 @@ let scope_cancellation () =
                   assert (t.read b 0 1 = 0);
                   closed := true))
             (fun () ->
-              C.with_pool ~net ~clock ~authenticator:(F.authenticator true)
-                origin (fun pool ->
+              C.with_pool ~net ~clock
+                ~authenticator:(F.authenticator ~ip:true true) origin
+                (fun pool ->
                   Eio.Fiber.fork ~sw (fun () ->
                       try
                         C.request pool origin (fun _ _ ->
@@ -183,6 +194,16 @@ let scope_cancellation () =
                   Eio.Promise.await entered);
               assert !cleaned);
           assert (!closed && !cancelled)))
+
+let rec listener_collision attempts tls =
+  try run ~collision:true tls false
+  with
+  | Eio.Io (Eio.Exn.X (Eio_unix.Unix_error (Unix.EADDRINUSE, _, _)), _)
+  when attempts > 1
+  ->
+    (* An existing IPv6 service may already own the chosen IPv4 port.
+         The failed scope closes both fixtures before choosing another port. *)
+    listener_collision (attempts - 1) tls
 
 let () =
   Mirage_crypto_rng_unix.use_default ();
@@ -202,6 +223,7 @@ let () =
                         (fun tls -> List.iter (run tls) [ false; true ])
                         [ false; true ];
                       scope_cancellation ();
+                      List.iter (listener_collision 10) [ false; true ];
                       List.iter
                         (fun tls ->
                           run ~expire:true tls false;

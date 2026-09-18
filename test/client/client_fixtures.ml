@@ -6,25 +6,27 @@ let read path =
     ~finally:(fun () -> close_in ic)
     (fun () -> really_input_string ic (in_channel_length ic))
 
-let cert () =
+let cert ?(ip = false) () =
   ok
     (X509.Certificate.decode_pem
-       (read "../protocol_foundations/fixtures/localhost.pem"))
+       (read
+          (if ip then "../protocol_foundations/fixtures/loopback.pem"
+           else "../protocol_foundations/fixtures/localhost.pem")))
 
 let key () =
   ok
     (X509.Private_key.decode_pem
        (read "../protocol_foundations/fixtures/localhost.key"))
 
-let authenticator trusted =
+let authenticator ?(ip = false) trusted =
   X509.Authenticator.chain_of_trust
     ~time:(fun () -> Ptime.of_date_time ((2026, 9, 16), ((0, 0, 0), 0)))
-    (if trusted then [ cert () ] else [])
+    (if trusted then [ cert ~ip () ] else [])
 
-let server () =
+let server ?(ip = false) () =
   ok
     (Tls.Config.server ~alpn_protocols:[ "http/1.1" ]
-       ~certificates:(`Single ([ cert () ], key ()))
+       ~certificates:(`Single ([ cert ~ip () ], key ()))
        ())
 
 let wire =

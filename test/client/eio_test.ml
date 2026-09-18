@@ -27,7 +27,9 @@ let scenario tls mode =
                   let notify = ref (fun () -> ()) in
                   let transport =
                     if tls then (
-                      let secure = Tls_eio.server_of_flow (F.server ()) flow in
+                      let secure =
+                        Tls_eio.server_of_flow (F.server ~ip:true ()) flow
+                      in
                       (notify := fun () -> Eio.Flow.shutdown secure `Send);
                       Httpkit_transport_eio.of_flow secure)
                     else Httpkit_transport_eio.of_flow flow
@@ -81,13 +83,13 @@ let scenario tls mode =
                   eof ()))
             (fun () ->
               let url =
-                Printf.sprintf "%s://localhost:%d/a%%2Fb?x=%%2F"
+                Printf.sprintf "%s://127.0.0.1:%d/a%%2Fb?x=%%2F"
                   (if tls then "https" else "http")
                   port
               in
               try
                 C.with_response ~net ~clock
-                  ~authenticator:(F.authenticator true)
+                  ~authenticator:(F.authenticator ~ip:true true)
                   ~timeout:
                     (if
                        mode = `Head_timeout || mode = `Body_timeout
@@ -189,7 +191,11 @@ let tls_rejection trusted host =
               Fun.protect
                 ~finally:(fun () -> Eio.Flow.close flow)
                 (fun () ->
-                  try ignore (Tls_eio.server_of_flow (F.server ()) flow)
+                  try
+                    ignore
+                      (Tls_eio.server_of_flow
+                         (F.server ~ip:(not trusted) ())
+                         flow)
                   with
                   | Tls_eio.Tls_alert _ | Tls_eio.Tls_failure _ | End_of_file ->
                     ()))
@@ -200,7 +206,7 @@ let tls_rejection trusted host =
                     (C.upload (fun () ->
                          produced := true;
                          None))
-                  ~authenticator:(F.authenticator trusted)
+                  ~authenticator:(F.authenticator ~ip:(not trusted) trusted)
                   (Printf.sprintf "https://%s:%d/" host port)
                   (fun _ _ -> ());
                 assert false
@@ -234,7 +240,7 @@ let handshake_timeout () =
               try
                 C.with_response ~net ~clock ~timeout:0.1
                   ~authenticator:(F.authenticator true)
-                  (Printf.sprintf "https://localhost:%d/" port) (fun _ _ -> ());
+                  (Printf.sprintf "https://127.0.0.1:%d/" port) (fun _ _ -> ());
                 assert false
               with Eio.Time.Timeout -> ());
           assert !closed))
@@ -292,7 +298,7 @@ let () =
             bounded "cut TLS record rejected" (fun () -> scenario true `Cut_tls);
             bounded "TLS handshake deadline cleanup" handshake_timeout;
             bounded "untrusted certificate" (fun () ->
-                tls_rejection false "localhost");
+                tls_rejection false "127.0.0.1");
             bounded "wrong hostname" (fun () -> tls_rejection true "127.0.0.1");
           ] );
       ]

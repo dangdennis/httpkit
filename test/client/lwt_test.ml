@@ -33,7 +33,7 @@ let with_server serve client =
 let transport tls fd =
   if not tls then Lwt.return (Httpkit_transport_lwt.of_fd fd)
   else
-    let* session = Tls_lwt.Unix.server_of_fd (F.server ()) fd in
+    let* session = Tls_lwt.Unix.server_of_fd (F.server ~ip:true ()) fd in
     let transport : Httpkit_transport_lwt.transport =
       {
         read =
@@ -136,14 +136,15 @@ let scenario tls mode =
       eof ())
     (fun port ->
       let url =
-        Printf.sprintf "%s://localhost:%d/a%%2Fb?x=%%2F"
+        Printf.sprintf "%s://127.0.0.1:%d/a%%2Fb?x=%%2F"
           (if tls then "https" else "http")
           port
       in
       Lwt.catch
         (fun () ->
           let* () =
-            C.with_response ~authenticator:(F.authenticator true)
+            C.with_response
+              ~authenticator:(F.authenticator ~ip:true true)
               ~timeout:
                 (if
                    mode = `Head_timeout || mode = `Body_timeout
@@ -241,7 +242,9 @@ let tls_rejection trusted host =
     (fun fd ->
       Lwt.catch
         (fun () ->
-          let* _ = Tls_lwt.Unix.server_of_fd (F.server ()) fd in
+          let* _ =
+            Tls_lwt.Unix.server_of_fd (F.server ~ip:(not trusted) ()) fd
+          in
           Lwt.return_unit)
         (function
           | Tls_lwt.Tls_alert _ | Tls_lwt.Tls_failure _ | End_of_file ->
@@ -251,7 +254,8 @@ let tls_rejection trusted host =
       Lwt.catch
         (fun () ->
           let* () =
-            C.with_response ~timeout:2. ~authenticator:(F.authenticator trusted)
+            C.with_response ~timeout:2.
+              ~authenticator:(F.authenticator ~ip:(not trusted) trusted)
               ~upload:
                 (C.upload (fun () ->
                      produced := true;
@@ -284,7 +288,7 @@ let handshake_timeout () =
         (fun () ->
           let* () =
             C.with_response ~timeout:0.1 ~authenticator:(F.authenticator true)
-              (Printf.sprintf "https://localhost:%d/" port) (fun _ _ ->
+              (Printf.sprintf "https://127.0.0.1:%d/" port) (fun _ _ ->
                 Lwt.return_unit)
           in
           assert false)
@@ -346,7 +350,7 @@ let () =
             bounded "cut TLS record rejected" (fun () -> scenario true `Cut_tls);
             bounded "TLS handshake deadline cleanup" handshake_timeout;
             bounded "untrusted certificate" (fun () ->
-                tls_rejection false "localhost");
+                tls_rejection false "127.0.0.1");
             bounded "wrong hostname" (fun () -> tls_rejection true "127.0.0.1");
           ] );
       ]

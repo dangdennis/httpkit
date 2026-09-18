@@ -17,7 +17,7 @@ let run tls _ =
            | _ -> assert false
          in
          let url =
-           Printf.sprintf "%s://localhost:%d/"
+           Printf.sprintf "%s://127.0.0.1:%d/"
              (if tls then "https" else "http")
              port
          in
@@ -29,7 +29,9 @@ let run tls _ =
                let* t =
                  if not tls then Lwt.return (Httpkit_transport_lwt.of_fd raw)
                  else
-                   let* flow = Tls_lwt.Unix.server_of_fd (F.server ()) raw in
+                   let* flow =
+                     Tls_lwt.Unix.server_of_fd (F.server ~ip:true ()) raw
+                   in
                    Lwt.return
                      {
                        Httpkit_transport_lwt.read =
@@ -97,8 +99,8 @@ let run tls _ =
            accept 4 []
          in
          let client =
-           C.with_pool ~authenticator:(F.authenticator true) ~max_connections:4
-             url (fun pool ->
+           C.with_pool ~authenticator:(F.authenticator ~ip:true true)
+             ~max_connections:4 url (fun pool ->
                Lwt_list.iter_p
                  (fun _ ->
                    Lwt_list.iter_s

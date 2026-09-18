@@ -15,7 +15,7 @@ let run tls _ =
             | _ -> assert false
           in
           let url =
-            Printf.sprintf "%s://localhost:%d/"
+            Printf.sprintf "%s://127.0.0.1:%d/"
               (if tls then "https" else "http")
               port
           in
@@ -25,7 +25,7 @@ let run tls _ =
             let t =
               if tls then
                 Httpkit_transport_eio.of_flow
-                  (Tls_eio.server_of_flow (F.server ()) raw)
+                  (Tls_eio.server_of_flow (F.server ~ip:true ()) raw)
               else Httpkit_transport_eio.of_flow raw
             in
             Fun.protect ~finally:t.close (fun () ->
@@ -67,7 +67,8 @@ let run tls _ =
                     Eio.Fiber.fork ~sw:workers (fun () -> serve raw)
                   done))
             (fun () ->
-              C.with_pool ~net ~clock ~authenticator:(F.authenticator true)
+              C.with_pool ~net ~clock
+                ~authenticator:(F.authenticator ~ip:true true)
                 ~max_connections:4 url (fun pool ->
                   Eio.Fiber.all
                     (List.init 4 (fun _ ->

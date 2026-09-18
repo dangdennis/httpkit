@@ -27,7 +27,9 @@ let run_impl ?(active = false) tls fixed early =
                let* t =
                  if not tls then Lwt.return (Httpkit_transport_lwt.of_fd raw)
                  else
-                   let* flow = Tls_lwt.Unix.server_of_fd (F.server ()) raw in
+                   let* flow =
+                     Tls_lwt.Unix.server_of_fd (F.server ~ip:true ()) raw
+                   in
                    Lwt.return
                      {
                        Httpkit_transport_lwt.read =
@@ -108,9 +110,10 @@ let run_impl ?(active = false) tls fixed early =
                else Lwt.return (if !produced = 1 then Some "abc" else None))
          in
          let client =
-           C.with_response ~authenticator:(F.authenticator true) ~timeout:2.
-             ~meth:H.Method.post ~upload
-             (Printf.sprintf "%s://localhost:%d/"
+           C.with_response
+             ~authenticator:(F.authenticator ~ip:true true)
+             ~timeout:2. ~meth:H.Method.post ~upload
+             (Printf.sprintf "%s://127.0.0.1:%d/"
                 (if tls then "https" else "http")
                 port)
              (fun _ body ->
@@ -152,7 +155,7 @@ let failure_impl tls mode =
            | _ -> assert false
          in
          let url =
-           Printf.sprintf "%s://localhost:%d/"
+           Printf.sprintf "%s://127.0.0.1:%d/"
              (if tls then "https" else "http")
              port
          in
@@ -182,7 +185,9 @@ let failure_impl tls mode =
                  if not tls then
                    Lwt.return (fun b -> Lwt_unix.read raw b 0 (Bytes.length b))
                  else
-                   let* flow = Tls_lwt.Unix.server_of_fd (F.server ()) raw in
+                   let* flow =
+                     Tls_lwt.Unix.server_of_fd (F.server ~ip:true ()) raw
+                   in
                    Lwt.return (fun b -> Tls_lwt.Unix.read flow b)
                in
                let b = Bytes.create 4096 in
@@ -201,7 +206,8 @@ let failure_impl tls mode =
              Lwt.catch
                (fun () ->
                  let* () =
-                   C.with_response ~authenticator:(F.authenticator true)
+                   C.with_response
+                     ~authenticator:(F.authenticator ~ip:true true)
                      ~timeout:0.1 ~meth:H.Method.post ~upload url (fun _ _ ->
                        Lwt.return_unit)
                  in
@@ -226,8 +232,8 @@ let failure_impl tls mode =
            Lwt.catch
              (fun () ->
                let* () =
-                 C.with_response ~authenticator:(F.authenticator true) ~upload
-                   url (fun _ _ -> Lwt.return_unit)
+                 C.with_response ~authenticator:(F.authenticator ~ip:true true)
+                   ~upload url (fun _ _ -> Lwt.return_unit)
                in
                assert false)
              (function

@@ -1,5 +1,6 @@
 (* Whole local scenario cost: client + fixture server + connection/runtime setup.
-   Never label this client-only throughput. Warm up before retained-heap checks. *)
+   Never label this client-only throughput. Warm up before retained-heap checks.
+   Backtraces and sparse progress logging stay enabled for reproducible diagnostics. *)
 let enabled () = Sys.getenv_opt "HTTPKIT_CLIENT_BENCH" = Some "1"
 let fd_count () = Array.length (Sys.readdir "/dev/fd")
 
@@ -25,6 +26,7 @@ let measure ?(body_bytes = 200000) ?(requests = 1) ?(case = "fetch") runtime
     invalid_arg "iterations: 1..10000";
   List.iter
     (fun tls ->
+      Printf.eprintf "Client %s %s tls=%b: warmup\n%!" runtime case tls;
       for _ = 1 to 3 do
         scenario tls `Large
       done;
@@ -34,10 +36,16 @@ let measure ?(body_bytes = 200000) ?(requests = 1) ?(case = "fetch") runtime
       let allocations = Gc.allocated_bytes () in
       let start = Mtime_clock.counter () in
       let times =
-        Array.init iterations (fun _ ->
+        Array.init iterations (fun i ->
             let start = Mtime_clock.counter () in
             scenario tls `Large;
-            Mtime.Span.to_float_ns (Mtime_clock.count start) /. 1e6)
+            let milliseconds =
+              Mtime.Span.to_float_ns (Mtime_clock.count start) /. 1e6
+            in
+            if (i + 1) mod 100 = 0 || i + 1 = iterations then
+              Printf.eprintf "Client %s %s tls=%b: %d/%d\n%!" runtime case tls
+                (i + 1) iterations;
+            milliseconds)
       in
       let elapsed = Mtime.Span.to_float_ns (Mtime_clock.count start) /. 1e9 in
       let allocated = Gc.allocated_bytes () -. allocations in
@@ -77,9 +85,11 @@ let run ?body_bytes ?requests ?case runtime scenario =
     Harness_runtime.Watchdog.run
       ~seconds:(30. +. (5. *. float iterations))
       (fun () ->
+        Printexc.record_backtrace true;
         try measure ?body_bytes ?requests ?case runtime scenario
         with e ->
           prerr_endline (Printexc.to_string e);
+          Printexc.print_backtrace stderr;
           raise e)
   with
   | Exited 0 -> ()

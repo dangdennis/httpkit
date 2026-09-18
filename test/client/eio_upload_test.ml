@@ -24,7 +24,7 @@ let run_impl ?(active = false) tls fixed early =
               let t =
                 if tls then
                   Httpkit_transport_eio.of_flow
-                    (Tls_eio.server_of_flow (F.server ()) raw)
+                    (Tls_eio.server_of_flow (F.server ~ip:true ()) raw)
                 else Httpkit_transport_eio.of_flow raw
               in
               Fun.protect ~finally:t.close (fun () ->
@@ -77,9 +77,10 @@ let run_impl ?(active = false) tls fixed early =
                     else if !produced = 1 then Some "abc"
                     else None)
               in
-              C.with_response ~net ~clock ~authenticator:(F.authenticator true)
+              C.with_response ~net ~clock
+                ~authenticator:(F.authenticator ~ip:true true)
                 ~timeout:2. ~meth:H.Method.post ~upload
-                (Printf.sprintf "%s://localhost:%d/"
+                (Printf.sprintf "%s://127.0.0.1:%d/"
                    (if tls then "https" else "http")
                    port)
                 (fun _ body -> assert (C.read body = None)));
@@ -113,7 +114,7 @@ let failure_impl tls mode =
             | _ -> assert false
           in
           let url =
-            Printf.sprintf "%s://localhost:%d/"
+            Printf.sprintf "%s://127.0.0.1:%d/"
               (if tls then "https" else "http")
               port
           in
@@ -141,7 +142,7 @@ let failure_impl tls mode =
               let t =
                 if tls then
                   Httpkit_transport_eio.of_flow
-                    (Tls_eio.server_of_flow (F.server ()) raw)
+                    (Tls_eio.server_of_flow (F.server ~ip:true ()) raw)
                 else Httpkit_transport_eio.of_flow raw
               in
               Fun.protect ~finally:t.close (fun () ->
@@ -153,8 +154,8 @@ let failure_impl tls mode =
             (fun () ->
               (try
                  C.with_response ~net ~clock
-                   ~authenticator:(F.authenticator true) ~timeout:0.1
-                   ~meth:H.Method.post ~upload url (fun _ _ -> ());
+                   ~authenticator:(F.authenticator ~ip:true true)
+                   ~timeout:0.1 ~meth:H.Method.post ~upload url (fun _ _ -> ());
                  assert false
                with
               | Exit -> assert (mode = `Error)
@@ -165,8 +166,8 @@ let failure_impl tls mode =
               | Eio.Time.Timeout -> assert (mode = `Cancel));
               try
                 C.with_response ~net ~clock
-                  ~authenticator:(F.authenticator true) ~upload url (fun _ _ ->
-                    ());
+                  ~authenticator:(F.authenticator ~ip:true true) ~upload url
+                  (fun _ _ -> ());
                 assert false
               with Invalid_argument _ -> ());
           assert (!closed && !calls > 0);
