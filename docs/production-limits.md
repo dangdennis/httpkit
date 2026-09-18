@@ -1,10 +1,10 @@
 # Production limits inventory
 
 Inspection baseline `88c8ed5`; values are constructor defaults at that baseline, not a
-validated aggregate production profile. P0-07 owns the complete units/defaults/
-configuration audit. Do not replace them all with one global mutable config.
+validated aggregate production profile. Check the relevant constructor when
+selecting limits for a new application; see [status](status.md) for validation.
 
-| Owner | Current defaults | Meaning / caveat |
+| Owner | Baseline defaults | Meaning / caveat |
 | --- | --- | --- |
 | Core headers | 100 fields, 65536 field bytes | Persistent collection; caller can retain older versions |
 | HTTP/1 codec | 8192 line, 32768 head, 100 fields | Byte counts; request/status lines share a limit |
@@ -79,16 +79,9 @@ Finite defaults and bounded admission are necessary evidence; an aggregate
 production profile still requires long-running RSS/native-resource measurements
 with representative handlers and database usage.
 
-`test/web/multipart_limits_test.ml` checks header, part, total and count limits
-at exact/one-over boundaries, empty zero-byte parts and near-max_int header
-configuration across segmentation schedules. Multipart's partial delimiter
-allowance uses subtraction so a large configured header limit cannot wrap and
-reject a fragmented request that succeeds in one chunk. Defaults are unchanged.
-
-Memory-session clock and TTL inputs must produce a finite, strictly future expiry.
-The pure store rejects addition overflow or rounding back to the current time
-before entropy consumption/insertion; rotation restores the previous session on
-failure. Native application wrappers retain their existing bounded TTL policy.
+Memory-session clocks and TTLs must produce a finite, strictly future expiry.
+Invalid expiry arithmetic is rejected before inserting a session; failed rotation
+restores the previous session.
 
 ## Application deadline configuration
 

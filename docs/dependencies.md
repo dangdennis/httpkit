@@ -3,7 +3,8 @@
 Initial advisory inspection: 2026-09-14; local cancellation patch review:
 2026-09-15. This is a scoped maintainer review of locked packages,
 published upstream advisories and native linkage. It is not a complete
-vulnerability scan or an independent security approval. P0-09 remains open.
+vulnerability scan or an independent security approval. Full deployment dependency
+review remains open.
 
 ## Boundaries and necessity
 
@@ -21,19 +22,18 @@ free of database, authentication, TLS and runtime-backend dependencies.
 | OIDC | jose 0.11.0, oidc 0.2.0, upstream cryptographic dependencies | Algorithm/key policy, verification, claims and remote-client trust |
 | Outbound fetch | Uri 4.4.0; tls-eio/tls-lwt 2.1.2 and existing TLS/X509 stack | Separate client packages; hostname/IP authentication, ALPN, framing and cleanup |
 
-The fetch examples use ca-certs1.0.3 for system trust discovery; it adds bos0.3.0
-and rresult0.7.0 to the harness closure. The client libraries accept an explicit
-authenticator and do not depend on CA-store discovery. Both lockfiles retain
-every existing package file, including the exact patched Caqti and Bisect pins;
-only the five new dependency entries and dependency hashes change. This is a
-dependency-boundary review, not a refreshed comprehensive advisory audit.
+The fetch examples use ca-certs 1.0.3 for system trust discovery; it adds bos 0.3.0
+and rresult 0.7.0 to the harness closure. The client libraries accept an explicit
+authenticator and do not depend on CA-store discovery. The normal and coverage
+locks include these dependencies. This boundary review
+is not a refreshed comprehensive advisory audit.
 
 These are separate trust boundaries, not reasons to write replacement crypto.
 The development harness also installs comparison, test and profiling packages;
 its entire lock inventory is not the dependency set of every production package.
 Review installed package closures separately from the all-packages workspace.
 
-The [macOS archive-install inventory](beta-install-inventory.md) records the
+The [macOS archive-install inventory](archive/beta-install-inventory.md) records the
 actual opam package versions and declared licenses for the `a21d8ee` installation.
 Its 110 entries include build tools and compiler/configuration packages; they are
 not all runtime dependencies. This resolution used the pinned central repository
@@ -49,7 +49,13 @@ and runs application composition in native and bytecode modes without
 `eio_main`, `eio_posix`, `eio_linux` or Lwt installed. This bounded package cleanup
 does not justify merging independent database/authentication packages.
 
-## Local PostgreSQL cancellation fix
+## PostgreSQL findings
+
+The Caqti cancellation fix below is distinct from the unresolved
+[`postgresql.5.4.0` bytecode crash](status.md#what-we-found). Use native PostgreSQL
+executables until that binding is corrected and validated.
+
+### Caqti cancellation fix
 
 A real in-flight cancellation control reproduced a stuck driver busy flag and
 failed disconnect. The local `3.0.1+httpkit1` driver patch clears the flag in a

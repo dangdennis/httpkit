@@ -127,6 +127,9 @@ are 1 MiB/4 MiB, with a 30-second read/write/callback timeout.
 
 ## Database ownership
 
+Use native executables for PostgreSQL; the pinned bytecode binding has a
+[known startup crash](status.md#what-we-found).
+
 Create a pool inside an Eio switch, then use `Db.use pool` with a Caqti connection
 callback. `Db.transaction pool` commits when the callback returns and rolls back
 on exceptions or cancellation. Connections must not escape, run concurrently,
@@ -155,8 +158,8 @@ tools/dev framework-validate --long
 Database tests create and stop an isolated PostgreSQL instance. Set
 `FRAMEWORK_PG_BIN` if its binaries are not discoverable. Building the Caqti drivers
 requires PostgreSQL and SQLite development libraries and pkg-config (plus GMP for
-transitive dependencies). See [the roadmap](framework-roadmap.md) for acceptance
-status; implementation is separate from public release approval.
+transitive dependencies). See [status](status.md) for validation results;
+implementation is separate from public release approval.
 
 The validation coordinator freezes the source hash, retains per-step logs, and
 runs the existing regression checks before an isolated profile, a 30-minute
@@ -170,25 +173,9 @@ Protocol references: [JSON](https://www.rfc-editor.org/rfc/rfc8259),
 [SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html), and
 [Caqti](https://github.com/paurkedal/ocaml-caqti).
 
-## Generated input controls
+## Further checks
 
-`fuzz/web_fuzz.ml` adds seeded OCaml targets for URL decoding, forms, raw routing,
-multipart and WebSocket frames/reassembly. The shared catalog contains the target
-selectors; `dune runtest` runs 200 rounds per target without AFL. A larger local
-smoke run is `tools/dune-pkg exec -- fuzz/web_fuzz.exe -r 5000 -s 42`.
-
-Properties cover URL/form round trips and duplicate preservation, raw captures and
-router limits, multipart callback order/part budgets/retained parser state, and
-WebSocket fragmentation with interleaved ping and close. Complete accepted streams
-must agree under whole/byte/random segmentation. Rejections must remain terminal;
-partial events preceding a later failure are not required to batch identically.
-Generated multipart filenames remain metadata, including traversal-looking names.
-These controls do not certify file-system cleanup, network cancellation, total RSS
-or WebSocket security; those campaigns remain separate release gates.
-
-`Httpkit.Proxy.resolve` owns the shared pure forwarding policy. Eio/Lwt
-`Common.proxy` preserve the existing X-Forwarded-For default and accept an explicit
-`~ip_header:Httpkit.Proxy.Real_ip`. Both require authenticated immediate-peer trust,
-reject ambiguous selected metadata and never derive origins from forwarded host.
-The existing pure `ipaddr` dependency now belongs to this shared implementation;
-no new external package version or runtime dependency is introduced.
+[Testing](testing.md) covers generated input, package consumers and resource
+validation. [Observations](observability.md) defines lifecycle metrics;
+[deployment](deployment.md#forwarded-metadata-fail-closed) defines the shared
+Eio/Lwt proxy policy and explicit `X-Real-IP` selection.

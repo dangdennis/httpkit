@@ -1,16 +1,15 @@
 # Beta feature and ownership review
 
-This document records an earlier plan or review. See [current status](status.md)
-for completed validation and unresolved issues, and the [starter guide](internal-use.md)
-for new applications. Unchecked items here are not a fresh acceptance result.
+Historical feature review. Pending entries describe the review period; see
+[current status](../status.md) for subsequent campaigns and unresolved findings.
 
 Review started 2026-09-14 against `1186858`, followed by the static-path controls
 listed below. This is an internal implementation review, not independent security
-approval. [The beta plan](beta-plan.md) owns acceptance; this matrix records what
+approval. [The beta plan](../beta-plan.md) owns acceptance; this matrix records what
 each feature must preserve and where the executable evidence lives. Final reports
 must match the frozen candidate, rather than inheriting historical PASS statuses.
 
-| Feature | Invariant and ownership boundary | Existing controls / remaining acceptance |
+| Feature | Invariant and ownership boundary | Controls / acceptance at review |
 | --- | --- | --- |
 | HTTP1 | Strict framing, terminal failure, bounded progress; no ambiguity crosses exchanges | `test/http1`, segmented CL/TE/chunks/trailers/EOF/special responses; long native and differential campaigns pending |
 | Engine | Connection-specific exchange IDs; bounded queues; accepted bytes acknowledged once | `test/engine`, engine scenarios and partial-write/isolation properties; capacity and slow-client campaign pending |
@@ -42,7 +41,7 @@ must match the frozen candidate, rather than inheriting historical PASS statuses
 - The Eio guide incorrectly claimed the application layer was Eio-only. It now
   links the implemented Lwt package and documents the guide's actual scope.
 - Historical request/core timeout artifacts are generator entropy. Their original
-  causes remain unknown. [Investigation notes](request-timeout-investigation.md)
+  causes remain unknown. [Investigation notes](../request-timeout-investigation.md)
   prevent a raw-parser replay or changed generator from being mislabeled resolution.
 - `auth_boundaries_test.ml` adds authenticated-but-invalid cookie payloads,
   cookie configuration/clock/header limits, pre-native password/hash guards, and

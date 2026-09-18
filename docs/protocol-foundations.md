@@ -1,9 +1,8 @@
 # Application and client dependency experiments
 
-The [production-confidence roadmap](protocol-libraries-plan.md) owns the active scope.
-Private TLS and gzip probes remain relevant to outbound HTTPS, body decoding and
-WebSocket compression. They expose no new production packages. Railway owns public ingress; Caddy is optional for edge concerns. Existing
-small application static helpers remain supported.
+These are private development probes, not supported body-codec packages or release
+approval. The [experimental HTTP/HTTPS client](client.md) now uses upstream TLS; the
+experiments below retain separate scope and limitations.
 
 ## Run and interpret
 
@@ -64,8 +63,7 @@ regenerated for current sources.
 References: [decompress](https://github.com/mirage/decompress),
 [Bytesrw](https://github.com/dbuenzli/bytesrw).
 
-## Next boundary
+## Adoption boundary
 
-Prioritize HTTP/1 correctness and lifecycle evidence in the production roadmap.
-These experiments are isolated research, not a package delivery commitment or a
-prerequisite for Railway deployment. Resume them only for a demonstrated app need.
+Resume codec experiments only for a demonstrated application need, with a supported
+resource-lifetime API and matching validation. They are not deployment prerequisites.

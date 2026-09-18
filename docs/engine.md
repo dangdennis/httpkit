@@ -58,7 +58,7 @@ closure and reuse. Eio/Lwt controls also hold a transport write across the final
 head, complete it partially or fully, and require the response body plus joined
 cleanup with no further upload writes.
 
-Native AFL targets reuse these models; the runner preserves findings and replays queue entries without instrumentation. The installed engine consumer runs in bytecode/native modes without runtime adapters. The native adapter suites establish transport, deadline, cancellation and cleanup behavior; pure engine tests do not establish those properties.
+Generated-input targets reuse these models; [native campaigns](native-fuzz.md) preserve findings and explicit replay evidence. AFL remains deferred. The installed engine consumer runs in bytecode/native modes without runtime adapters. The native adapter suites establish transport, deadline, cancellation and cleanup behavior; pure engine tests do not establish those properties.
 
 `test/engine/client_sequence_test.ml` exercises 124 authored informational,
 Upgrade and CONNECT scenarios at work budgets 1/7/16384 under whole, bytewise,

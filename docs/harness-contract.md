@@ -1,16 +1,20 @@
-# Implemented M0–M1 harness contract
+# Synthetic scenario harness
 
-This is an executable scaffold for testing future HTTP primitives. Its current subject is intentionally a synthetic stream machine. `Begin` announces a message and a byte count directly; no code parses an HTTP header. The client/server role is recorded for future bindings but does not claim different protocol behavior yet.
+This harness checks a synthetic stream machine against an independent model.
+`Begin` announces a message and byte count directly; it does not parse HTTP.
+Its small capacities and virtual deadlines are test fixtures, not server defaults.
 
-M2 adds a separate real subject: the public `httpkit-core` library. `tools/harness run --suite core` executes its constructor/security/property tests; the default `all` suite runs both subjects and labels its scope. Core does not pretend to implement the synthetic stream machine. The [package design](design.md) documents its actual limits. The installed-consumer checks and microbenchmarks are external validation steps recorded by `tools/devlib/evidence.ml`, and `readiness --milestone M2` requires their source-matched evidence. Protocol and runtime capabilities remain pending.
+Real core, codec, engine and runtime tests run separately through the public APIs.
+See [testing](testing.md) for those checks and [release policy](release.md) for
+acceptance. Passing the synthetic model does not establish protocol correctness.
 
 ## Independent implementations
 
-`Model` is an immutable oracle with string state. `Fake_subject` uses mutable queues and separate transition code. Neither calls the other's transition logic. `Runner` checks observations and resource snapshots after each action and stops at the first divergence. Future real subjects must bind public APIs without repairing behavior inside the test binding.
+`Model` is an immutable oracle with string state. `Fake_subject` uses mutable queues and separate transition code. Neither calls the other's transition logic. `Runner` checks observations and resource snapshots after each action and stops at the first divergence. Real subjects must bind public APIs without repairing behavior inside the test binding.
 
 Messages progress through waiting for synthetic headers, body, completed, and closed. `Input` accepts a bounded prefix; `Consume` releases bytes; `Send` accepts an entire tokenized command or returns backpressure; `Write` acknowledges a permitted prefix. `Finish` requires consumed input and drained output. `Wait_body`, cancellation, EOF, injected I/O errors, virtual time, and bounded runnable-work actions exercise lifecycle behavior.
 
-Header staging is cleared by `Begin`; this is a synthetic test convention, not an HTTP parsing policy. Shutdown is deliberately a small model that returns backpressure until queues drain, then closes. Real graceful shutdown, handoff, headers, trailers, framing and runtime-specific behavior remain unimplemented.
+Header staging is cleared by `Begin`; this is a synthetic test convention, not an HTTP parsing policy. Shutdown is deliberately a small model that returns backpressure until queues drain, then closes. Actual HTTP framing, handoff and runtime cleanup are tested by the separate protocol and adapter suites.
 
 ## Scenario format
 
@@ -28,12 +32,12 @@ Planted variants cover dropped/duplicated writes, overconsumed input, empty-inpu
 
 Normalization merges only adjacent body-data events with the same connection and message identity. It retains completion and message boundaries. Tests demonstrate that different messages cannot collapse into one accepted transcript.
 
-Shrink attempts delete action chunks and simplify bytes/counts/time while preserving scenario prerequisites and the original failure rule. The CLI enforces a 60-second deadline plus a 1,000-attempt budget. It records exhausted budgets and writes the reduced script to a separate file. More advanced semantic/message shrinking will grow with actual protocol subjects.
+Shrink attempts delete action chunks and simplify bytes/counts/time while preserving scenario prerequisites and the original failure rule. The CLI enforces a 60-second deadline plus a 1,000-attempt budget. It records exhausted budgets and writes the reduced script to a separate file. Captured property bytes use the separate [native minimizer](native-fuzz.md#minimize-a-captured-property-failure).
 
 ## Evidence boundaries
 
-Tool ownership is mise → opam → Dune: mise pins opam, an isolated opam switch owns the pinned Dune executable, and Dune locks own the project compilers and dependencies. `mise.toml` is included in the evidence fingerprint.
-
-The current registry labels implemented entries `IMPLEMENTED_SELF_TEST`; all 15 production capability groups remain pending. Dune package management builds the compiler and dependencies from `dune.lock/` (OCaml 5.5.0 only). Compiler evidence records the selected lock, package versions, actual running compiler, and source hashes including both workspace and lock directories. The M0 gate rejects missing or stale evidence. Raw AFL maps, logs, a discovered fault input, and replay output are retained under `_artifacts/afl/`.
-
-CI schedules beyond PR checks, coverage measurement, HTTP/proxy conformance, API consumer projects, runtime adapter tests, and performance benchmarks are not implemented in this slice. The long-term plan remains the specification for those milestones; placeholder suites do not return success.
+The registry distinguishes `IMPLEMENTED_SELF_TEST` entries from real-subject
+requirements; `release-evidence` remains pending. `tools/harness registry` prints
+the current inventory. Compiler reports bind the toolchain, workspaces, locks and
+source hashes to results. Missing or stale required evidence cannot pass readiness.
+See [development](development.md) for toolchain setup and replay commands.

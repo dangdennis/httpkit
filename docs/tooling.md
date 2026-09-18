@@ -19,7 +19,7 @@ fuzzer remain external executables.
 | Benchmark preflight/selection | `tools/dev bench-selection-test` |
 | Coordinator/resource controls | `tools/dev coordinator-test` |
 | Application/database failed-start cleanup | `tools/dev runner-test` |
-| Installed consumers | `tools/dev consumer core` (also protocol, adapter, middleware, router, framework, extensions) |
+| Installed consumers | `tools/dev consumer core` (also protocol, adapter, client, middleware, router, framework, extensions) |
 | Framework HTTP integration | `tools/dev framework-test` |
 | Both routing examples | `tools/dev routing-test` |
 | Disposable PostgreSQL/SQLite | `tools/dev databases` |
@@ -33,14 +33,15 @@ fuzzer remain external executables.
 | Personal Eio load | `tools/dev personal-load --mode smoke` |
 | Framework acceptance, including long runs | `tools/dev framework-validate --long` |
 | Personal acceptance excluding AFL | `tools/dev personal-validate --long --skip-afl` |
-| Optional fuzz instrumentation checks | `tools/dev fuzz-smoke` |
-| Optional fuzz campaigns | `tools/dev fuzz --seconds 30` |
-| Optional historical timeout investigation | `tools/dev triage-timeout` |
+| Deferred AFL instrumentation checks | `tools/dev fuzz-smoke` |
+| Deferred AFL campaigns | `tools/dev fuzz --seconds 30` |
+| Deferred AFL timeout investigation | `tools/dev triage-timeout` |
 | Read-only release assessment | `tools/dev release` |
 | Source provenance | `tools/dev fingerprint` |
 
-Fuzz commands are retained but are not run by `validate` or framework acceptance.
-AFL remains deferred for this continuation. Personal acceptance retains an
+The deferred AFL commands are not run by `validate` or framework acceptance.
+Native generated-input controls are separate; see [native fuzzing](native-fuzz.md).
+AFL remains deferred. Personal acceptance retains an
 explicit `--skip-afl` option. The source/workload hash checks reject measurements
 if inputs change during a run. Old acceptance artifacts retain their original
 hashes and are not relabeled as current evidence.
@@ -52,7 +53,6 @@ payloads incrementally. Load workers use separate connections, join on failure,
 and retain bounded latency histograms. Process deadlines use monotonic time;
 owned subprocess groups are stopped and reaped when a scope fails.
 
-Benchmark bootstrap intervals now use seeded OCaml resampling. Workload hashes
-include the new implementation, so historical reports cannot silently become
-compatible baselines. Timings remain advisory on shared machines. Durable
-acceptance logs remain authoritative if a progress terminal disconnects.
+See [benchmarks](benchmarks.md) and [load testing](load-testing.md) for measurement
+commands, units and interpretation. Durable acceptance logs remain authoritative
+if a progress terminal disconnects.

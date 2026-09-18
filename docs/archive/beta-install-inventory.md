@@ -1,7 +1,7 @@
 # Beta archive installation inventory
 
 Snapshot: 2026-09-15, source archive `a21d8ee`, macOS arm64, opam 2.5.2.
-See [installation evidence and limitations](beta-install.md).
+See [installation evidence and limitations](../beta-install.md).
 
 This is the **installed build environment**, not the dependency set of every
 application or the linked runtime set. It contains 110 opam package records:

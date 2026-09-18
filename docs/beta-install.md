@@ -96,7 +96,7 @@ for executable tests. Bytecode execution with the reused compiler required
 The PostgreSQL driver installed and linked; this run used SQLite databases and
 does not replace the PostgreSQL fault or sustained campaigns.
 
-The [installation inventory](beta-install-inventory.md) records the selected
+The [installation inventory](archive/beta-install-inventory.md) records the selected
 versions and declared licenses. Opam resolution is separate from the Dune locks
 and selected some different versions. Installed-consumer success is not an
 advisory scan, native-library inventory, complete license review, Linux install

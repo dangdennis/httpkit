@@ -73,8 +73,7 @@ equivalent inputs; compare source and binary hashes before replaying evidence.
 
 These are seeded generator trials, not coverage-guided search. The existing scenario harness provides shrinking for its
 own scenario format; this runner does not automatically shrink Crowbar failures.
-Use the separate minimizer below for captured bytes. Richer state generators,
-long release durations and independent review remain open. A PASS here does not certify release readiness,
+Use the separate minimizer below for captured bytes. Release durations and independent review are separate requirements. A PASS here does not certify release readiness,
 bounded RSS, or the skipped AFL campaign. CI integration is deferred by request.
 
 ## Resumable duration campaigns

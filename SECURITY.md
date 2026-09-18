@@ -49,7 +49,7 @@ waives backend HTTP/1 framing, proxy-trust or resource limits. Forwarding metada
 is untrusted unless the immediate peer is explicitly trusted. No WAF/DDoS service
 or public certificate manager is part of httpkit.
 
-See [production roadmap](docs/protocol-libraries-plan.md), [audit](docs/production-audit.md)
+See [validation status](docs/status.md), [release requirements](docs/release.md)
 and [deployment contracts](docs/deployment.md). Dependency changes must refresh
 locks and rerun affected evidence. Policy v2 replaces AFL with native campaigns
 and unavailable hosted CI with reproducible local Linux/macOS evidence. Neither

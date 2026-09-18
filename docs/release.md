@@ -2,7 +2,7 @@
 
 For current results, read [validation status](status.md). For private application
 setup, use [the internal-use guide](internal-use.md). This document defines the
-public release assessor; its gates are unchanged by internal adoption work.
+release assessor; its gates are unchanged by internal adoption work.
 
 The approved [beta delivery plan](beta-plan.md) covers all existing application
 features with WebSockets explicitly experimental. Public beta publication is a
@@ -30,11 +30,9 @@ additionally requires independent security and API reviews. Their absence remain
 visible as non-required `PENDING` gates in beta. WebSocket stays experimental in
 both profiles; passing these gates does not upgrade its support status.
 
-GitHub Actions is unavailable because its monthly quota is exhausted. Hosted CI
-is not inspected or awaited. Policy v2 replaces it with reproducible local platform
-evidence, and replaces AFL with the approved native campaign. Reports explicitly
-record these replacements; neither unavailable CI nor skipped AFL is recorded as
-passed. Restoring CI later is separate work, not a dependency of this plan.
+Policy v2 uses reproducible local Linux/macOS evidence and native generated-input
+campaigns. Hosted CI and AFL are excluded from the current workflow; neither is
+recorded as passed. Restoring either is separate work.
 
 ## Native campaign and coverage requirements
 
@@ -47,7 +45,7 @@ unresolved findings cannot qualify. Source and binary identity must remain froze
 The native runner records checked-input accounting and supports resumable
 duration campaigns. Earlier long campaigns completed; a new candidate still
 needs evidence matching its own source and binaries.
-Historical 420,000-trial smoke reports do not qualify.
+Smoke reports do not satisfy the duration requirement.
 
 Coverage minima are 95% core/codec/engine, 85% framework and 80% extensions. Reports
 must retain visited/total points, a consistent computed percentage, missing-file
@@ -109,8 +107,8 @@ Required report names and payload contracts:
 The exact feature and target inventories are enforced by the assessor. The
 manifest does not choose which mandatory gates exist. Raising policy budgets is
 supported; weakening the approved minimum native/coverage budgets cannot pass.
-A root project LICENSE is also required. License choice is MIT; adding the text,
-metadata and third-party notice review belongs to publication preparation.
+A root project LICENSE is also required. License choice is MIT; distribution
+notices still require review.
 
 Feature acceptance remains a substantive review responsibility. The assessor
 checks identities, report structure, budgets and attachments; it cannot establish
@@ -126,8 +124,7 @@ records exact source, binary and environment provenance; retain earlier failures
 and their disposition. Uncommitted or untracked candidate changes block readiness.
 A source change invalidates the candidate's evidence.
 Do not bulk-convert historical reports to v2 or mark unavailable campaigns passed.
-The evidence collector and per-campaign validators will be extended alongside the
-remaining plan slices; until their actual reports exist, readiness remains blocked.
+Missing required reports keep readiness blocked.
 
 Run `tools/dune-pkg runtest tools --force` and `tools/dev selftest release` for
 positive beta/production controls and negative freshness, corruption, budget,

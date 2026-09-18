@@ -1,125 +1,77 @@
-# Lifecycle and ownership review
+# Lifecycle and ownership
 
-This matrix separates the implemented ownership model from remaining acceptance
-work. P0-03/P0-10 stay open until runtime, application and external-resource fault
-schedules have source-matched evidence. A library cannot force a custom callback
-or finalizer that never yields or never terminates to clean up safely.
+Each resource has one owner and an explicit retirement point. Cancellation starts
+cleanup; it does not justify abandoning an owned resource. Custom callbacks must
+yield cooperatively and finalizers must terminate. See [status](status.md) for
+validation outcomes and unresolved issues.
 
-| Resource | Owner / close authority | Cancellation, escape and concurrency | Next evidence boundary |
-| --- | --- | --- | --- |
-| Listener/backlog | Caller of `serve` / `serve_connections` | Caller stops admission and closes listener; accepted transports transfer to workers | SIGTERM at each admission boundary |
-| Connection transport | `with_connection`, then successful claimed handoff recipient | One domain/event loop; cancel and join callback, reader and writer before one close; first failure wins | Reset/half-close and simultaneous faults |
-| Engine/exchange | Connection driver | One mutable owner, opaque connection-specific IDs; abort idempotent; queues discarded on abort | Interrupted sequencing and queue accounting |
-| Request reader | Active application exchange | Scoped and single-reader; cannot safely outlive handler/response scope | Suspended concurrent read and scope retirement |
-| Handler/response producer | Application exchange/connection scope | Cancellation must reach owned work; cleanup may suspend but must finish before scope returns | Handler/producer faults before/after headers |
-| Outgoing chunk/stream | Producer until submission; bounded engine queue after acceptance | Accepted writes cannot be retried; cancellation must release blocked producers | Slow-reader plateau and response timeout |
-| WebSocket | Successful upgrade callback | Transport ownership transfers only on successful handoff; app closes after callback | Experimental: concurrent sends, timeout and cancellation campaign |
-| DB pool/lease/transaction | Pool scope; lease callback owns temporary use | Borrowed DB resource must not escape; cancellation requires rollback and lease release | Real backend cancellation/rollback and exhausted pool |
-| Session state | Memory store or SQL/cookie backend according to API | Backend-specific replay/revocation/rotation; no universal session-lock contract | Concurrent rotation, expiry and DB cancellation |
-| Static file handle | Confined file helper | Scoped open/read/close; returned bytes belong to caller | Concurrent filesystem changes and interrupted reads |
-| Partial upload | Confined upload helper/callback | Generated exclusive path; filename remains metadata; each completed file lives only through its callback; failed/cancelled partial upload removed | Disk exhaustion, cleanup I/O failure and cancellation interleavings |
-| Observation sink | Caller-owned integration | Must not take transport ownership or log credentials; API remains P1 | Explicit exception/backpressure contract |
+| Resource | Owner and retirement | Important boundary |
+| --- | --- | --- |
+| Listener/backlog | Caller of `serve` / `serve_connections` | Caller configures backlog and closes the listener; accepted transports transfer to workers |
+| Connection | `with_connection`, or the successful handoff recipient | One domain/event loop; join callback, reader and writer before one close; primary failure survives cleanup failure |
+| Engine/exchange | Connection driver | One mutable owner; connection-specific IDs; abort is idempotent |
+| Request reader | Active application exchange | Single reader; cannot escape its documented scope |
+| Handler/response producer | Application exchange | Cancellation reaches owned work; finalizers join before scope completion |
+| Output | Producer before submission; engine after acceptance | Retry only backpressured commands; accepted bytes must not be submitted twice |
+| WebSocket | Successful upgrade callback | Transfer transport and suffix together; upgraded callback owns close; support remains experimental |
+| Database | Pool scope and temporary lease callback | No escaped/shared connection or nested transaction; rollback before release |
+| Session | Selected memory, SQL or cookie backend | Replay, revocation and rotation differ by backend |
+| Static file | Confined file helper | Scoped open/read/close; returned bytes belong to the application |
+| Temporary upload | Confined helper and current callback | Generated exclusive path; filename is metadata; durable copies are application-owned |
+| Observation sink | Application integration | Synchronous, bounded and nonblocking; no transport ownership; ordinary errors isolated |
 
-## Suspended callback cleanup
+## Cancellation and deadlines
 
-`test/adapter/lwt_test.ml` now suspends a handler finalizer behind a controlled gate
-and triggers either a transport read failure or external cancellation. It requires
-`with_connection` to remain pending and the transport to remain open until cleanup
-is released, then requires exactly one close and the original failure/cancellation.
-The transport-failure schedule is also checked under Eio's native scope model.
+Both native adapters join suspended callback finalizers before closing transport.
+Lwt application deadlines also cancel and join the losing branch while preserving
+the winning result. Protected cleanup uses `Lwt.no_cancel` or `Eio.Cancel.protect`.
+A slow finalizer extends completion; a deadline cannot safely impose a second
+hard cutoff by abandoning cleanup.
 
-This exposed a Lwt defect: cancelling callback work started its finalizers, but
-cleanup joined only reader/writer promises. `with_connection` now joins callback
-work as well, before closing the transport. The fix affects teardown, not the
-per-request parsing or write path. A slow finalizer now delays completion as the
-ownership contract requires; detached or non-cancellable user work remains outside
-what the adapter can force to terminate.
+WebSocket closing reads and writes share the remaining absolute close budget.
+A Ping and its Pong cannot restart that budget. Open-connection callback/I/O
+budgets are separate. See [adapters](adapters.md) for transport deadlines and
+[application limits](production-limits.md#application-deadline-configuration).
 
-Remaining tests must cover SIGTERM idle/during parsing/handling/streaming, client
-disconnect with blocked output, header/body/response deadlines, body overflow,
-cancelled transactions/uploads/WebSockets and cleanup-error precedence. Existing
-unit controls are useful evidence, not proof of every interleaving or release
-approval. See [adapters](adapters.md) and [production roadmap](protocol-libraries-plan.md).
+## Upload lifetime and failures
 
-## Temporary upload callback scope
+A completed temporary file is available through its callback and removed before
+the next part's callback. On callback cancellation, protected cleanup completes
+before deletion and connection closure. Partial files never reach the callback.
+Outer cleanup can retry removal after an earlier failure.
 
-`test/web_eio/runtime_test.ml` checks that a completed file is readable during its
-callback and removed before the next callback. This reproduced retention of earlier
-parts until the entire request completed. `Files.with_upload` now performs protected
-removal after each callback, while outer cleanup still owns any partial file or a
-path whose earlier removal failed. Existing callback-exception and partial-upload
-cancellation controls remain in the regression suite. Successful cleanup bounds
-helper-owned temporary files to the current part; application-created durable
-copies remain the application's responsibility. Disk exhaustion and cleanup-I/O
-error precedence still need dedicated fault schedules.
+Permanent filesystem errors remain visible and may leave a file requiring
+application recovery. A pre-existing collision is never deleted as an owned
+upload. Applications must observe cleanup errors and explicitly copy durable
+content before the callback returns.
 
-Additional native controls wrap real confined filesystem operations to inject
-ENOSPC during a write, a close error after descriptor retirement, and a first
-unlink failure. All three propagate failure and remove the temporary file; the
-unlink failure is retried by outer cleanup. Incomplete files never reach the
-callback. A cancelled completed-file callback suspends its protected finalizer:
-the file remains available until that finalizer finishes, no next part starts,
-and removal finishes before connection EOF. These controls validate helper
-ownership, not the behavior of a full disk or a filesystem that permanently
-refuses deletion. Persistent cleanup failure and simultaneous-error precedence
-remain explicit acceptance gaps; applications must observe cleanup I/O errors.
+## Database shutdown
 
-## Lwt application deadlines
+Closing a pool immediately rejects new borrowers and waits for active leases.
+A cancelled transaction's finalizer retains its lease until it finishes; rollback
+then completes before release. A separate connection is needed to verify that
+uncommitted writes did not persist.
 
-A request deadline must not finish while its handler or response producer still
-owns resources. The same rule applies to WebSocket callbacks and I/O. Controlled
-clock tests in `test/extensions/lwt_app_test.ml` reproduced early transport closure
-and error reporting while a cancelled finalizer was suspended. A shared private
-Lwt deadline helper now races without automatically abandoning the losing branch,
-then cancels and joins both branches while preserving the winning outcome. Tests
-cover handler/stream deadlines, external server cancellation and WebSocket callback
-timeout. These complement the lower-level transport cleanup controls above.
+Interrupted close does not reopen admission. Retry close after the lease retires
+or finish the owning switch. Closing a pool from its own lease callback would wait
+for itself and is unsupported. A lost connection during COMMIT can leave the
+outcome unknown; do not automatically replay the transaction.
 
-Finalizers that must survive cancellation should use `Lwt.no_cancel`; Eio cleanup
-uses `Eio.Cancel.protect`. Cleanup must eventually finish: the deadline starts
-cancellation but cannot safely impose a second hard cutoff on resource release.
-The extra promise bookkeeping is outside the parser/encoder; its application-path
-allocation cost remains part of the end-to-end profiling campaign. WebSocket
-support remains experimental despite this specific lifecycle correction.
+## Accept racing with shutdown
 
-## Database shutdown and cancellation
+Once `accept` returns a transport, the server owns its close even if admission
+has stopped. That late transport does not enter the HTTP driver. Close is protected
+and joined before `serve` returns. The caller's close operation must eventually
+finish; a graceful HTTP deadline does not permit abandoning it.
 
-Real SQLite/PostgreSQL controls in `test/db_eio/db_test.ml` cancel a transaction
-after an insert and suspend its protected callback finalizer while it retains
-the pool's only lease. The lease remains usable by that finalizer, capacity stays
-occupied, and concurrent close waits. Once released, rollback completes before
-close returns; a separate pool verifies that the inserted row did not commit.
-New borrowers are rejected once close starts. Repeated close is harmless.
+## Regression entry points
 
-Closing while a lease is still owned is cancellable. Cancellation does not reopen
-admission; the owner must retry close after the lease retires or finish the pool's
-switch. Calling close inside that pool's own lease callback would wait for itself
-and is explicitly unsupported. Backend I/O faults and disconnect-error precedence
-remain separate acceptance boundaries.
+- `test/adapter`: suspended finalizers, transport failures and cancellation.
+- `test/extensions/lwt_app_test.ml`: handler/stream/WebSocket deadlines.
+- `test/web_eio/runtime_test.ml`: per-part lifetime, I/O faults and upload cleanup.
+- `test/db_eio/db_test.ml`: real SQLite/PostgreSQL leases, rollback and shutdown.
+- `test/production/websocket_deadline_test.ml`: absolute closing budget.
+- `test/production/late_accept_test.ml`: shutdown waits for late transport close.
 
-## WebSocket closing deadline
-
-`test/production/websocket_deadline_test.ml` reproduced an extended close wait
-in both runtimes: after sending Close, a Ping arriving one second into a
-two-second closing budget let a blocked Pong write run until three seconds.
-Reads and writes now use the same remaining absolute closing budget. Both native
-controls expire at two seconds and join cancelled write cleanup. Ordinary open
-connection callback/I/O budgets are unchanged. This closes one deadline defect;
-WebSockets remain experimental and the broader security campaign stays open.
-
-## Accept completing during shutdown
-
-Once `accept` returns a transport, the application server owns its close even if
-shutdown has already stopped admission. That transport never enters the HTTP
-driver. Its close must be protected from worker cancellation and joined before
-`serve` returns, just like cleanup for an established connection.
-
-`test/production/late_accept_test.ml` reproduced this race in both runtimes, with
-observations enabled and disabled. While one request drains, a second accept
-returns after the stop signal and starts a suspended close. Previously, finishing
-the active request let shutdown cancel that close and return early. Eio now
-protects the close with `Eio.Cancel.protect`; Lwt uses `Lwt.no_cancel` around the
-close operation. The regression requires shutdown to remain pending until close
-is released, then verifies exactly one completed close per transport. The
-caller's close operation must eventually finish; graceful HTTP deadlines do not
-justify abandoning an owned cleanup operation.
+These controls cover named schedules, not every OS/runtime fault combination.
+[Testing](testing.md) describes broader validation and retained evidence.

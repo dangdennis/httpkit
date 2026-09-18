@@ -143,8 +143,6 @@ be retracted: applications must treat an eventual read failure as an incomplete
 transfer. Fixed-length/chunked responses complete at their HTTP framing boundary;
 they need not wait for TLS closure. Plain HTTP retains normal close-delimited
 behavior. See [RFC 9112 §9.8](https://www.rfc-editor.org/rfc/rfc9112.html#section-9.8).
-The earlier pure `check_response` helper remains conservative for other transports;
-the native clients no longer use it.
 
 No response body is accumulated by the library. The default codec step bounds
 chunks to 16KiB; adapters and TLS add their own buffering. Application-retained chunks,
@@ -181,4 +179,4 @@ and bytecode consumers exercise the expanded surface and opposite-runtime isolat
 
 The API review is explicitly deferred. These local controls and bounded campaigns
 do not establish production readiness or replace long fuzz/load campaigns and
-independent security review. See [the feedback plan](client-work-plan.md).
+independent security review. See [validation status](status.md) for completed campaigns and open issues.

@@ -10,7 +10,7 @@ runtime's native concurrency and cancellation model.
 For outbound requests, try the experimental [streaming HTTP/HTTPS client](docs/client.md).
 
 Start a separate application with the [GitHub + SQLite/PostgreSQL guide](docs/internal-use.md).
-See [validation status](docs/status.md) for passed checks and the unresolved profiling hang.
+See [validation status](docs/status.md) for passed checks and open issues.
 
 ## Get started
 
@@ -64,45 +64,17 @@ Prefer Lwt? Run the [equivalent example](examples/runtime/lwt_example.ml):
 tools/dune-pkg exec ./examples/runtime/lwt_example.exe
 ```
 
-## Packages
+## Packages and documentation
 
-| Package | Use it for |
-| --- | --- |
-| `httpkit-core` | Checked headers, methods, targets and body-polymorphic messages |
-| `httpkit-http1` | Incremental HTTP/1 decoding, encoding and framing validation |
-| `httpkit-engine` | Sans-I/O client/server connections with bounded queues and backpressure |
-| `httpkit-transport-eio` | Native Eio transport, streaming, deadlines and cancellation |
-| `httpkit-transport-lwt` | Native Lwt transport, streaming, deadlines and cancellation |
-| `httpkit-client` | URL and outbound request policy |
-| `httpkit-client-eio` | Eio streaming HTTP/HTTPS requests and origin pools |
-| `httpkit-client-lwt` | Lwt streaming HTTP/HTTPS requests and origin pools |
-| `httpkit-middleware` | Basic wrappers, typed contexts and typed context transitions |
-| `httpkit-router` | Declaration-ordered path matching and explicit method outcomes |
-| `httpkit` | URL/forms, JSON, cookies, sessions, HTML, multipart, SSE and WebSocket primitives |
-| `httpkit-eio` | Eio application dispatch, middleware, files and realtime connections |
-| `httpkit-lwt` | Lwt application dispatch, middleware, sessions and realtime connections |
-| `httpkit-db-eio` | PostgreSQL/SQLite pools, transactions and migrations through Caqti |
-| `httpkit-cookie` | Encrypted cookie sessions and key rotation |
-| `httpkit-session-eio` | Shared PostgreSQL/SQLite browser sessions |
-| `httpkit-password` | Argon2id hashing, verification and rehash policy |
-| `httpkit-oidc` | Authorization-code/PKCE requests and ID-token policy |
-| `httpkit-oidc-eio` | Browser login and provider integration for Eio applications |
+Use `httpkit-eio` or `httpkit-lwt` for applications and `httpkit-client-eio` or
+`httpkit-client-lwt` for outbound requests. Add database, cookie, session, password
+and OIDC packages as needed. The core values, codecs, engine, router and middleware
+are independently usable; applications supply listeners and server-side TLS.
 
-Applications supply listeners and TLS. Codecs and engines can also be used with
-other runtimes through their explicit input, output and event interfaces.
-
-## Documentation
-
-- [Documentation index](docs/index.md) and [current validation status](docs/status.md)
-- [Start a new application from GitHub](docs/internal-use.md)
-- [Install candidate packages with opam](docs/beta-install.md)
-- [Eio web application guide](docs/framework.md)
-- [Sessions, login and Lwt applications](docs/extensions.md)
-- [Runnable examples](docs/examples.md)
-- [Core values and package design](docs/design.md)
-- [HTTP/1 contracts](docs/http1.md), [engine contracts](docs/engine.md) and [native adapters](docs/adapters.md)
-- [Routing](docs/routing.md) and [middleware](docs/middleware.md)
-- [Development and API documentation](docs/development.md)
+- [Documentation index](docs/index.md): guides organized by task.
+- [Package reference](docs/design.md): every package, dependency boundary and entry module.
+- [Runnable examples](docs/examples.md): from in-memory exchanges to applications.
+- [Development](docs/development.md): build, test and generate API documentation.
 
 ## Status
 

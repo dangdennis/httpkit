@@ -6,8 +6,9 @@ Build and validate httpkit from a repository checkout. For usage, start with the
 
 ## Toolchain and dependencies
 
-
-Prerequisites: mise, a C build toolchain and Git. **mise manages opam; opam manages Dune; Dune package management owns the project compiler and dependencies.** `mise.toml` pins opam 2.5.2. Setup uses that opam to install Dune 3.24.1 in the project-local `dune-bootstrap` switch, then links `.toolchain/bin/dune` to the opam-owned executable. It never copies an unrelated Dune from PATH. Existing global opam switches and shell profiles are untouched.
+Install mise, a C build toolchain and Git. The pinned chain is mise → opam 2.5.2
+→ Dune 3.24.1 → OCaml 5.5.0 and the locked project dependencies. Setup uses local
+switches/caches and leaves global opam switches and shell profiles unchanged.
 
 ```sh
 mise trust
@@ -60,7 +61,7 @@ For broader local validation, run the locked compiler, docs, CLI and
 installed-consumer checks:
 
 ```sh
-tools/dev evidence validate 5.5.0
+tools/dev validate
 ```
 
 ## Focused checks
@@ -89,10 +90,10 @@ preserves the failure category and leaves the original fixture unchanged.
 
 ## Further validation
 
-- [Harness contracts](harness-contract.md) and [full test plan](test-harness-plan.md)
+- [Testing guide](testing.md) and [harness contracts](harness-contract.md)
 - [Interoperability and streaming measurements](interop-performance.md)
 - [Benchmarks](benchmarks.md) and [benchmark backlog](benchmark-todos.md)
-- [Release assessment](release.md) and [manual completion checklist](m7-manual-checklist.md)
+- [Release assessment](release.md)
 
 Evidence is source-matched: changes to implementation, tests, toolchain, locks or
 API documentation invalidate earlier reports. Local validation and remote CI are

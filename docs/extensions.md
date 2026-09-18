@@ -12,12 +12,10 @@ standards-compliant provider; automated tests use synthetic identities and keys.
 | `httpkit-oidc-eio` | `Httpkit_oidc_eio` | Browser binding, one-time callbacks and bounded provider requests |
 | `httpkit-lwt` | `Httpkit_lwt` | Lwt applications, routing, streaming, middleware, sessions and realtime |
 
-The packages are in this checkout; they have not been published to opam. After
-publication, applications can select them with `opam install httpkit-cookie
-httpkit-password`, for example. Add the same public library names to Dune's
-`libraries` field. Native password builds need libargon2, libffi and pkg-config
-(`brew install argon2 libffi pkgconf`, or the corresponding development packages
-on Linux). CI's native-dependency action installs them.
+Install these packages from a [pinned source checkout](beta-install.md), then add
+their public names to Dune's `libraries` field. They are not on central opam.
+Password builds require libargon2, libffi and pkg-config. PostgreSQL bytecode is
+[currently blocked](status.md#what-we-found); use native database executables.
 
 ## Cookie sessions
 

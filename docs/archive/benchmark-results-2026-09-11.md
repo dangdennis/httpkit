@@ -4,8 +4,8 @@ Scope: the five proposed follow-ups (profile bodies, add writers/exchanges,
 compare ownership models, refine router indexing, improve measurement).
 This document records their findings and remaining work. OCaml 5.5.0, pinned dependencies, native
 release builds on the local macOS ARM64 host. Commands and contracts are in
-[benchmarks.md](benchmarks.md); unfinished coverage is in
-[benchmark-todos.md](benchmark-todos.md). No production router or codec changed.
+[benchmarks.md](../benchmarks.md); unfinished coverage is in
+[benchmark-todos.md](../benchmark-todos.md). No production router or codec changed.
 
 ## Small-chunk diagnostics
 

@@ -5,7 +5,7 @@ Both `Httpkit_eio.serve` and `Httpkit_lwt.serve` accept an optional
 `httpkit` package; neither runtime nor a telemetry vendor is required to consume
 them. Leaving the option unset creates no events or transport-counting wrappers.
 
-The initial events cover connection ownership:
+Connection events cover ownership:
 
 - `Connection_accepted`: the caller's `accept` returned a transport, with a
   connection identifier and the active scope count.
@@ -88,9 +88,7 @@ No exception messages or request contents are included.
 
 The production observation tests cover recovery, streams, application deadlines,
 every transport timeout phase, identity matching and enqueue-versus-drain behavior.
-Dedicated WebSocket events and enabled-hook allocation budgets
-remain separate work. These events establish no
-production-readiness or peer-delivery claim.
+Dedicated WebSocket events and enabled-hook allocation budgets remain separate work.
 
 ## Admission, body quotas and shutdown progress
 
@@ -103,7 +101,7 @@ counts to observe when a slot becomes available.
 `Body_limit_rejected` identifies the request and byte quota enforced by the
 application reader or `body` collector. It is emitted before raising the existing
 resource-limit error. It does not identify codec, multipart, JSON or other limits,
-and does not invent an HTTP413 response after partially consumed input.
+and does not invent an HTTP 413 response after partially consumed input.
 
 `Shutdown_progress` reports active owned scopes after the explicit stop signal,
 then after acceptance/retirement while draining. A late accept can increase the
@@ -114,7 +112,7 @@ an arbitrary failing transport. External cancellation without an observed gracef
 stop emits none of these graceful-shutdown events.
 
 Tests cover both body quotas, one/three-slot saturation, ordinary sink exceptions,
-and a late-accept schedule with counts1→2→1→0. They require shutdown completion
+and a late-accept schedule with counts 1→2→1→0. They require shutdown completion
 to remain absent while close is suspended. New event constructors require users
 with exhaustive matches to handle them when updating before API stabilization.
 

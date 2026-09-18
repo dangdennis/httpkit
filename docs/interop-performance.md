@@ -1,6 +1,6 @@
 # Interoperability and performance evidence
 
-M6 adds six loopback lanes: Eio and Lwt directly, then each through Nginx with request/response buffering enabled and disabled. Nginx 1.30.4 is built from a checksum-pinned official source archive by `mise run setup:nginx`, entirely inside `.toolchain`. It runs under a temporary prefix and is stopped after each lane. No system service or privileged port is installed.
+The interop runner exercises six loopback lanes: Eio and Lwt directly, then each through Nginx with request/response buffering enabled and disabled. Nginx 1.30.4 is built from a checksum-pinned official source archive by `mise run setup:nginx`, entirely inside `.toolchain`. It runs under a temporary prefix and is stopped after each lane. No system service or privileged port is installed.
 
 Independent clients are an OCaml client checked against the independent http/af parser and the host's curl, whose versions are recorded. Each lane exercises persistent GET, fixed and chunked POST, HEAD followed by another request, duplicate Set-Cookie preservation, and two ordered pipelined responses. Six malformed framing inputs each precede a marker request: CL+TE, duplicate CL, signed CL, unsupported TE chain, folded fields and invalid chunks. A malformed input must not reach the handler or allow its marker to reach the application.
 
@@ -21,4 +21,4 @@ mise run performance
 tools/harness readiness --milestone M6
 ```
 
-M6 readiness requires source-matched M5 evidence, the OCaml 5.5.0 interop report and a performance report with passing hard bounds. It establishes these implemented lanes and explicitly reports baseline limitations; it does not assert full release readiness. CI uploads `_artifacts` for inspection.
+M6 readiness requires source-matched M5 evidence, the OCaml 5.5.0 interop report and a performance report with passing hard bounds. It establishes these implemented lanes and explicitly reports baseline limitations; it does not assert full release readiness. Retain `_artifacts` with the source identity; hosted CI is outside the current workflow.

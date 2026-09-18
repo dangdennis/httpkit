@@ -5,7 +5,7 @@ Application handlers and dispatch live in `Httpkit_eio` (`httpkit-eio`) and
 `Httpkit_lwt` (`httpkit-lwt`); see the [framework guide](framework.md) and
 [Lwt application guide](extensions.md#lwt-applications).
 
-M5 adds independently installable `httpkit-transport-eio` and `httpkit-transport-lwt`. Their APIs use native fibers/promises; core, codec and engine still have no runtime dependency. Eio depends on Eio 1.5, Lwt on Lwt 6.1.2, through both committed Dune locks. A legitimate Eio dependency named `lwt-dllist` is a data structure, not the Lwt promise runtime.
+The independently installable adapters are `httpkit-transport-eio` and `httpkit-transport-lwt`. Their APIs use native fibers/promises; core, codec and engine still have no runtime dependency. Eio depends on Eio 1.5, Lwt on Lwt 6.1.2, through both committed Dune locks. A legitimate Eio dependency named `lwt-dllist` is a data structure, not the Lwt promise runtime.
 
 ## Ownership and operation
 
@@ -29,7 +29,7 @@ The adapter tests run under parent-process watchdogs. They cover byte-fragmented
 
 Installed-package tests copy only the declared runtime closure, compile and execute bytecode/native examples, and prove the opposite runtime is unavailable. The exact same `examples/runtime/transform.ml` is used by both. `@doc` builds package documentation with odoc 3.2.1 and fatal warnings.
 
-The broader plan still calls for reset/half-close permutations, fault coverage measurements, long stress campaigns, interop and independent security review. These tests establish the implemented adapter boundary; they do not certify the complete release plan.
+See [testing](testing.md) for broader fault, stress and interop checks and [status](status.md) for completed campaigns. Adapter regressions do not certify release readiness.
 
 Client handoff controls suspend request-header writes across informational and
 Upgrade/CONNECT response headers. Both runtimes preserve the exact binary suffix,

@@ -10,9 +10,9 @@ local database and tears it down. No AFL is included in these commands.
 ## Linux x86_64 with Docker
 
 The checked-in image recipe pins an amd64 Debian base and the repository used
-to install Dune3.24.1. The image's5.5.1 compiler only bootstraps Dune: the project
-lock builds OCaml5.5.0 and the runner asserts that exact version. A moving `5.5`
-image tag is not proof of5.5.0. OS packages are resolved during image construction,
+to install Dune 3.24.1. The image's 5.5.1 compiler only bootstraps Dune: the project
+lock builds OCaml 5.5.0 and the runner asserts that exact version. A moving `5.5`
+image tag is not proof of 5.5.0. OS packages are resolved during image construction,
 so retain the resulting image ID and package inventory; this is not a claim of
 bit-for-bit reproducible apt resolution.
 
@@ -34,7 +34,7 @@ docker run --name httpkit-linux-validation --platform linux/amd64 --init \
   > _artifacts/linux-local/run.log 2>&1
 ```
 
-The run has a12-hour outer limit. Record a nonzero exit as failure. Preserve its
+The run has a 12-hour outer limit. Record a nonzero exit as failure. Preserve its
 log even if setup failed before reports existed. After completion, inspect the
 exit state and copy any reports before removing this task's container:
 
@@ -59,9 +59,4 @@ host architecture as well as the container architecture. These commands do not
 run the long fuzz/soak campaigns, establish hosted deployment behavior or satisfy
 every release gate. Keep source/compiler/image identities attached to results.
 
-The first clean-clone run on `9dc7e2f` built 5.5.0 and reached the fast scenario suite,
-but failed because the validation coordinator had not created `_artifacts`
-before writing reports. The coordinator now creates its owned output directory.
-That failed run remains historical evidence; it is not a Linux acceptance pass.
-Later Linux checks passed on other candidates; see [current status](status.md)
-for their scope and source identities.
+See [status](status.md) for historical Linux results and their source identities.

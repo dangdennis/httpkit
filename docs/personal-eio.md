@@ -1,4 +1,4 @@
-# Using httpkit with Eio
+# Eio streaming and cancellation examples
 
 These examples target OCaml 5.5.0. Build from the repository using the
 [development setup](development.md).
@@ -94,8 +94,7 @@ are retained under `_artifacts/personal/`; failures remain failures.
 RSS sampling uses `ps`, and descriptor observation uses `/proc` on Linux or `lsof`
 on macOS. These require local process-observation access. Latencies include the
 intentional slow reads; reports identify histogram upper bounds rather than
-inventing precise percentiles. Local profiles are advisory and include OCaml client
-client overhead. This is not a comparison against another HTTP implementation.
+inventing precise percentiles. Local profiles are advisory and include OCaml client overhead. This is not a comparison against another HTTP implementation.
 
 Personal-use resource budgets are 256 MiB observed server RSS, at most 32 MiB
 post-warmup RSS growth, at most 1 MiB post-GC live heap variation, and at most two
@@ -105,11 +104,8 @@ Inspect the retained trends as well. Engine queue bounds have separate exact
 checks. The initial reference observation precedes warmup; the first two
 observations are excluded from growth comparisons.
 
-AFL work is currently deferred at user request. If resumed separately, the catalog's
-14 targets at 30 minutes each run sequentially (about seven hours plus setup and
-corpus replay). They retain the original 512 MiB and 2-second execution limits.
-Source changes invalidate final evidence. Neither these budgets nor the personal
-profile replaces the [public-release requirements](release.md).
+AFL remains deferred. These workload budgets do not replace
+[release requirements](release.md).
 
 To run the current non-AFL local sequence and the approved two-hour soak:
 

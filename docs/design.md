@@ -1,13 +1,13 @@
 # httpkit package design
 
-This document records the current package names and implemented core contracts. The [test plan](test-harness-plan.md) defines the broader security and release requirements.
+This document records the current package names and implemented core contracts. See [testing](testing.md) for validation and [release policy](release.md) for acceptance.
 
 ## Package boundaries
 
 | Package | Responsibility | State |
 | --- | --- | --- |
 | `httpkit-core` | Immutable checked HTTP metadata and body-polymorphic messages | Implemented in `lib/core` |
-| `httpkit-harness` | Development runners, synthetic model, conformance evidence, docs tooling | Implemented for M0–M2 |
+| `httpkit-harness` | Development runners, synthetic model, conformance evidence, docs tooling | Development only |
 | `httpkit-http1` | Independently usable incremental HTTP/1 decoding and encoding | Implemented in `lib/http1` |
 | `httpkit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Implemented in `lib/engine` |
 | `httpkit-transport-eio` | Native Eio transport, cancellation, clocks, and body streams | Implemented |
@@ -68,34 +68,17 @@ Bodies are generic values. `map_body` invokes the caller's function once and can
 
 ## Security and ergonomics evidence
 
-`test/core` runs an independent byte-table oracle, exact-limit and injection cases, duplicate-order checks, full status-range probes, bounded-error checks, and four seeded properties. These operate on the real public library. They are separate from `test/self`, which tests the synthetic harness. The requirement registry distinguishes the two and keeps unimplemented protocol capabilities pending.
+`test/core` runs an independent byte-table oracle, exact-limit and injection cases, duplicate-order checks, full status-range probes, bounded-error checks, and four seeded properties. These operate on the real public library. They are separate from `test/self`, which tests the synthetic harness. The requirement registry distinguishes subject controls from harness self-tests.
 
 `tools/devlib/consumers.ml` builds and installs only core in a temporary project using the Dune-locked compiler. It compiles and runs bytecode/native consumers with only the installed library include path and stdlib. It also extracts, compiles, and runs the actual odoc example. Invalid constructor coercions and private helper/harness imports must fail compilation for the intended reason. This catches dependency leakage and misleading public examples early.
 
-The isolated staging project disables package mode solely to use Dune 3.24's install command, which is unavailable in package mode. The main workspace remains locked; this test performs no dependency resolution and uses the selected compiler from that lock.
+Native generated-input checks and benchmarks are described in [testing](testing.md)
+and [benchmarks](benchmarks.md). API documentation is authored in public `.mli`
+files and built with pinned odoc; first-party documentation warnings are fatal.
 
-`fuzz/core_fuzz.ml` exercises real constructors through Crowbar; the optional AFL campaign path is currently skipped by request. Historical instrumentation controls are not current campaign evidence. This is an infrastructure/early-regression check; long release campaigns and full protocol fuzz targets remain future work.
+## Implementation and readiness
 
-`bench/core_bench.ml` reports time and allocated bytes per operation for valid and late-rejected targets at 16/256/8192 bytes and header workloads at 1/10/100 fields. Fixture setup is outside measured work; an opaque identity keeps results observable to the optimizer. Results include compiler and source fingerprints through `tools/devlib/evidence.ml`. There are no pass/fail timing thresholds on developer laptops; stable-runner baselines and repeated statistical comparison are M6 work.
-
-odoc 3.2.1 is pinned in the normal and coverage locks as a development dependency. First-party documentation warnings are fatal. The API reference is authored beside the code in `.mli` files; this document explains cross-module decisions rather than duplicating every signature.
-
-## Current implementation boundary
-
-Core, codecs, engine, adapters and application extensions are implemented. The
-active work is the [production-confidence roadmap](protocol-libraries-plan.md),
-starting with HTTP/1 adversarial evidence and lifecycle/resource ownership.
-See the [architectural audit](production-audit.md) for source paths and concrete
-gaps. Historical milestones are not the current feature backlog.
-
-## Consolidation decisions
-
-Receive and send progress are independent private engine states. Completion,
-input abort and transfer are explicit; output acknowledgements still control
-retirement. No public runtime dependency was added. Adapter admission helpers
-accept immutable engine limits and create fresh engines per connection.
-
-Benchmark fixture configuration uses named variants and records. Shared helpers
-cover wire construction and input-prefix accounting, while runtime/library
-ownership remains visible in each driver. Pipeline correctness includes ordered
-request/response identity. See [the consolidation plan](code-quality-plan.md).
+Core, codecs, engine, adapters and application extensions are implemented.
+[Status](status.md) records validation and remaining blockers. Package presence
+does not imply release approval. Historical consolidation decisions are in the
+[implementation record](archive/implementation-history.md).

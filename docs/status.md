@@ -50,6 +50,9 @@ HTTP-level cause. It does not yet identify the OCaml/macOS cause or prove deploy
 applications cannot encounter it. Simpler yield, select, thread-turnover and
 read/allocation controls passed. See [the investigation](profiling-hang.md).
 
+The [historical AFL timeout findings](request-timeout-investigation.md) also remain
+unresolved; their investigation is deferred. They are separate from the profiling hang.
+
 ## What remains
 
 - Resolve or explicitly bound the applicability of the hang before broad rollout.

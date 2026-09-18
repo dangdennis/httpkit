@@ -20,21 +20,8 @@ Eio is the first deployment target. Lwt correctness is required; benchmark parit
 is deferred. Railway direct is the planned hosted topology, with Caddy optional.
 No hosted environment is implied by passing local tests.
 
-## Delivery work
-
-| Area | Implemented / historical evidence | Remaining acceptance |
-| --- | --- | --- |
-| Protocol and lifecycle | Segmentation, framing, quotas, cancellation, handoff and early-response regressions | Candidate-matched evidence and unresolved findings |
-| Application features | Multipart controls, buffered WebSocket parsing, bounded password example and feature ownership review | Application-specific fault/deployment checks |
-| Diagnostics | Queue/admission/shutdown observations and opt-in profiler worker snapshots | Resolve or bound the runtime/socket hang |
-| Fuzz and coverage | Earlier 14-target campaign, seven curated mutations and coverage above configured thresholds completed | Fresh manifest for the selected candidate |
-| Resources | Earlier capacity, slow-client, SQLite and PostgreSQL campaigns completed | Stable profiling and the intended deployment budget |
-| Platforms and installation | Local macOS/Linux checks and archive consumers completed on earlier candidates | Final candidate archive and target-environment checks |
-| Distribution | MIT, package metadata, private reporting and install instructions prepared | Final dependency/notices review, release notes and owner publication approval |
-
-Earlier successful reports are not transferable to a changed source hash. The
-fixture fix and diagnostic additions each have their own validation records.
-The unresolved hang remains visible even when a later profile passes.
+Implementation and validation outcomes live in [status](status.md). Historical
+results cannot transfer to a changed source hash.
 
 ## Acceptance requirements
 
@@ -60,8 +47,8 @@ report contracts. Keep its requirements intact:
 Work on main in small validated commits. Freeze source, docs, locks and tools
 before collecting release evidence; preserve failed and interrupted attempts.
 Do not fabricate missing approvals or convert historical reports into current ones.
-Hosted CI and AFL remain excluded; use the approved local/native checks. No API
-review is being performed in this task.
+Hosted CI and AFL remain excluded; use the approved local/native checks.
+API review remains deferred.
 
 Approve the exact hosted resource/cost plan before creating paid staging. Approve
 the prepared beta before publishing it. A production claim additionally requires
