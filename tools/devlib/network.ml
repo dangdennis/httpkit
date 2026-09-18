@@ -1,6 +1,7 @@
 open Common
 
 type connection = {
+  trace : Load_trace.worker option;
   fd : Unix.file_descr;
   mutable closed : bool;
   mutable read_calls : int;
@@ -9,8 +10,9 @@ type connection = {
   mutable available : int;
 }
 
-let of_fd fd =
+let of_fd ?trace fd =
   {
+    trace;
     fd;
     closed = false;
     read_calls = 0;
@@ -27,8 +29,10 @@ type response = {
 
 let close c =
   if not c.closed then (
+    Load_trace.phase c.trace "closing";
     c.closed <- true;
-    Unix.close c.fd)
+    Unix.close c.fd;
+    Load_trace.phase c.trace "closed")
 
 let ready fd write timeout =
   let r, w, _ =
@@ -39,7 +43,8 @@ let ready fd write timeout =
   in
   require (r <> [] || w <> []) "Socket deadline exceeded"
 
-let connect ?(timeout = 15.) ?receive_buffer port =
+let connect ?trace ?(timeout = 15.) ?receive_buffer port =
+  Load_trace.phase trace "connecting";
   let fd = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
   Unix.set_nonblock fd;
   try
@@ -54,21 +59,25 @@ let connect ?(timeout = 15.) ?receive_buffer port =
        match Unix.getsockopt_error fd with
        | None -> ()
        | Some e -> raise (Unix.Unix_error (e, "connect", "loopback"))));
-    of_fd fd
+    Load_trace.phase trace "connected";
+    of_fd ?trace fd
   with exn ->
     Unix.close fd;
     raise exn
 
-let with_connection port f =
-  let c = connect port in
+let with_connection ?trace port f =
+  let c = connect ?trace port in
   Fun.protect ~finally:(fun () -> close c) (fun () -> f c)
 
 let send c s =
   let deadline = monotonic () +. 15. in
   let rec loop off =
     if off < String.length s then (
+      Load_trace.phase c.trace "write-ready";
       ready c.fd true (max 0. (deadline -. monotonic ()));
+      Load_trace.phase c.trace "writing";
       let n = Unix.write_substring c.fd s off (String.length s - off) in
+      Load_trace.phase c.trace "processing";
       require (n > 0) "Socket write stopped";
       loop (off + n))
   in
@@ -79,13 +88,16 @@ let recv ?(timeout = 15.) c n =
   if n = 0 then ""
   else (
     if c.position = c.available then (
+      Load_trace.phase c.trace "read-ready";
       ready c.fd false timeout;
+      Load_trace.phase c.trace "reading";
       c.position <- 0;
       c.available <- 0;
       c.read_calls <- c.read_calls + 1;
       c.available <-
         (try Unix.read c.fd c.buffer 0 (Bytes.length c.buffer)
-         with Unix.Unix_error (Unix.ECONNRESET, _, _) -> 0));
+         with Unix.Unix_error (Unix.ECONNRESET, _, _) -> 0);
+      Load_trace.phase c.trace "processing");
     let count = min n (c.available - c.position) in
     let result = Bytes.sub_string c.buffer c.position count in
     c.position <- c.position + count;

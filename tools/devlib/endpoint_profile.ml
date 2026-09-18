@@ -126,6 +126,7 @@ let concurrencies value =
   values
 
 let main args =
+  let diagnostic = List.mem "--diagnostics" args in
   let concurrencies = concurrencies (option args "--concurrencies" "1,4,8") in
   let capacity = List.fold_left max 16 concurrencies in
   let rss_limit_kib = if capacity > 16 then 524288 else 262144 in
@@ -206,6 +207,7 @@ let main args =
            ("rss_limit_kib", `Int rss_limit_kib);
            ("warmup_seconds_per_configuration", `Float 1.);
            ("keep_alive", `Bool true);
+           ("diagnostic_run", `Bool diagnostic);
            ( "measurement_note",
              `String
                "Server counters include boundary sampling and connection \
@@ -221,25 +223,38 @@ let main args =
     put key (`List (list (field key !report) @ [ value ]))
   in
   let save_report () = save (directory / "report.json") !report in
+  let diagnostics =
+    if diagnostic then Some (directory / "workers.json") else None
+  in
   save_report ();
   try
     Framework.with_app ~env ~binary ~directory (fun app ->
+        if diagnostic then (
+          save
+            (directory / "processes.json")
+            (`Assoc
+               [
+                 ("client", `Int (Unix.getpid ()));
+                 ("server", `Int app.child.pid);
+                 ("port", `Int app.port);
+               ]);
+          Printf.printf "Endpoint diagnostics: %s\n%!" directory);
         Framework.exercise app;
         List.iter
           (fun case ->
             List.iter
               (fun concurrency ->
                 ignore
-                  (Load.epoch ~port:app.port ~seconds:1. ~concurrency ~rate:0.
-                     ~seed:42 ~modes:1 (operation case));
+                  (Load.epoch ?diagnostics ~port:app.port ~seconds:1.
+                     ~concurrency ~rate:0. ~seed:42 ~modes:1 (operation case));
                 for repetition = 1 to repetitions do
                   require
                     (Build.source_hash () = digest)
                     "Sources changed during endpoint profile";
                   let before = counters ~capacity app in
                   let epoch =
-                    Load.epoch ~port:app.port ~seconds ~concurrency ~rate:0.
-                      ~seed:42 ~modes:1 (operation case)
+                    Load.epoch ?diagnostics ~port:app.port ~seconds ~concurrency
+                      ~rate:0. ~seed:42 ~modes:1 (operation case)
                   in
                   require
                     (List.length (list (field "worker_operations" epoch))

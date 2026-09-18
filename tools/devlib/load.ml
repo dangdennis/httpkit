@@ -244,49 +244,61 @@ let framework_operation app database c _rng mode =
             require (Framework.recv_frame c = (8, "")) "WebSocket close");
         ("websocket", 5)
 
-let epoch ~port ~seconds ~concurrency ~rate ~seed ~modes operation =
+let epoch ?diagnostics ~port ~seconds ~concurrency ~rate ~seed ~modes operation
+    =
   let started = monotonic () in
   let deadline = started +. seconds in
   let rows =
-    parallel concurrency (fun stopped index ->
-        let rng = Random.State.make [| seed + index |]
-        and counts = Hashtbl.create 16
-        and hist = Hashtbl.create 16
-        and transferred = ref 0
-        and read_calls = ref 0 in
-        with_connection port (fun c ->
-            while (not (Atomic.get stopped)) && monotonic () < deadline do
-              let start = monotonic () in
-              let name, size = operation c rng (Random.State.int rng modes) in
-              let elapsed = monotonic () -. start in
-              let bucket =
-                Array.find_index
-                  (fun upper -> elapsed *. 1000. <= upper)
-                  buckets
-              in
-              let bucket =
-                match bucket with
-                | Some n -> n
-                | None -> fail "Operation exceeded ten seconds: %s" name
-              in
-              Hashtbl.replace counts name
-                (1 + Option.value ~default:0 (Hashtbl.find_opt counts name));
-              let bins =
-                match Hashtbl.find_opt hist name with
-                | Some bins -> bins
-                | None ->
-                    let bins = Array.make (Array.length buckets) 0 in
-                    Hashtbl.add hist name bins;
-                    bins
-              in
-              bins.(bucket) <- bins.(bucket) + 1;
-              transferred := !transferred + size;
-              if rate > 0. then
-                interruptible_sleep stopped
-                  (max 0. ((float concurrency /. rate) -. elapsed))
-            done;
-            read_calls := c.read_calls);
-        (counts, hist, !transferred, !read_calls))
+    Load_trace.with_workers diagnostics concurrency (fun traces ->
+        parallel concurrency (fun stopped index ->
+            let trace = traces.(index) in
+            try
+              let rng = Random.State.make [| seed + index |]
+              and counts = Hashtbl.create 16
+              and hist = Hashtbl.create 16
+              and transferred = ref 0
+              and read_calls = ref 0 in
+              with_connection ?trace port (fun c ->
+                  while (not (Atomic.get stopped)) && monotonic () < deadline do
+                    let start = monotonic () in
+                    let name, size =
+                      operation c rng (Random.State.int rng modes)
+                    in
+                    let elapsed = monotonic () -. start in
+                    let bucket =
+                      Array.find_index
+                        (fun upper -> elapsed *. 1000. <= upper)
+                        buckets
+                    in
+                    let bucket =
+                      match bucket with
+                      | Some n -> n
+                      | None -> fail "Operation exceeded ten seconds: %s" name
+                    in
+                    Hashtbl.replace counts name
+                      (1
+                      + Option.value ~default:0 (Hashtbl.find_opt counts name));
+                    let bins =
+                      match Hashtbl.find_opt hist name with
+                      | Some bins -> bins
+                      | None ->
+                          let bins = Array.make (Array.length buckets) 0 in
+                          Hashtbl.add hist name bins;
+                          bins
+                    in
+                    bins.(bucket) <- bins.(bucket) + 1;
+                    transferred := !transferred + size;
+                    Load_trace.completed trace;
+                    if rate > 0. then
+                      interruptible_sleep stopped
+                        (max 0. ((float concurrency /. rate) -. elapsed))
+                  done;
+                  read_calls := c.read_calls);
+              Load_trace.phase trace "finished";
+              (counts, hist, !transferred, !read_calls)
+            with exn ->
+              Load_trace.phase trace "failed";
+              raise exn))
   in
   let counts = Hashtbl.create 16
   and hist = Hashtbl.create 16

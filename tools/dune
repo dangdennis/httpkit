@@ -26,6 +26,11 @@
  (libraries devlib))
 
 (test
+ (name load_trace_test)
+ (modules load_trace_test)
+ (libraries devlib))
+
+(test
  (name capacity_test)
  (modules capacity_test)
  (libraries devlib))

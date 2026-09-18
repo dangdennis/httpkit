@@ -112,7 +112,7 @@ let () =
               "--profile";
               "--concurrencies";
             ]
-          ~flags:[] args;
+          ~flags:[ "--diagnostics" ] args;
         Endpoint_profile.main args
     | "capacity-stress" :: args ->
         Common.validate_options

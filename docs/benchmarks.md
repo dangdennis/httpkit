@@ -445,6 +445,14 @@ a paused runtime does not change the configured transport fragmentation.
 
 ## End-to-end application endpoint profile
 
+For stall investigation, add `--diagnostics`. This writes `workers.json` beside
+the report every half second, recording worker phases and completed operations,
+and marks the report `diagnostic_run: true`. Diagnostic timings are not acceptance
+measurements. The sampler shares the load generator's runtime; an external
+watchdog must capture process stacks if snapshots or completed epochs stop.
+`processes.json` identifies the owned client, server, and loopback port for that
+capture. Tracing does not change socket deadlines or response checks.
+
 ```sh
 tools/dev endpoint-profile --seconds 10 --repetitions 3
 # Explicit optimized server build, isolated from ordinary development builds:
