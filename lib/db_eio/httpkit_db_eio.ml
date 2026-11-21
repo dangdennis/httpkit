@@ -247,8 +247,8 @@ let failed_of_driver (e : Sqlkit.Driver.error) =
       message = e.message;
     }
 
-let create_postgresql ~max_connections ~max_users ~statement_timeout ~sw ~stdenv
-    uri =
+let create_postgresql ~max_connections ~max_users ~statement_timeout
+    ~statement_cache ~sw ~stdenv uri =
   let limits =
     {
       Sqlkit.Limits.default with
@@ -262,7 +262,8 @@ let create_postgresql ~max_connections ~max_users ~statement_timeout ~sw ~stdenv
     Sqlkit_pgwire.Pool.create ~sw:inner ~net:stdenv#net ~clock:stdenv#mono_clock
       ~max_size:max_connections
       ~acquire_timeout:(Float.max 30. (3. *. statement_timeout))
-      ~query_timeout:(statement_timeout +. 5.) ~limits (Uri.to_string uri)
+      ~query_timeout:(statement_timeout +. 5.) ~statement_cache ~limits
+      (Uri.to_string uri)
   with
   | Ok pool ->
       {
@@ -281,7 +282,7 @@ let create_postgresql ~max_connections ~max_users ~statement_timeout ~sw ~stdenv
       raise (failed_of_error e)
 
 let create ?(max_connections = 8) ?(max_waiters = 32) ?(statement_timeout = 10.)
-    ~sw ~stdenv uri =
+    ?(statement_cache = true) ~sw ~stdenv uri =
   if
     max_connections <= 0 || max_waiters < 0
     || max_waiters > max_int - max_connections
@@ -292,8 +293,8 @@ let create ?(max_connections = 8) ?(max_waiters = 32) ?(statement_timeout = 10.)
   let max_users = max_connections + max_waiters in
   match Uri.scheme uri with
   | Some "postgresql" | Some "postgres" ->
-      create_postgresql ~max_connections ~max_users ~statement_timeout ~sw
-        ~stdenv uri
+      create_postgresql ~max_connections ~max_users ~statement_timeout
+        ~statement_cache ~sw ~stdenv uri
   | Some "sqlite3" when Uri.path uri <> "" && Uri.path uri <> ":memory:" ->
       create_sqlite ~max_connections ~max_users ~sw ~stdenv uri
   | _ -> invalid_arg "expected PostgreSQL or file-backed SQLite URI"

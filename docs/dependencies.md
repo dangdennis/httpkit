@@ -66,7 +66,7 @@ sqlkit is not on opam. `dune-project` pins three packages, all version 0.1.0, to
 one Git revision:
 
 ```
-git+https://github.com/dangdennis/sqlkit.git#77241d9f76365f58578e1e7fd0c4a6ca6ef67f17
+git+https://github.com/dangdennis/sqlkit.git#079ed9ef9694f559530961ac493e10e608cc8809
 ```
 
 | Package | Role |

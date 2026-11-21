@@ -28,6 +28,7 @@ val create :
   ?max_connections:int ->
   ?max_waiters:int ->
   ?statement_timeout:float ->
+  ?statement_cache:bool ->
   sw:Eio.Switch.t ->
   stdenv:Caqti_eio.stdenv ->
   Uri.t ->
@@ -37,6 +38,11 @@ val create :
     supported by PostgreSQL, not SQLite; the server enforces them, with a client
     deadline five seconds behind that costs the connection if it is ever
     reached.
+
+    PostgreSQL 15 or later. Behind PgBouncer in transaction mode without
+    prepared-statement support ([max_prepared_statements] unset or zero), pass
+    [~statement_cache:false]: every statement is then parsed afresh instead of
+    being prepared by name. It has no effect on SQLite.
 
     PostgreSQL connection strings are sqlkit-pgwire's: [sslmode] defaults to
     [prefer] (TLS when offered, certificate not verified); ask for [verify-full]

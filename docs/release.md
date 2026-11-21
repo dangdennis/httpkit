@@ -95,7 +95,7 @@ Required report names and payload contracts:
 | Name | Required payload beyond status/source |
 | --- | --- |
 | `compiler/<platform>` | `compiler`, matching `platform`, `execution: LOCAL`, installed-consumer/integration booleans |
-| `interop` | Exact six-lane `results` inventory |
+| `interop` | Exact three-lane `results` inventory |
 | `mutations`, `framework-mutations` | Exact curated `results`: `name`, `compiled: true`, `status: KILLED` |
 | `coverage/core`, `/framework`, `/extensions` | `visited`, `total`, `percent`, `missing_files: []`, `critical_paths_reviewed: true`, `metric: instrumented points, not branches` |
 | `native/<target>` | `target`, `mode: NATIVE`, `runs` with seed/status/exit/seconds/checked/skipped/generated/failed/binary_sha256 and `timing_scope: child_campaign`; each batch has checked inputs and zero failures; `regression_inventory_replayed`, `negative_controls_passed`, empty `unresolved_findings` |
