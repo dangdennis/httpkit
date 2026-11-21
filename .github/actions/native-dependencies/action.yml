@@ -7,7 +7,7 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpq-dev postgresql libsqlite3-dev libgmp-dev libargon2-dev libffi-dev pkg-config
+        sudo apt-get install -y postgresql libsqlite3-dev libgmp-dev libargon2-dev libffi-dev pkg-config
     - if: runner.os == 'macOS'
       shell: bash
       run: |

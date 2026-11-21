@@ -44,7 +44,7 @@ opam repository add httpkit-tested \
   'git+https://github.com/ocaml/opam-repository.git#5d711cd97e038d93464ab855e041c0ff624c9d07' \
   --this-switch
 opam repository set-repos httpkit-tested --this-switch
-SQLKIT='git+https://github.com/dangdennis/sqlkit.git#77241d9f76365f58578e1e7fd0c4a6ca6ef67f17'
+SQLKIT='git+https://github.com/dangdennis/sqlkit.git#079ed9ef9694f559530961ac493e10e608cc8809'
 opam pin add --no-action sqlkit.0.1.0 "$SQLKIT"
 opam pin add --no-action sqlkit-pool-eio.0.1.0 "$SQLKIT"
 opam pin add --no-action sqlkit-pgwire.0.1.0 "$SQLKIT"

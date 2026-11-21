@@ -119,7 +119,7 @@
 ; sqlkit is not on opam yet. PostgreSQL goes through its pure OCaml driver;
 ; SQLite stays on Caqti.
 (pin
- (url "git+https://github.com/dangdennis/sqlkit.git#77241d9f76365f58578e1e7fd0c4a6ca6ef67f17")
+ (url "git+https://github.com/dangdennis/sqlkit.git#079ed9ef9694f559530961ac493e10e608cc8809")
  (package (name sqlkit) (version 0.1.0))
  (package (name sqlkit-pool-eio) (version 0.1.0))
  (package (name sqlkit-pgwire) (version 0.1.0)))

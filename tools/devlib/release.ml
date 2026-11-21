@@ -308,7 +308,7 @@ let assess ?(profile = Production) ~clean ~candidate ~lock_sha256 directory
     platforms;
   add "interop"
     (fun () -> inventory (field "results" (evidence "interop")) "lane" lanes)
-    "Six direct/Nginx controls; live staging is a separate gate.";
+    "Three direct/Nginx controls; live staging is a separate gate.";
   List.iter
     (fun (name, expected) ->
       add name

@@ -70,7 +70,7 @@ and TLS code had one adversarial review on 2026-11-21, which included a scripted
 hostile server. It found twelve issues, three of them high severity (host name
 not checked under `verify-full` for some names, message lengths wrapping at
 4 GiB, and no authentication-method policy). All are fixed in the pinned commit
-`77241d9` with regression tests. That review was produced with the same tooling
+`079ed9e` with regression tests. That review was produced with the same tooling
 that wrote the driver; there has been no review by an independent party.
 `sslmode` defaults to `prefer`, which does not verify the server certificate,
 and the password itself is sent only over TLS or a Unix socket unless
@@ -96,6 +96,53 @@ read/allocation controls passed. See [the investigation](profiling-hang.md).
 
 The [historical AFL timeout findings](request-timeout-investigation.md) also remain
 unresolved; their investigation is deferred. They are separate from the profiling hang.
+
+**Production testing of the PostgreSQL path, 2026-11-21 (second pass):** run
+against the driver before and after its fixes; the pinned commit is `079ed9e`.
+
+- *Descriptor leak, fixed in the pin.* The driver leaked one socket for every
+  TCP connect that failed. Through the starter, a 20-second database outage
+  took the process from 20 to 814 descriptors, and with a limit of 128 a
+  6-second outage ended it with `Too many open files`. After the fix, 400
+  requests with the server stopped left the count unchanged (15 before, 14
+  after), using a `localhost` URL, which previously leaked on every connection.
+- *Commit reported as success after a rollback, fixed in the pin.* Behind
+  PgBouncer in transaction mode a migration returned normally and created
+  nothing. A COMMIT that the server answers with `ROLLBACK` is now an error.
+  The session-store test passes through PgBouncer with and without
+  prepared-statement support, and the tables exist afterwards.
+- *Statement-name collisions behind PgBouncer, fixed in the pin.* Two clients
+  sharing a backend could receive each other's rows. Statement names are now
+  derived from the SQL. `create` takes `~statement_cache:false` for poolers
+  without prepared-statement support.
+- *Faults through the HTTP stack (previous pin `77241d9`).* 12 workers for ten
+  minutes with backends terminated every few seconds, a server restart and
+  15- and 45-second pauses: 93,670 writes acknowledged, all present, none
+  duplicated; recovery within 5 to 50 ms of each fault ending; no request
+  past 30.0 s; the process never hung. Fourteen writes that returned 500 had
+  in fact committed, which is the documented unknown-outcome case.
+- *Soaks (previous pin).* 20 minutes on PostgreSQL and 10 on SQLite with no
+  unexpected error and flat memory and descriptors. The PostgreSQL soak issues
+  about two database statements a second, so it says little about load.
+- *Coverage.* Core 95.37%, framework 86.15%, extensions 84.35%.
+  `httpkit_db_eio.ml` is at 78.8%: `Null` values, the nested-transaction and
+  closed-pool guards, quoted placeholders and the checksum-mismatch branch are
+  not exercised.
+- *Linux x86_64 container.* `tools/dev validate` passed. `tools/dev databases`
+  failed because the driver required a user name and the container had no
+  `USER`; the pinned driver now falls back to the account the process runs as.
+  Not re-run on Linux since.
+- *Not re-run against `079ed9e`:* the ten-minute fault run, the soaks, coverage
+  and the Linux container. Re-run on it: the database and session tests on
+  both backends and through PgBouncer, `tools/dev databases`, `tools/dev
+  validate`, and the outage descriptor check above.
+- PostgreSQL 15 is the oldest supported server. Older ones are not refused and
+  not tested.
+- Unrelated to these changes: fresh OCaml toolchain builds fail on this
+  machine's current Xcode SDK (`pipe2` is weak-linked and absent at run time),
+  so `_build-pkg-5.5.0` cannot be recreated here without
+  `ac_cv_func_pipe2=no`; four AFL targets each saved one timeout that does not
+  reproduce on replay; the starter's accept loop treats `EMFILE` as fatal.
 
 ## What remains
 

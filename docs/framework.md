@@ -183,6 +183,11 @@ five seconds behind it that costs the connection if reached. sqlkit's default
 SQLite gets a bounded lock wait and foreign keys. SQLite
 statement execution does not acquire PostgreSQL's timeout guarantee.
 
+PostgreSQL 15 or later. Behind PgBouncer in transaction mode, use PgBouncer
+1.21 or later with `max_prepared_statements` set, or pass
+`~statement_cache:false` to `Db.create`, which parses every statement afresh
+instead of preparing it by name.
+
 PostgreSQL connection strings are sqlkit-pgwire's. `sslmode` defaults to
 `prefer`: TLS when offered, certificate not verified. `require`, `verify-ca`,
 `verify-full` and `sslrootcert` are supported; use `verify-full` on a network
