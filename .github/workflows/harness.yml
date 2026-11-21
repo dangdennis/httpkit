@@ -10,7 +10,7 @@ jobs:
         include:
           - os: ubuntu-24.04
             compiler: 5.5.0
-          - os: macos-14
+          - os: macos-15
             compiler: 5.5.0
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
