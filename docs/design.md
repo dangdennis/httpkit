@@ -11,29 +11,26 @@ This document records the current package names and implemented core contracts. 
 | `httpkit-http1` | Independently usable incremental HTTP/1 decoding and encoding | Implemented in `lib/http1` |
 | `httpkit-engine` | Sans-I/O client/server lifecycle, body demand, bounded queues, handoff | Implemented in `lib/engine` |
 | `httpkit-transport-eio` | Native Eio transport, cancellation, clocks, and body streams | Implemented |
-| `httpkit-transport-lwt` | Native Lwt transport, cancellation, clocks, and body streams | Implemented |
 | `httpkit-client` | Runtime-neutral URL and request policy | Experimental |
 | `httpkit-client-eio` | Scoped streaming HTTP/HTTPS client and bounded pools | Experimental |
-| `httpkit-client-lwt` | Scoped streaming HTTP/HTTPS client and bounded pools | Experimental |
 | `httpkit-middleware` | Basic, typed-context and transition handler composition | Implemented |
 | `httpkit-router` | Bounded raw-path matching with explicit method outcomes | Implemented |
 | `httpkit` | Runtime-neutral web primitives: URL/forms, JSON, cookies, HTML, multipart and realtime codecs | Implemented |
 | `httpkit-eio` | Eio applications, middleware, files, sessions and realtime connections | Implemented |
-| `httpkit-lwt` | Lwt applications, middleware, sessions and realtime connections | Implemented |
-| `httpkit-db-eio` | Caqti pools, transactions and migrations for PostgreSQL/SQLite | Implemented |
+| `httpkit-db-eio` | Pools, transactions, migrations and portable statements; PostgreSQL through sqlkit's pure OCaml driver, SQLite through Caqti | Implemented; PostgreSQL driver unreviewed |
 | `httpkit-cookie` | Encrypted cookie sessions and key rotation | Implemented |
 | `httpkit-session-eio` | Shared PostgreSQL/SQLite browser sessions | Implemented |
 | `httpkit-password` | Argon2id hashing, verification and rehash policy | Implemented |
 | `httpkit-oidc` | Authorization-code/PKCE requests and ID-token policy | Implemented |
 | `httpkit-oidc-eio` | Browser login, callback handling and provider requests | Implemented |
 
-Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Codecs depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. Eio and Lwt have their own native APIs, without a shared monadic runtime abstraction.
+Each primitive has one useful public contract and can be consumed independently. Core does not pull in a parser, server, scheduler, or test framework. Codecs depend on core; engines compose codecs; adapters supply I/O and time to engines. An application can use values or codecs without using an engine. The Eio adapter exposes a native direct-style API, without a monadic runtime abstraction.
 
 Production package names are also Dune public library names. Their entry modules capitalize
 `Httpkit` and replace hyphens with underscores: `httpkit-core` exposes
 `Httpkit_core`, and `httpkit-transport-eio` exposes `Httpkit_transport_eio`.
-`httpkit` exposes `Httpkit`; `httpkit-eio` and `httpkit-lwt` expose the application
-modules `Httpkit_eio` and `Httpkit_lwt`. Use the `transport` packages for low-level
+`httpkit` exposes `Httpkit`; `httpkit-eio` exposes the application
+module `Httpkit_eio`. Use the `transport` package for low-level
 connections. See the [framework guide](framework.md) and [extensions](extensions.md)
 for application APIs and installation examples. Packages are not yet published to opam.
 

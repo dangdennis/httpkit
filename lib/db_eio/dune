@@ -1,3 +1,3 @@
 (library (name httpkit_db_eio) (public_name httpkit-db-eio)
- (libraries caqti-eio.unix caqti-driver-postgresql caqti-driver-sqlite3 digestif)
+ (libraries sqlkit sqlkit-pgwire eio caqti caqti.classic caqti-eio.unix caqti-driver-sqlite3 digestif uri)
  (instrumentation (backend bisect_ppx)))

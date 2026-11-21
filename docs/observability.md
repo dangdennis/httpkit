@@ -1,8 +1,8 @@
 # Application observations
 
-Both `Httpkit_eio.serve` and `Httpkit_lwt.serve` accept an optional
+`Httpkit_eio.serve` accepts an optional
 `~observe:Httpkit.Observation.sink`. The event types live in the runtime-neutral
-`httpkit` package; neither runtime nor a telemetry vendor is required to consume
+`httpkit` package; neither Eio nor a telemetry vendor is required to consume
 them. Leaving the option unset creates no events or transport-counting wrappers.
 
 Connection events cover ownership:
@@ -50,7 +50,7 @@ its own bounded queue and lifecycle.
 
 `test/production/observation_test.ml` exercises partial reads/writes, upgrades,
 invalid write counts, I/O and close failures, ordinary sink exceptions and sink
-cancellation in both runtimes. The admission suite also runs with observations
+cancellation. The admission suite also runs with observations
 enabled and disabled, checking bounded active counts through suspended cleanup.
 
 ## Request and callback scopes
@@ -119,8 +119,8 @@ with exhaustive matches to handle them when updating before API stabilization.
 ## Output queue occupancy
 
 `Output_queue_changed` samples serialized bytes waiting in the HTTP engine after
-normal state changes, suppressing consecutive equal values. Both adapters also
-expose the optional `with_connection ~on_output_queue` hook for users below the
+normal state changes, suppressing consecutive equal values. The Eio adapter also
+exposes the optional `with_connection ~on_output_queue` hook for users below the
 application layer. Sampling precedes waking adapter waiters, so an observer sees
 the queue before a woken writer can drain it. The hook follows the same synchronous,
 nonblocking, ordinary-error-isolated contract as the application sink.
@@ -130,7 +130,7 @@ or evidence of peer receipt. Failure and teardown bypass queue hooks to preserve
 cleanup and the original failure; no terminal zero event is guaranteed. Retire
 the gauge on `Connection_closed`, or when a direct adapter scope ends.
 
-Both-runtime controls cover queue growth, bounded values, duplicate suppression,
+Eio controls cover queue growth, bounded values, duplicate suppression,
 partial-write drain, and positive occupancy when response production finishes
 before the writer is released. Sink cancellation during partial parsing must join
 cleanup and close exactly once without dispatching a handler.

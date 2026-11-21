@@ -50,7 +50,7 @@ The stock reader has no public close for early abort. The private `closeable_zli
 experiment derives the pinned upstream inflate-reader code under its ISC license
 and calls upstream native free directly. Close is idempotent, never drains input,
 and checks terminal state after source callbacks resume. Tests include source
-exceptions, overlapping reads, retained closed handles and Eio input/Lwt consumer
+exceptions, overlapping reads, retained closed handles and Eio input/consumer
 cancellation. It depends on a private upstream C ABI and is not a production API.
 
 Remaining gates: a supported close API or separately reviewed ownership layer,

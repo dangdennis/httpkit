@@ -14,7 +14,6 @@ depends: [
   "httpkit-db-eio"
   "base64"
   "eqaf"
-  "caqti-eio"
   "digestif"
   "ocaml" {= "5.5.0"}
   "odoc" {with-doc}

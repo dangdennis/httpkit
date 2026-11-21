@@ -124,86 +124,24 @@ let eio case consume step =
           App.reply (Httpkit.Reply.text "ok"));
       verify case consume !handled !events !closed)
 
-let lwt case consume step =
-  let open Lwt.Infix in
-  let module App = Httpkit_lwt in
-  let module A = Httpkit_transport_lwt in
-  let stop, wake = Lwt.wait () in
-  let accepted = ref false
-  and stopped = ref false
-  and pos = ref 0
-  and closed = ref 0
-  and handled = ref 0
-  and events = ref [] in
-  let observe event =
-    events := event :: !events;
-    match event with
-    | O.Connection_closed _ when not !stopped ->
-        stopped := true;
-        Lwt.wakeup_later wake ()
-    | _ -> ()
-  in
-  let input = wire case in
-  let transport : A.transport =
-    {
-      read =
-        (fun bytes off len ->
-          if !pos = String.length input then fst (Lwt.task ())
-          else
-            let n = min step (min len (String.length input - !pos)) in
-            Bytes.blit_string input !pos bytes off n;
-            pos := !pos + n;
-            Lwt.return n);
-      write = (fun _ _ len -> Lwt.return (min 7 len));
-      close =
-        (fun () ->
-          incr closed;
-          Lwt.return_unit);
-    }
-  in
-  Lwt_main.run
-    (Lwt_unix.with_timeout 1. (fun () ->
-         App.serve ~max_connections:1 ~body_limit:(limit case) ~policy
-           ~request_timeout:0.02 ~clock:A.monotonic_clock ~stop ~observe
-           ~random:(fun n -> String.make n 'x')
-           ~on_error:(fun exn ->
-             prerr_endline (Printexc.to_string exn);
-             Lwt.return_unit)
-           ~accept:(fun () ->
-             if !accepted then fst (Lwt.task ())
-             else (
-               accepted := true;
-               Lwt.return (transport, "test")))
-           (fun request ->
-             incr handled;
-             (if consume then
-                (if case = Partial_quota && !handled = 1 then
-                   App.read request >|= ignore
-                 else Lwt.return_unit)
-                >>= fun () -> App.body request >|= ignore
-              else Lwt.return_unit)
-             >|= fun () -> App.reply (Httpkit.Reply.text "ok"))));
-  verify case consume !handled !events !closed
-
 let () =
   Alcotest.run "Unread request body ownership"
-    (List.map
-       (fun (runtime, run) ->
-         ( runtime,
-           List.concat_map
-             (fun (case, consume) ->
-               List.map
-                 (fun step ->
-                   Alcotest.test_case
-                     ((if consume then "consume/" else "ignore/")
-                     ^ name case ^ "/" ^ string_of_int step)
-                     `Quick
-                     (fun () -> run case consume step))
-                 [ 1; 7; 16384 ])
-             (List.map
-                (fun c -> (c, true))
-                [ Fixed; Trailers; Malformed; Quota; Partial_quota; Stalled ]
-             @ List.map
-                 (fun c -> (c, false))
-                 [ Fixed; Trailers; Malformed; Quota; Stalled ]) ))
-       [ ("eio", eio); ("lwt", lwt) ])
+    [
+      ( "eio",
+        List.concat_map
+          (fun (case, consume) ->
+            List.map
+              (fun step ->
+                Alcotest.test_case
+                  ((if consume then "consume/" else "ignore/")
+                  ^ name case ^ "/" ^ string_of_int step)
+                  `Quick
+                  (fun () -> eio case consume step))
+              [ 1; 7; 16384 ])
+          (List.map
+             (fun c -> (c, true))
+             [ Fixed; Trailers; Malformed; Quota; Partial_quota; Stalled ]
+          @ List.map
+              (fun c -> (c, false))
+              [ Fixed; Trailers; Malformed; Quota; Stalled ]) );
+    ]

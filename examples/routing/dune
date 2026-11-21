@@ -2,5 +2,3 @@
  (libraries httpkit-core httpkit-router httpkit-middleware))
 (executable (name eio_server) (modules eio_server)
  (libraries application httpkit-transport-eio eio_main))
-(executable (name lwt_server) (modules lwt_server)
- (libraries application httpkit-transport-lwt lwt.unix))

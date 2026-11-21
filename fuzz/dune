@@ -35,7 +35,7 @@
 
 (executable (name release_fuzz) (modules release_fuzz) (libraries httpkit-core httpkit-engine crowbar fuzz_input) (modes exe))
 
-(executable (name adapter_fuzz) (modules adapter_fuzz) (libraries httpkit-core httpkit-engine httpkit-transport-eio httpkit-transport-lwt eio.mock lwt.unix crowbar fuzz_input) (modes exe))
+(executable (name adapter_fuzz) (modules adapter_fuzz) (libraries httpkit-core httpkit-engine httpkit-transport-eio eio.mock crowbar fuzz_input) (modes exe))
 
 ; Deterministic OCaml PR smoke; no AFL process or instrumentation is required.
 (rule

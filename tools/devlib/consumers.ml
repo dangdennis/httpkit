@@ -3,14 +3,11 @@ open Common
 let package = function
   | "web" -> "httpkit"
   | "web_eio" -> "httpkit-eio"
-  | "web_lwt" -> "httpkit-lwt"
   | "eio" -> "httpkit-transport-eio"
-  | "lwt" -> "httpkit-transport-lwt"
   | "db_eio" -> "httpkit-db-eio"
   | "session_eio" -> "httpkit-session-eio"
   | "oidc_eio" -> "httpkit-oidc-eio"
   | "client_eio" -> "httpkit-client-eio"
-  | "client_lwt" -> "httpkit-client-lwt"
   | s -> "httpkit-" ^ s
 
 let project dir =
@@ -274,56 +271,32 @@ let protocol () =
          and private metadata")
 
 let adapters () =
-  List.iter
-    (fun (adapter, runtime, forbidden) ->
-      with_install [ "core"; "http1"; "engine"; adapter ]
-        [ runtime; "ipaddr"; "mtime.clock.os" ] (fun t ->
-          require
-            (not (Sys.file_exists (t.dir / "deps" / forbidden)))
-            "Opposite runtime dependency";
-          let c = t.dir / "consumer" in
-          project c;
-          List.iter
-            (fun n -> copy (root / "examples/runtime" / n) (c / n))
-            [ "transform.ml"; adapter ^ "_example.ml" ];
-          let name = adapter ^ "_example" in
-          write
-            (c / (name ^ ".ml"))
-            (read (c / (name ^ ".ml"))
-            ^ "\n\
-               let configured_server ~clock ~accept ~on_error handler = \
-               Httpkit_transport_" ^ adapter
-            ^ ".serve_connections ~output_limit:4096 ~informational_limit:2 \
-               ~clock ~accept ~on_error handler\n\
-               let _ = Httpkit_transport_" ^ adapter
-            ^ ".failure_to_string (Engine Httpkit_engine.Invalid_command)\n");
-          write (c / "dune")
-            (stanza name
-               ("httpkit-core httpkit-transport-" ^ adapter ^ " " ^ runtime));
-          require (execute t c name = "Hello /\n") "Shared handler output";
-          if adapter = "eio" then (
-            copy
-              (root / "examples/personal/eio_streaming.ml")
-              (c / "eio_streaming.ml");
-            write (c / "dune")
-              (stanza ~modules:"eio_streaming" "eio_streaming"
-                 "httpkit-transport-eio eio_main");
-            require
-              (execute t c "eio_streaming" = "Streamed 1048576 bytes each way\n")
-              "Streaming example output");
-          write (c / "opposite.ml")
-            ("let _ = "
-            ^ (if adapter = "eio" then "Lwt.return_unit" else "Eio.Fiber.yield")
-            ^ "\n");
-          write (c / "dune")
-            (stanza ~modules:"opposite" "opposite" (package adapter));
-          check_failure
-            (dune t ~check:false c [ "build"; "opposite.exe" ])
-            "Unbound module"))
-    [ ("eio", "eio_main", "lwt"); ("lwt", "lwt.unix", "eio") ];
-  print_endline
-    "PASS separately installed runtime adapters, streaming and \
-     opposite-runtime isolation"
+  with_install [ "core"; "http1"; "engine"; "eio" ]
+    [ "eio_main"; "ipaddr"; "mtime.clock.os" ] (fun t ->
+      let c = t.dir / "consumer" in
+      project c;
+      List.iter
+        (fun n -> copy (root / "examples/runtime" / n) (c / n))
+        [ "transform.ml"; "eio_example.ml" ];
+      write (c / "eio_example.ml")
+        (read (c / "eio_example.ml")
+        ^ "\n\
+           let configured_server ~clock ~accept ~on_error handler = \
+           Httpkit_transport_eio.serve_connections ~output_limit:4096 \
+           ~informational_limit:2 ~clock ~accept ~on_error handler\n\
+           let _ = Httpkit_transport_eio.failure_to_string (Engine \
+           Httpkit_engine.Invalid_command)\n");
+      write (c / "dune")
+        (stanza "eio_example" "httpkit-core httpkit-transport-eio eio_main");
+      require (execute t c "eio_example" = "Hello /\n") "Shared handler output";
+      copy (root / "examples/personal/eio_streaming.ml") (c / "eio_streaming.ml");
+      write (c / "dune")
+        (stanza ~modules:"eio_streaming" "eio_streaming"
+           "httpkit-transport-eio eio_main");
+      require
+        (execute t c "eio_streaming" = "Streamed 1048576 bytes each way\n")
+        "Streaming example output");
+  print_endline "PASS separately installed Eio runtime adapter and streaming"
 
 let framework_layers =
   [
@@ -348,7 +321,9 @@ let framework_deps =
     "eqaf";
     "mtime.clock.os";
     "caqti-eio.unix";
-    "caqti-driver-postgresql";
+    "sqlkit";
+    "sqlkit-pool-eio";
+    "sqlkit-pgwire";
     "caqti-driver-sqlite3";
   ]
 
@@ -371,7 +346,7 @@ let framework () =
           require
             (not (Sys.file_exists (t.dir / "deps" / backend)))
             ("Application library unexpectedly requires " ^ backend))
-        [ "eio_main"; "eio_posix"; "eio_linux"; "lwt" ];
+        [ "eio_main"; "eio_posix"; "eio_linux" ];
       let c = t.dir / "backend-independent" in
       project c;
       write (c / "consumer.ml")
@@ -386,9 +361,6 @@ let framework () =
        = "Application composition without backend selection\n")
         "Backend-independent application composition");
   with_install framework_layers framework_deps (fun t ->
-      require
-        (not (Sys.file_exists (t.dir / "deps/lwt")))
-        "Framework depends on Lwt";
       let c = t.dir / "consumer" in
       project c;
       List.iter
@@ -401,40 +373,27 @@ let framework () =
           ( "test/web_eio/runtime_test.ml",
             "runtime_test",
             "httpkit-eio eio_main" );
-          ("test/db_eio/db_test.ml", "db_test", "httpkit-db-eio eio_main");
+          ( "test/db_eio/db_test.ml",
+            "db_test",
+            "httpkit-db-eio sqlkit eio_main caqti caqti-eio.unix" );
         ];
-      List.iter
-        (fun (source, diagnostic) ->
-          write (c / "forged.ml") (source ^ "\n");
-          write (c / "dune") (stanza ~modules:"forged" "forged" "httpkit-eio");
-          check_failure
-            (dune t ~check:false c [ "build"; "forged.exe" ])
-            diagnostic)
-        [
-          ("let _ : Httpkit.Html.t = \"<script>\"", "Httpkit.Html.t");
-          ("let _ = Lwt.return_unit", "Unbound module Lwt");
-        ];
+      write (c / "forged.ml") "let _ : Httpkit.Html.t = \"<script>\"\n";
+      write (c / "dune") (stanza ~modules:"forged" "forged" "httpkit-eio");
+      check_failure
+        (dune t ~check:false c [ "build"; "forged.exe" ])
+        "Httpkit.Html.t";
       print_endline
-        "PASS installed framework native/bytecode, HTML opacity and runtime \
-         isolation")
+        "PASS installed framework native/bytecode, HTML opacity and backend \
+         independence")
 
 let extensions () =
   let layers =
     framework_layers
-    @ [
-        "lwt";
-        "web_lwt";
-        "cookie";
-        "session_eio";
-        "password";
-        "oidc";
-        "oidc_eio";
-      ]
+    @ [ "cookie"; "session_eio"; "password"; "oidc"; "oidc_eio" ]
   in
   with_install layers
     (framework_deps
     @ [
-        "lwt.unix";
         "argon2";
         "oidc";
         "jose";
@@ -457,7 +416,6 @@ let extensions () =
              mirage-crypto-rng.unix mirage-crypto-pk" );
           ( "sql_session_test",
             "httpkit-session-eio eio_main caqti-eio mirage-crypto-rng.unix" );
-          ("lwt_app_test", "httpkit-lwt lwt.unix mirage-crypto-rng.unix");
           ( "oidc_eio_test",
             "httpkit-oidc-eio eio_main mirage-crypto-rng.unix mirage-crypto-pk"
           );
@@ -466,8 +424,9 @@ let extensions () =
         String.trim
           (Build.output [ "exec"; "--"; "sh"; "-c"; "command -v ocamlfind" ])
       in
+      (* Runtime-neutral extensions must stay usable without Eio. *)
       List.iter
-        (fun (p, forbidden) ->
+        (fun p ->
           let names =
             Process.output ~env:t.env
               [ find; "query"; "-recursive"; "-format"; "%p"; p ]
@@ -476,33 +435,22 @@ let extensions () =
           require
             (not
                (List.exists
-                  (fun n -> n = forbidden || starts ~prefix:(forbidden ^ ".") n)
+                  (fun n -> n = "eio" || starts ~prefix:"eio." n)
                   names))
-            ("Forbidden runtime in " ^ p))
-        [
-          ("httpkit-lwt", "eio");
-          ("httpkit-oidc-eio", "lwt");
-          ("httpkit-cookie", "eio");
-          ("httpkit-password", "lwt");
-        ];
+            ("Eio runtime in " ^ p))
+        [ "httpkit-cookie"; "httpkit-password" ];
       print_endline "PASS extension dependency isolation")
 
 let clients () =
-  List.iter
-    (fun (adapter, runtime, forbidden) ->
-      let client = "client_" ^ adapter in
-      with_install
-        [ "core"; "http1"; "engine"; adapter; "client"; client ]
-        [ runtime; "tls-" ^ adapter; "uri"; "mtime.clock.os"; "ipaddr" ]
-        (fun t ->
-          require
-            (not (Sys.file_exists (t.dir / "deps" / forbidden)))
-            "Opposite client runtime dependency";
-          let c = t.dir / "consumer" in
-          project c;
-          let call =
-            if adapter = "eio" then
-              {|Eio_main.run (fun env ->
+  with_install [ "core"; "http1"; "engine"; "eio"; "client"; "client_eio" ]
+    [ "eio_main"; "tls-eio"; "uri"; "mtime.clock.os"; "ipaddr" ] (fun t ->
+      let c = t.dir / "consumer" in
+      project c;
+      write (c / "consumer.ml")
+        ("let () =\n\
+          let authenticator = X509.Authenticator.chain_of_trust ~time:(fun () \
+          -> None) [] in\n"
+       ^ {|Eio_main.run (fun env ->
                 let net = Eio.Stdenv.net env and clock = Eio.Stdenv.mono_clock env in
                 (try Httpkit_client_eio.with_response ~net ~clock ~authenticator "http://x:/"
                   (fun _ _ -> ()); assert false with Invalid_argument _ -> ());
@@ -510,43 +458,12 @@ let clients () =
                   let upload = Httpkit_client_eio.upload ~length:0L (fun () -> assert false) in
                   try Httpkit_client_eio.request pool ~meth:Httpkit_core.Method.post ~upload "http://other.invalid/"
                     (fun _ _ -> ()); assert false with Invalid_argument _ -> ()))|}
-            else
-              {|Lwt_main.run (Lwt.bind
-                (Lwt.catch (fun () -> Lwt.bind
-                  (Httpkit_client_lwt.with_response ~authenticator "http://x:/" (fun _ _ -> Lwt.return_unit))
-                  (fun () -> assert false))
-                  (function Invalid_argument _ -> Lwt.return_unit | e -> Lwt.fail e)) (fun () ->
-                Httpkit_client_lwt.with_pool ~authenticator "http://localhost/" (fun pool ->
-                  let upload = Httpkit_client_lwt.upload ~length:0L (fun () -> assert false) in
-                  Lwt.catch (fun () -> Lwt.bind
-                    (Httpkit_client_lwt.request pool ~meth:Httpkit_core.Method.post ~upload "http://other.invalid/"
-                      (fun _ _ -> Lwt.return_unit)) (fun () -> assert false))
-                    (function Invalid_argument _ -> Lwt.return_unit | e -> Lwt.fail e))))|}
-          in
-          write (c / "consumer.ml")
-            ("let () =\n\
-              let authenticator = X509.Authenticator.chain_of_trust ~time:(fun \
-              () -> None) [] in\n" ^ call
-           ^ "; print_endline \"client installed\"\n");
-          write (c / "dune")
-            (stanza "consumer" ("httpkit-client-" ^ adapter ^ " " ^ runtime));
-          require
-            (execute t c "consumer" = "client installed\n")
-            "Installed client failed";
-          write (c / "opposite.ml")
-            ("let _ = "
-            ^ (if adapter = "eio" then "Lwt.return_unit" else "Eio.Fiber.yield")
-            ^ "\n");
-          write (c / "dune")
-            (stanza ~modules:"opposite" "opposite"
-               ("httpkit-client-" ^ adapter));
-          check_failure
-            (dune t ~check:false c [ "build"; "opposite.exe" ])
-            "Unbound module"))
-    [ ("eio", "eio_main", "lwt"); ("lwt", "lwt.unix", "eio") ];
-  print_endline
-    "PASS separately installed native/bytecode clients and opposite-runtime \
-     isolation"
+       ^ "; print_endline \"client installed\"\n");
+      write (c / "dune") (stanza "consumer" "httpkit-client-eio eio_main");
+      require
+        (execute t c "consumer" = "client installed\n")
+        "Installed client failed");
+  print_endline "PASS separately installed native/bytecode Eio client"
 
 let dispatch = function
   | "core" -> basic "core"

@@ -51,9 +51,9 @@ let main layer =
             "lib/web_eio/httpkit_eio.ml";
           ] )
     | _ ->
-        ( [ "test/extensions"; "test/production"; "examples/passwords" ],
-          [ "cookie"; "password"; "session_eio"; "oidc"; "oidc_eio"; "web_lwt" ],
-          [ "lib/web_lwt/httpkit_lwt.ml" ] )
+        ( [ "test/extensions"; "examples/passwords" ],
+          [ "cookie"; "password"; "session_eio"; "oidc"; "oidc_eio" ],
+          [] )
   in
   write (directory / "tests.log")
     (run ([ "runtest"; "--instrument-with"; "bisect_ppx"; "--force" ] @ suites));

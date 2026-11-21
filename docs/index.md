@@ -11,7 +11,7 @@ version. APIs and production readiness remain experimental.
 | Install a pinned source version | [New-repository tutorial](internal-use.md), [package installation](beta-install.md) |
 | Choose packages and understand dependencies | [Package design](design.md) |
 | Add handlers, streaming, middleware and a database | [Eio applications](framework.md) |
-| Add sessions, passwords, OIDC or Lwt handlers | [Extensions](extensions.md) |
+| Add sessions, passwords or OIDC | [Extensions](extensions.md) |
 | Make HTTP/HTTPS requests | [Streaming client](client.md) |
 | Run smaller examples | [Example catalog](examples.md), [Eio streaming and cancellation](personal-eio.md) |
 | Prepare a hosted application | [Deployment and proxy trust](deployment.md) |
@@ -47,7 +47,8 @@ versions and limits. Report vulnerabilities through [SECURITY.md](../SECURITY.md
 
 Open investigation records: [profiling hang](profiling-hang.md) and
 [historical fuzz timeouts](request-timeout-investigation.md). The PostgreSQL
-bytecode crash is recorded in [status](status.md#what-we-found).
+bytecode crash, closed on 2026-11-21 by removing the binding, is recorded in
+[status](status.md#what-we-found).
 [Dependency experiments](protocol-foundations.md) remain development research.
 
 [Archived plans and reports](archive/index.md) retain useful history. They do not

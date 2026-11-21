@@ -1,20 +1,19 @@
 # Streaming HTTP/HTTPS client
 
-The experimental client supports streaming requests and responses in Eio and Lwt,
+The experimental client supports streaming requests and responses in Eio,
 with optional bounded connection pools.
-`httpkit-client` owns pure URL/request policy; `httpkit-client-eio` and
-`httpkit-client-lwt` add native networking and upstream TLS. The core, HTTP/1
+`httpkit-client` owns pure URL/request policy; `httpkit-client-eio` adds
+native networking and upstream TLS. The core, HTTP/1
 codec, engine and existing server packages acquire no TLS dependency.
 
-Run the examples with an HTTP or HTTPS URL:
+Run the example with an HTTP or HTTPS URL:
 
 ```sh
 tools/dune-pkg exec -- examples/client/fetch_eio.exe https://www.rfc-editor.org/rfc/rfc9112.txt
-tools/dune-pkg exec -- examples/client/fetch_lwt.exe https://www.rfc-editor.org/rfc/rfc9112.txt
 ```
 
-Both write the response status to stderr and stream body bytes to stdout.
-They initialize the upstream OS-backed RNG and obtain the system trust store
+It writes the response status to stderr and streams body bytes to stdout.
+It initializes the upstream OS-backed RNG and obtains the system trust store
 through `Ca_certs.authenticator`. Trust-store discovery happens once, before the
 request deadline starts. The library requires an explicit authenticator; it has
 no insecure default. Custom trust anchors belong to the application.
@@ -37,8 +36,7 @@ Httpkit_client_eio.with_response
     copy ())
 ```
 
-Lwt exposes the same shape with native promises and no Eio arguments. See the
-[executable Lwt example](../examples/client/fetch_lwt.ml). `read` yields a bounded
+See the [executable example](../examples/client/fetch_eio.ml). `read` yields a bounded
 chunk or `None` after complete framing; `trailers` is available afterward,
 including an empty collection. Only one read may be active at a time. A body
 cannot be read after its callback returns. Callbacks must join any work they
@@ -75,11 +73,10 @@ a partially sent upload prevents connection reuse. Producer failures, length
 mismatches and cancellation close the connection. Bytes already sent cannot be
 recalled. Application producers and finalizers must cooperate with cancellation.
 
-The file examples send a chunked PUT with bounded 32KiB reads:
+The file example sends a chunked PUT with bounded 32KiB reads:
 
 ```sh
 tools/dune-pkg exec -- examples/client/upload_eio.exe URL FILE
-tools/dune-pkg exec -- examples/client/upload_lwt.exe URL FILE
 ```
 
 ## Bounded origin pools
@@ -91,10 +88,10 @@ Httpkit_client_eio.with_pool ~net ~clock ~authenticator
     Httpkit_client_eio.request pool "https://example.org/b" consume_response)
 ```
 
-Lwt has the same operations with native promises. Pools accept only the same
+Pools accept only the same
 scheme, case-insensitive hostname and effective port. The authenticator, parser
 limits and adapter policy belong to the pool. All operations must stay in the
-same Eio domain or Lwt event loop.
+same Eio domain.
 
 The default cap is four connections (configurable from 1 to 1024). Requests above
 the simultaneous cap fail with `Pool_exhausted`; no unbounded waiting queue is
@@ -132,8 +129,7 @@ HTTPS authenticates the URL DNS name or IP address and offers only HTTP/1.1
 via ALPN. The upstream TLS library continues to own cryptography, record parsing
 and authenticated closure. A thin raw-I/O guard turns TCP EOF into
 `Httpkit_client.Tls_truncated` before the TLS adapter can normalize it into EOF.
-The Eio adapter uses a guarded flow; Lwt uses guarded channels with explicit
-output flush and scoped channel cleanup. A verified TLS `close_notify` retains
+The Eio adapter uses a guarded flow. A verified TLS `close_notify` retains
 the upstream clean-EOF result.
 
 Consequently, close-delimited HTTPS completes only after authenticated closure.
@@ -174,7 +170,7 @@ abrupt TLS EOF, scoped body/pool ownership, single-use producers, owned framing,
 length mismatch, early-final cancellation, address fallback, DNS/connect deadlines,
 parent cancellation, connection caps, origin isolation, expiry, abandoned bodies,
 and pool exit while a callback finalizer is suspended. Separate installed native
-and bytecode consumers exercise the expanded surface and opposite-runtime isolation.
+and bytecode consumers exercise the expanded surface.
 `tools/dev validate` remains the integration gate.
 
 The API review is explicitly deferred. These local controls and bounded campaigns

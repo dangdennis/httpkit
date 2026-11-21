@@ -1,3 +1,2 @@
 (library (name transform) (modules transform) (libraries httpkit-core))
 (executable (name eio_example) (modules eio_example) (modes byte exe) (libraries transform httpkit-transport-eio eio_main))
-(executable (name lwt_example) (modules lwt_example) (modes byte exe) (libraries transform httpkit-transport-lwt lwt.unix))

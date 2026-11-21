@@ -153,13 +153,16 @@ let () =
                     match db with
                     | None -> text ~status:503 "Database not configured\n"
                     | Some db ->
-                        let open Caqti.Templater in
-                        let query = static T.(unit -->! int) "SELECT 1" in
                         let n =
-                          Db.use db (fun (module C : Caqti_eio.CONNECTION) ->
-                              Caqti_eio.or_fail (C.find query ()))
+                          Db.use db (fun connection ->
+                              match
+                                Db.query connection ~kinds:[ Integer ]
+                                  "SELECT 1" []
+                              with
+                              | [ [ Db.Int n ] ] -> Int64.to_string n
+                              | _ -> "unexpected result")
                         in
-                        text (string_of_int n));
+                        text n);
                 App.route Method.post "/login" (fun request ->
                     (* The application supplies token verification; no default login credential. *)
                     let verify token =

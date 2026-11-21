@@ -1,31 +1,42 @@
 module D = Httpkit_db_eio
 
+(* Portable statements, so the same cases run on SQLite and PostgreSQL. *)
+let int c sql params =
+  match D.query c ~kinds:[ Integer ] sql params with
+  | [ [ D.Int n ] ] -> Int64.to_int n
+  | _ -> failwith ("expected one integer from: " ^ sql)
+
+let text c sql params =
+  match D.query c ~kinds:[ String ] sql params with
+  | [ [ D.Text s ] ] -> s
+  | _ -> failwith ("expected one string from: " ^ sql)
+
+let id n = D.Int (Int64.of_int n)
+let insert c n = D.execute c "INSERT INTO items(id) VALUES (?)" [ id n ]
+let count c = int c "SELECT COUNT(*) FROM items" []
+let pid c = int c "SELECT pg_backend_pid()" []
+let timeout c = text c "SELECT current_setting('statement_timeout')" []
+
+let terminate c n =
+  int c "SELECT CASE WHEN pg_terminate_backend(?::integer) THEN 1 ELSE 0 END"
+    [ id n ]
+  = 1
+
+let present c n =
+  int c "SELECT COUNT(*) FROM pg_stat_activity WHERE pid=?" [ id n ]
+
+let sleeping c n =
+  int c
+    "SELECT COUNT(*) FROM pg_stat_activity WHERE pid=? AND wait_event='PgSleep'"
+    [ id n ]
+
+(* Caqti requests for the cases that exercise SQLite's native handle. *)
 module Queries = struct
   open Caqti.Templater
 
   let insert = static T.(int -->. unit) "INSERT INTO items(id) VALUES (?)"
   let count = static T.(unit -->! int) "SELECT COUNT(*) FROM items"
   let rows = static T.(unit -->* int) "SELECT id FROM items ORDER BY id"
-  let pid = static T.(unit -->! int) "SELECT pg_backend_pid()"
-
-  let timeout =
-    static T.(unit -->! string) "SELECT current_setting('statement_timeout')"
-
-  let terminate =
-    static T.(int -->! bool) "SELECT pg_terminate_backend(?::integer)"
-
-  let present =
-    static
-      T.(int -->! int)
-      "SELECT COUNT(*)::integer FROM pg_stat_activity WHERE pid=?"
-
-  let sleep = static T.(unit -->! int) "SELECT 1 FROM pg_sleep(3)"
-
-  let sleeping =
-    static
-      T.(int -->! int)
-      "SELECT COUNT(*)::integer FROM pg_stat_activity WHERE pid=? AND \
-       wait_event='PgSleep'"
 end
 
 let ok = Caqti_eio.or_fail
@@ -40,35 +51,52 @@ let migration =
 
 exception Abort
 
-let callback_faults db =
+(* A failure the callback catches must still fail the transaction. *)
+let callback_faults db ~sqlite =
+  let failures =
+    [ `Constraint; `Native ] @ if sqlite then [ `Rows; `Call; `Result ] else []
+  in
   List.iter
     (fun convenience ->
       List.iter
         (fun failure ->
           let blocked_write = ref false in
-          let callback (module C : Caqti_eio.CONNECTION) =
-            ok (C.exec Queries.insert 99);
-            (match failure with
-            | `Rows -> (
+          let callback c =
+            insert c 99;
+            (match (failure, D.sqlite c, D.postgresql c) with
+            | `Constraint, _, _ -> (
+                match insert c 99 with
+                | () -> failwith "duplicate primary key accepted"
+                | exception D.Failed _ -> ())
+            | `Native, Some (module C), _ -> (
+                match C.exec Queries.insert 99 with
+                | Error _ -> ()
+                | Ok () -> failwith "duplicate primary key accepted")
+            | `Native, None, Some (Sqlkit.Driver.Conn ((module P), raw, _)) -> (
+                (* the way a generated sqlkit query reaches the server *)
+                match
+                  P.exec raw ~sql:"INSERT INTO items(id) VALUES (99)" ~params:[]
+                with
+                | Error _ -> ()
+                | Ok _ -> failwith "duplicate primary key accepted")
+            | `Rows, Some (module C), _ -> (
                 try ignore (C.iter_s Queries.rows (fun _ -> raise Abort) ())
                 with Abort -> ())
-            | `Call -> (
+            | `Call, Some (module C), _ -> (
                 try ignore (C.call ~f:(fun _ -> raise Abort) Queries.rows ())
                 with Abort -> ())
-            | `Result -> (
+            | `Result, Some (module C), _ -> (
                 match C.iter_s Queries.rows (fun _ -> Error `User_abort) () with
                 | Error `User_abort -> ()
                 | _ -> failwith "row callback error was not preserved")
-            | `Constraint -> (
-                match C.exec Queries.insert 99 with
-                | Error _ -> ()
-                | Ok () -> failwith "duplicate primary key accepted"));
-            try ok (C.exec Queries.insert 100)
+            | _ -> failwith "fault does not apply to this backend");
+            try insert c 100
             with D.Connection_invalidated -> blocked_write := true
           in
           (match
              if convenience then
-               D.use db (fun ((module C : Caqti_eio.CONNECTION) as c) ->
+               D.use db (fun c ->
+                   let (module C) = Option.get (D.sqlite c) in
                    ok
                      (C.with_transaction (fun () ->
                           callback c;
@@ -78,38 +106,76 @@ let callback_faults db =
           | () -> failwith "caught query failure became successful transaction"
           | exception D.Connection_invalidated -> ());
           check "write after caught failure blocked" !blocked_write;
-          D.use db (fun (module C : Caqti_eio.CONNECTION) ->
-              check "caught failure committed no rows"
-                (ok (C.find Queries.count ()) = 1)))
-        [ `Rows; `Call; `Result; `Constraint ])
-    [ false; true ];
-  D.use db (fun (module C : Caqti_eio.CONNECTION) ->
-      (match
-         C.with_transaction (fun () ->
-             ok (C.exec Queries.insert 99);
-             Error `User_abort)
-       with
-      | Error `User_abort -> ()
-      | _ -> failwith "transaction callback error was not preserved");
-      check "explicit error rolls back without poisoning healthy connection"
-        (ok (C.find Queries.count ()) = 1);
-      check "convenience transaction returns its successful value"
-        (ok (C.with_transaction (fun () -> C.find Queries.count ())) = 1));
-  D.use db (fun (module C : Caqti_eio.CONNECTION) ->
-      (try ignore (C.iter_s Queries.rows (fun _ -> raise Abort) ())
-       with Abort -> ());
-      check "driver exception invalidates a nontransactional lease too"
-        (try
-           ignore (C.find Queries.count ());
-           false
-         with D.Connection_invalidated -> true));
-  D.transaction db (fun (module C : Caqti_eio.CONNECTION) ->
-      check "healthy transaction after faults" (ok (C.find Queries.count ()) = 1))
+          D.use db (fun c ->
+              check "caught failure committed no rows" (count c = 1)))
+        failures)
+    (if sqlite then [ false; true ] else [ false ]);
+  if sqlite then begin
+    D.use db (fun c ->
+        let (module C) = Option.get (D.sqlite c) in
+        (match
+           C.with_transaction (fun () ->
+               ok (C.exec Queries.insert 99);
+               Error `User_abort)
+         with
+        | Error `User_abort -> ()
+        | _ -> failwith "transaction callback error was not preserved");
+        check "explicit error rolls back without poisoning healthy connection"
+          (ok (C.find Queries.count ()) = 1);
+        check "convenience transaction returns its successful value"
+          (ok (C.with_transaction (fun () -> C.find Queries.count ())) = 1));
+    D.use db (fun c ->
+        let (module C) = Option.get (D.sqlite c) in
+        (try ignore (C.iter_s Queries.rows (fun _ -> raise Abort) ())
+         with Abort -> ());
+        check "driver exception invalidates a nontransactional lease too"
+          (try
+             ignore (C.find Queries.count ());
+             false
+           with D.Connection_invalidated -> true))
+  end
+  else begin
+    (* Outside a transaction a refused statement costs nothing. *)
+    D.use db (fun c ->
+        (match insert c 1 with
+        | () -> failwith "duplicate primary key accepted"
+        | exception D.Failed { sqlstate; _ } ->
+            check "PostgreSQL failure carries its SQLSTATE"
+              (sqlstate = Some "23505"));
+        check "refused statement outside a transaction keeps the lease"
+          (count c = 1));
+    (* sqlkit's own transaction, inside ours, is a savepoint: abandoning it
+       undoes its work and leaves ours to commit. *)
+    D.transaction db (fun c ->
+        let conn = Option.get (D.postgresql c) in
+        insert c 50;
+        (match
+           Sqlkit.transaction conn (fun _ ->
+               insert c 51;
+               Error
+                 (Sqlkit.Error.Invalid_argument
+                    { operation = "test"; message = "abandon" }))
+         with
+        | Error (Sqlkit.Error.Invalid_argument _) -> ()
+        | _ -> failwith "nested transaction did not report its own error");
+        check "savepoint rolled back, outer transaction intact" (count c = 2));
+    D.use db (fun c ->
+        check "outer transaction committed after an abandoned savepoint"
+          (count c = 2);
+        D.execute c "DELETE FROM items WHERE id=?" [ id 50 ]);
+    (* a transaction left open through the native handle does not leak *)
+    let leaked = ref 0 in
+    D.use db (fun c ->
+        leaked := pid c;
+        D.execute c "BEGIN" [];
+        insert c 60);
+    D.use db (fun c ->
+        check "abandoned transaction was not committed" (count c = 1))
+  end;
+  D.transaction db (fun c ->
+      check "healthy transaction after faults" (count c = 1))
 
 let backend_faults ~sw ~stdenv ~clock uri =
-  let pid = Queries.pid
-  and terminate = Queries.terminate
-  and present = Queries.present in
   let control = D.create ~max_connections:1 ~sw ~stdenv uri in
   Fun.protect
     ~finally:(fun () -> D.close control)
@@ -123,24 +189,23 @@ let backend_faults ~sw ~stdenv ~clock uri =
             ~finally:(fun () -> D.close victim)
             (fun () ->
               let old_pid = ref 0 and callback_finished = ref false in
-              let kill (module C : Caqti_eio.CONNECTION) =
-                old_pid := ok (C.find pid ());
-                D.use control (fun (module Admin : Caqti_eio.CONNECTION) ->
+              let kill c =
+                old_pid := pid c;
+                D.use control (fun admin ->
                     check "control connection is separate"
-                      (!old_pid > 0 && !old_pid <> ok (Admin.find pid ()));
+                      (!old_pid > 0 && !old_pid <> pid admin);
                     check "terminated only the owned backend"
-                      (ok (Admin.find terminate !old_pid));
+                      (terminate admin !old_pid);
                     Eio.Time.Timeout.run_exn (Eio.Time.Timeout.seconds clock 5.)
                       (fun () ->
-                        while ok (Admin.find present !old_pid) <> 0 do
+                        while present admin !old_pid <> 0 do
                           Eio.Time.Mono.sleep clock 0.001
                         done))
               in
               let transaction finish =
-                D.transaction victim
-                  (fun ((module C : Caqti_eio.CONNECTION) as connection) ->
-                    ok (C.exec Queries.insert 99);
-                    kill connection;
+                D.transaction victim (fun c ->
+                    insert c 99;
+                    kill c;
                     Fun.protect
                       ~finally:(fun () -> callback_finished := true)
                       finish)
@@ -153,54 +218,56 @@ let backend_faults ~sw ~stdenv ~clock uri =
               | `Commit -> (
                   match transaction (fun () -> ()) with
                   | () -> failwith "commit succeeded after backend termination"
-                  | exception Caqti.Error.Exn _ -> ())
+                  | exception D.Failed _ -> ())
               | `Query_error -> (
                   match
-                    D.transaction victim
-                      (fun ((module C : Caqti_eio.CONNECTION) as connection) ->
-                        ok (C.exec Queries.insert 99);
-                        kill connection;
+                    D.transaction victim (fun c ->
+                        insert c 99;
+                        kill c;
                         Fun.protect
                           ~finally:(fun () -> callback_finished := true)
                           (fun () ->
                             List.iter
-                              (fun id ->
-                                match C.exec Queries.insert id with
-                                | Error _ -> ()
-                                | exception D.Connection_invalidated -> ()
-                                | Ok () ->
+                              (fun n ->
+                                match insert c n with
+                                | exception
+                                    (D.Failed _ | D.Connection_invalidated) ->
+                                    ()
+                                | () ->
                                     failwith
                                       "write retried outside lost transaction")
                               [ 100; 101 ]))
                   with
                   | () -> failwith "lost transaction query error became success"
-                  | exception (Caqti.Error.Exn _ | D.Connection_invalidated) ->
-                      ())
+                  | exception (D.Failed _ | D.Connection_invalidated) -> ())
               | `Query_cancel ->
                   let entered, notify = Eio.Promise.create () in
                   Eio.Fiber.first
                     (fun () ->
-                      D.transaction victim
-                        (fun (module C : Caqti_eio.CONNECTION) ->
-                          ok (C.exec Queries.insert 99);
-                          old_pid := ok (C.find pid ());
+                      D.transaction victim (fun c ->
+                          insert c 99;
+                          old_pid := pid c;
                           Eio.Promise.resolve notify ();
                           Fun.protect
                             ~finally:(fun () -> callback_finished := true)
                             (fun () ->
-                              ignore (ok (C.find Queries.sleep ()));
+                              ignore (int c "SELECT 1 FROM pg_sleep(3)" []);
                               failwith "query completed before cancellation")))
                     (fun () ->
                       Eio.Promise.await entered;
                       Eio.Time.Timeout.run_exn
                         (Eio.Time.Timeout.seconds clock 2.) (fun () ->
-                          D.use control
-                            (fun (module Admin : Caqti_eio.CONNECTION) ->
-                              while
-                                ok (Admin.find Queries.sleeping !old_pid) = 0
-                              do
+                          D.use control (fun admin ->
+                              while sleeping admin !old_pid = 0 do
                                 Eio.Time.Mono.sleep clock 0.001
-                              done)))
+                              done)));
+                  (* the server was told to stop, not left sleeping *)
+                  Eio.Time.Timeout.run_exn (Eio.Time.Timeout.seconds clock 2.)
+                    (fun () ->
+                      D.use control (fun admin ->
+                          while sleeping admin !old_pid <> 0 do
+                            Eio.Time.Mono.sleep clock 0.001
+                          done))
               | `Cancel ->
                   let killed, notify = Eio.Promise.create () in
                   Eio.Fiber.first
@@ -210,26 +277,21 @@ let backend_faults ~sw ~stdenv ~clock uri =
                           Eio.Fiber.await_cancel ()))
                     (fun () -> Eio.Promise.await killed));
               check "transaction callback cleanup completed" !callback_finished;
-              D.use victim (fun (module C : Caqti_eio.CONNECTION) ->
-                  check "lost backend replaced" (ok (C.find pid ()) <> !old_pid);
-                  check "terminated transaction did not commit"
-                    (ok (C.find Queries.count ()) = 1);
+              D.use victim (fun c ->
+                  check "lost backend replaced" (pid c <> !old_pid);
+                  check "terminated transaction did not commit" (count c = 1);
                   check "replacement restores statement timeout"
-                    (ok (C.find Queries.timeout ()) = "10s"));
-              let reused =
-                D.transaction victim (fun (module C : Caqti_eio.CONNECTION) ->
-                    ok (C.find pid ()))
-              in
-              D.use victim (fun ((module C : Caqti_eio.CONNECTION) as c) ->
-                  check "successful commit keeps its connection"
-                    (ok (C.find pid ()) = reused);
+                    (timeout c = "10s"));
+              let reused = D.transaction victim pid in
+              D.use victim (fun c ->
+                  check "successful commit keeps its connection" (pid c = reused);
                   kill c);
-              D.use victim (fun (module C : Caqti_eio.CONNECTION) ->
+              D.use victim (fun c ->
                   check "idle connection loss recovers before next lease"
-                    (ok (C.find pid ()) <> reused);
+                    (pid c <> reused);
                   check "idle replacement restores statement timeout"
-                    (ok (C.find Queries.timeout ()) = "10s"));
-              check "recovery retains the pool bound" (D.size victim = 1)))
+                    (timeout c = "10s"));
+              check "no lease outstanding after recovery" (D.size victim = 0)))
         [ `Exception; `Commit; `Query_error; `Query_cancel; `Cancel ]);
   check "control pool retired" (D.size control = 0)
 
@@ -318,28 +380,25 @@ let () =
                 (fun () -> D.migrate db [ migration ])
                 (fun () -> D.migrate db [ migration ]);
               D.migrate db [ migration ];
-              D.transaction db (fun (module C : Caqti_eio.CONNECTION) ->
-                  ok (C.exec Queries.insert 1));
+              let sqlite = Uri.scheme uri = Some "sqlite3" in
+              D.transaction db (fun c -> insert c 1);
               (try
-                 D.transaction db (fun (module C : Caqti_eio.CONNECTION) ->
-                     ok (C.exec Queries.insert 2);
+                 D.transaction db (fun c ->
+                     insert c 2;
                      raise Abort)
                with Abort -> ());
-              let count () =
-                D.use db (fun (module C : Caqti_eio.CONNECTION) ->
-                    ok (C.find Queries.count ()))
-              in
-              check "exception rollback" (count () = 1);
+              let total () = D.use db count in
+              check "exception rollback" (total () = 1);
               let inserted, notify = Eio.Promise.create () in
               Eio.Fiber.first
                 (fun () ->
-                  D.transaction db (fun (module C : Caqti_eio.CONNECTION) ->
-                      ok (C.exec Queries.insert 3);
+                  D.transaction db (fun c ->
+                      insert c 3;
                       Eio.Promise.resolve notify ();
                       Eio.Fiber.await_cancel ()))
                 (fun () -> Eio.Promise.await inserted);
-              check "cancellation rollback" (count () = 1);
-              callback_faults db;
+              check "cancellation rollback" (total () = 1);
+              callback_faults db ~sqlite;
               let corrupt =
                 {
                   migration with
@@ -364,7 +423,7 @@ let () =
                 (try
                    D.migrate db [ migration; broken ];
                    false
-                 with Caqti.Error.Exn _ -> true);
+                 with D.Failed _ -> true);
               let fixed =
                 {
                   broken with
@@ -377,7 +436,7 @@ let () =
               D.close db;
               check "closed pool"
                 (try
-                   ignore (count ());
+                   ignore (total ());
                    false
                  with Invalid_argument _ -> true);
               let limited =
@@ -409,11 +468,13 @@ let () =
                          false
                        with Eio.Time.Timeout -> true)
                   done);
-              D.use queued (fun (module C : Caqti_eio.CONNECTION) ->
-                  C.disconnect ());
-              D.use queued (fun (module C : Caqti_eio.CONNECTION) ->
-                  check "disconnected resource replaced"
-                    (ok (C.find Queries.count ()) = 1));
+              D.use queued (fun c ->
+                  match (D.sqlite c, D.postgresql c) with
+                  | Some (module C), _ -> C.disconnect ()
+                  | None, Some conn -> ignore (Sqlkit.close conn)
+                  | None, None -> ());
+              D.use queued (fun c ->
+                  check "disconnected resource replaced" (count c = 1));
               let held, held_notify = Eio.Promise.create ()
               and release, release_notify = Eio.Promise.create () in
               Eio.Fiber.both
@@ -445,16 +506,15 @@ let () =
                 (fun () ->
                   Eio.Fiber.first
                     (fun () ->
-                      D.transaction draining
-                        (fun (module C : Caqti_eio.CONNECTION) ->
-                          ok (C.exec Queries.insert 4);
+                      D.transaction draining (fun c ->
+                          insert c 4;
                           Fun.protect
                             ~finally:(fun () ->
                               Eio.Cancel.protect (fun () ->
                                   Eio.Promise.resolve notify_cleaning ();
                                   Eio.Promise.await release;
                                   check "lease remains usable during cleanup"
-                                    (ok (C.find Queries.count ()) = 2);
+                                    (count c = 2);
                                   finalized := true))
                             (fun () ->
                               Eio.Promise.resolve notify_entered ();
@@ -485,9 +545,9 @@ let () =
                   ~stdenv:(env :> Caqti_eio.stdenv)
                   uri
               in
-              D.use verifier (fun (module C : Caqti_eio.CONNECTION) ->
+              D.use verifier (fun c ->
                   check "shutdown waits for cancelled transaction rollback"
-                    (ok (C.find Queries.count ()) = 1));
+                    (count c = 1));
               D.close verifier;
               D.close draining;
               let interrupted_close =
@@ -509,7 +569,7 @@ let () =
               D.close interrupted_close;
               check "interrupted close can be retried"
                 (D.size interrupted_close = 0);
-              if Uri.scheme uri <> Some "sqlite3" then (
+              if not sqlite then (
                 backend_faults ~sw
                   ~stdenv:(env :> Caqti_eio.stdenv)
                   ~clock:(Eio.Stdenv.mono_clock env)
@@ -519,21 +579,18 @@ let () =
                     ~stdenv:(env :> Caqti_eio.stdenv)
                     uri
                 in
-                let open Caqti.Templater in
-                let sleep =
-                  static T.(unit -->! int) "SELECT 1 FROM pg_sleep(0.2)"
-                in
-                check "PostgreSQL statement deadline"
+                let deadline_pid = ref 0 in
+                check "PostgreSQL statement deadline carries its SQLSTATE"
                   (try
-                     Httpkit_db_eio.use timed
-                       (fun (module C : Caqti_eio.CONNECTION) ->
-                         ignore (ok (C.find sleep ())));
+                     D.use timed (fun c ->
+                         deadline_pid := pid c;
+                         ignore (int c "SELECT 1 FROM pg_sleep(0.2)" []));
                      false
-                   with Caqti.Error.Exn _ -> true);
-                Httpkit_db_eio.use timed
-                  (fun (module C : Caqti_eio.CONNECTION) ->
-                    check "pool recovers after statement timeout"
-                      (ok (C.find Queries.count ()) = 1));
+                   with D.Failed { sqlstate; _ } -> sqlstate = Some "57014");
+                D.use timed (fun c ->
+                    check "pool recovers after statement timeout" (count c = 1);
+                    check "server-side deadline keeps the connection"
+                      (pid c = !deadline_pid));
                 Httpkit_db_eio.close timed);
               print_endline
                 "PASS real database transactions, cancellation, concurrent \

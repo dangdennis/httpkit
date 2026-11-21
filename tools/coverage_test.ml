@@ -3,10 +3,10 @@ open Devlib
 let () =
   List.iter
     (fun line ->
-      assert (Coverage.summary_row line = Some ("lib/web_lwt/app.ml", 234, 291)))
+      assert (Coverage.summary_row line = Some ("lib/web_eio/app.ml", 234, 291)))
     [
-      " 80.41 %    234/291    lib/web_lwt/app.ml";
-      "80.41% 234/291 lib/web_lwt/app.ml";
+      " 80.41 %    234/291    lib/web_eio/app.ml";
+      "80.41% 234/291 lib/web_eio/app.ml";
     ];
   List.iter
     (fun line -> assert (Coverage.summary_row line = None))

@@ -187,23 +187,18 @@ let engine_requirements =
     ]
 
 let adapter_requirements =
-  List.map
-    (fun runtime ->
-      {
-        id = "ADAPTER." ^ String.uppercase_ascii runtime;
-        rule =
-          "Native deadlines, bounded admission, cancellation cleanup, partial \
-           I/O and handoff";
-        layer = "adapter";
-        source = "project-policy";
-        implemented = true;
-        cases =
-          [
-            "test/adapter/" ^ runtime ^ "_test.ml";
-            "tools/devlib/consumers.ml";
-          ];
-      })
-    [ "eio"; "lwt" ]
+  [
+    {
+      id = "ADAPTER.EIO";
+      rule =
+        "Native deadlines, bounded admission, cancellation cleanup, partial \
+         I/O and handoff";
+      layer = "adapter";
+      source = "project-policy";
+      implemented = true;
+      cases = [ "test/adapter/eio_test.ml"; "tools/devlib/consumers.ml" ];
+    };
+  ]
 
 let requirements =
   harness_core_requirements @ http1_requirements @ engine_requirements

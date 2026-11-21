@@ -1,4 +1,4 @@
-# Sessions, login and Lwt applications
+# Sessions and login
 
 These packages are independently usable. The generic OIDC example assumes a
 standards-compliant provider; automated tests use synthetic identities and keys.
@@ -10,12 +10,13 @@ standards-compliant provider; automated tests use synthetic identities and keys.
 | `httpkit-password` | `Httpkit_password` | Argon2id hashing, verification and rehash policy |
 | `httpkit-oidc` | `Httpkit_oidc` | Authorization-code/PKCE requests and strict ID-token policy |
 | `httpkit-oidc-eio` | `Httpkit_oidc_eio` | Browser binding, one-time callbacks and bounded provider requests |
-| `httpkit-lwt` | `Httpkit_lwt` | Lwt applications, routing, streaming, middleware, sessions and realtime |
 
 Install these packages from a [pinned source checkout](beta-install.md), then add
 their public names to Dune's `libraries` field. They are not on central opam.
-Password builds require libargon2, libffi and pkg-config. PostgreSQL bytecode is
-[currently blocked](status.md#what-we-found); use native database executables.
+Password builds require libargon2, libffi and pkg-config. SQL sessions need the
+[sqlkit Git pins](beta-install.md#install-selected-packages). The earlier
+PostgreSQL bytecode crash is [closed](status.md#what-we-found): its binding was
+removed on 2026-11-21.
 
 ## Cookie sessions
 
@@ -87,6 +88,12 @@ winner. `revoke_subject` supports logout across devices. Run `prune` periodicall
 it removes a bounded batch and creates no background task itself. Retention and
 overall database capacity remain application operational policy.
 
+The store uses `Httpkit_db_eio`'s portable statements: one SQL text serves both
+backends, and the package no longer depends on Caqti. On PostgreSQL it runs on
+the pure OCaml driver, whose authentication and TLS code has
+[not been independently reviewed](dependencies.md#postgresql-driver); session
+rows travel over whatever `sslmode` the database URI selects.
+
 `require`, `logout` and `protect_csrf` integrate with `Httpkit_eio` handlers.
 The memory sessions in `Httpkit_eio.Sessions` remain available for single-process
 applications. Each backend has its own opaque session type; application code
@@ -113,8 +120,8 @@ hash when policy changes.
 
 These operations are synchronous. Use a bounded pool of **separate OCaml domains**
 or worker processes for a web application. The upstream ctypes binding does not
-request release of the calling domain's runtime lock; merely putting it in an
-Lwt preemptive thread does not establish event-loop responsiveness. Budget workers
+request release of the calling domain's runtime lock; merely putting it in a
+system thread does not keep the calling domain's fibers responsive. Budget workers
 against the maximum accepted verification cost (256 MiB per call), not just the
 default hashing cost. No runtime-specific password worker pool is supplied.
 
@@ -196,28 +203,6 @@ own strict claim policy: upstream `oidc` 0.2.0's general validator has an issuer
 prefix exception and incomplete `azp` checking, which are unsuitable here.
 Refresh tokens, UserInfo calls, provider logout and dynamic client registration
 are outside this authorization-code login API.
-
-## Lwt applications
-
-```ocaml
-module App = Httpkit_lwt
-
-let application =
-  App.routes [
-    App.route Httpkit_core.Method.get "/hello/:name" (fun request ->
-      let name = Option.value ~default:"world" (App.param "name" request) in
-      Lwt.return (App.reply (Httpkit.Reply.text ("Hello " ^ name))))
-  ]
-```
-
-Request body reads, handlers and streaming producers return Lwt promises. Use
-`Httpkit_transport_lwt.monotonic_clock` and provide a cancellable `accept` callback
-to `App.serve`. Resolving `stop` stops admission and drains active connections;
-cancelling the server cancels and joins handlers and closes owned transports.
-Request bodies cannot escape their handler lifetime. HEAD skips streaming
-producers. `Common`, `Sessions` and `Realtime` provide middleware, memory sessions,
-SSE and bounded WebSocket handling. Filesystem/upload helpers remain Eio-specific.
-Neither Lwt applications nor their transport require Eio.
 
 ## Verification and dependency sources
 

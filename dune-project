@@ -23,10 +23,6 @@
  (synopsis "Native Eio adapter for HTTP primitives")
  (depends httpkit-core httpkit-engine eio cstruct mtime (ocaml (= 5.5.0))))
 (package
- (name httpkit-transport-lwt)
- (synopsis "Native Lwt adapter for HTTP primitives")
- (depends httpkit-core httpkit-engine lwt mtime (ocaml (= 5.5.0))))
-(package
  (name httpkit-middleware)
  (synopsis "Runtime-independent middleware with typed context transitions")
  (depends httpkit-core (ocaml (= 5.5.0))))
@@ -45,7 +41,7 @@
 (package
  (name httpkit-db-eio)
  (synopsis "Eio database transactions and migrations")
- (depends caqti-eio (caqti-driver-postgresql (= 3.0.1+httpkit1)) caqti-driver-sqlite3 digestif (ocaml (= 5.5.0))))
+ (depends sqlkit sqlkit-pgwire caqti-eio caqti-driver-sqlite3 digestif (ocaml (= 5.5.0))))
 (package
  (name httpkit-cookie)
  (synopsis "Authenticated encrypted cookie sessions")
@@ -57,7 +53,7 @@
 (package
  (name httpkit-session-eio)
  (synopsis "Durable Eio sessions for PostgreSQL and SQLite")
- (depends httpkit httpkit-eio httpkit-db-eio base64 eqaf caqti-eio digestif (ocaml (= 5.5.0))))
+ (depends httpkit httpkit-eio httpkit-db-eio base64 eqaf digestif (ocaml (= 5.5.0))))
 (package
  (name httpkit-oidc)
  (synopsis "Runtime-neutral OpenID Connect client policy")
@@ -67,10 +63,6 @@
  (synopsis "Bounded Eio OpenID Connect login flows")
  (depends httpkit-oidc httpkit-eio eio (ocaml (= 5.5.0))))
 (package
- (name httpkit-lwt)
- (synopsis "Composable Lwt web application server")
- (depends httpkit httpkit-router httpkit-middleware httpkit-transport-lwt lwt base64 yojson (ocaml (= 5.5.0))))
-(package
  (name httpkit-client)
  (synopsis "Validated HTTP/HTTPS fetch request policy")
  (depends httpkit-core httpkit-http1 uri (ocaml (= 5.5.0))))
@@ -78,10 +70,6 @@
  (name httpkit-client-eio)
  (synopsis "Scoped streaming HTTP/HTTPS GET client for Eio")
  (depends httpkit-client httpkit-transport-eio (tls-eio (= 2.1.2)) eio domain-name ipaddr x509 (ocaml (= 5.5.0))))
-(package
- (name httpkit-client-lwt)
- (synopsis "Scoped streaming HTTP/HTTPS GET client for Lwt")
- (depends httpkit-client httpkit-transport-lwt (tls-lwt (= 2.1.2)) lwt domain-name ipaddr x509 (ocaml (= 5.5.0))))
 (package
  (name httpkit-harness)
  (synopsis "Development-only contract harness for httpkit")
@@ -91,7 +79,6 @@
   httpkit-http1
   httpkit-engine
   httpkit-transport-eio
-  httpkit-transport-lwt
   httpkit-middleware
   httpkit-router
   httpkit
@@ -102,10 +89,8 @@
   httpkit-session-eio
   httpkit-oidc
   httpkit-oidc-eio
-  httpkit-lwt
   httpkit-client
   httpkit-client-eio
-  httpkit-client-lwt
   (ca-certs (= 1.0.3))
   eio_main
   (routes (= 2.0.0))
@@ -130,3 +115,11 @@
 (pin
  (url "git+https://github.com/patricoferris/bisect_ppx.git#7061d643ff492b0045796357ee6917ded21fb1f0")
  (package (name bisect_ppx) (version 2.8.3+git.7061d64)))
+
+; sqlkit is not on opam yet. PostgreSQL goes through its pure OCaml driver;
+; SQLite stays on Caqti.
+(pin
+ (url "git+https://github.com/dangdennis/sqlkit.git#77241d9f76365f58578e1e7fd0c4a6ca6ef67f17")
+ (package (name sqlkit) (version 0.1.0))
+ (package (name sqlkit-pool-eio) (version 0.1.0))
+ (package (name sqlkit-pgwire) (version 0.1.0)))

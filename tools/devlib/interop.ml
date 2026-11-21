@@ -5,10 +5,10 @@ let expected meth path body =
   Printf.sprintf "%s %s %d %s\n" meth path (String.length body)
     Digestif.MD5.(to_hex (digest_string body))
 
-let backend runtime f =
+let backend f =
   with_temp "httpkit-backend-" (fun directory ->
       with_server ~directory ~prefix:""
-        [ Build.binary ("test/interop/" ^ runtime ^ "_server.exe") ]
+        [ Build.binary "test/interop/eio_server.exe" ]
         (fun port child _ ->
           let result = f (int_of_string port) child in
           require (Process.poll child = None) "Backend exited unexpectedly";
@@ -177,20 +177,16 @@ let main () =
   let r = Process.run [ nginx; "-v" ] in
   let version = String.trim (r.stdout ^ r.stderr) in
   require (version = "nginx version: nginx/1.30.4") "Wrong Nginx version";
-  Build.call
-    [ "build"; "test/interop/eio_server.exe"; "test/interop/lwt_server.exe" ];
+  Build.call [ "build"; "test/interop/eio_server.exe" ];
   let digest = Build.source_hash () in
   let results =
-    List.concat_map
-      (fun runtime ->
-        backend runtime (fun port _ ->
-            lane port (runtime ^ "/direct")
-            :: List.map
-                 (fun buffering ->
-                   proxy port buffering (fun port ->
-                       lane port (runtime ^ "/nginx-buffering-" ^ buffering)))
-                 [ "on"; "off" ]))
-      [ "eio"; "lwt" ]
+    backend (fun port _ ->
+        lane port "eio/direct"
+        :: List.map
+             (fun buffering ->
+               proxy port buffering (fun port ->
+                   lane port ("eio/nginx-buffering-" ^ buffering)))
+             [ "on"; "off" ])
   in
   require (Build.source_hash () = digest) "Sources changed during interop";
   Build.record "interop-5.5.0.json"
@@ -209,84 +205,65 @@ let main () =
              long soak are not covered.";
           ] );
     ];
-  print_endline "PASS six direct/Nginx interop lanes"
+  print_endline "PASS three direct/Nginx interop lanes"
 
 let routing () =
-  Build.call
-    [
-      "build";
-      "examples/routing/eio_server.exe";
-      "examples/routing/lwt_server.exe";
-    ];
-  List.iter
-    (fun runtime ->
-      with_temp "httpkit-routing-" (fun directory ->
-          with_server ~directory ~prefix:"http://127.0.0.1:"
-            [ Build.binary ("examples/routing/" ^ runtime ^ "_server.exe") ]
-            (fun value _ _ ->
-              let port = int_of_string (String.trim value) in
-              with_connection port (fun c ->
-                  List.iter
-                    (fun (meth, path, body, status, payload, allow) ->
-                      let r = request ~body c meth path in
-                      require
-                        (r.status = status && r.body = payload
-                        && header "x-example" r = "httpkit"
-                        && header "allow" r = allow)
-                        ("Routing response: " ^ path))
-                    [
-                      ("GET", "/", "", 200, "Hello /\n", "");
-                      ("GET", "/users/me", "", 200, "Current user\n", "");
-                      ("GET", "/users/123?view=full", "", 200, "User 123\n", "");
-                      ("GET", "/users/%2F", "", 200, "User %2F\n", "");
-                      ("GET", "/files/a//b", "", 200, "Raw path: a//b\n", "");
-                      ("GET", "/missing", "", 404, "Not found\n", "");
-                      ( "POST",
-                        "/users/123",
-                        "",
-                        405,
-                        "Method not allowed\n",
-                        "GET" );
-                      ("HEAD", "/users/123", "", 405, "", "GET");
-                      ( "POST",
-                        "/echo",
-                        "body\000bytes",
-                        200,
-                        "body\000bytes",
-                        "" );
-                      ("GET", "/", "", 200, "Hello /\n", "");
-                    ];
-                  List.iter
-                    (fun (headers, status, payload) ->
-                      let r = request ~headers c "GET" "/protected" in
-                      require
-                        (r.status = status && r.body = payload)
-                        "Protected route")
-                    [
-                      ([], 401, "Demo identity required\n");
-                      ([ ("x-demo-user", "demo") ], 200, "Hello demo\n");
-                    ]);
+  Build.call [ "build"; "examples/routing/eio_server.exe" ];
+  with_temp "httpkit-routing-" (fun directory ->
+      with_server ~directory ~prefix:"http://127.0.0.1:"
+        [ Build.binary "examples/routing/eio_server.exe" ]
+        (fun value _ _ ->
+          let port = int_of_string (String.trim value) in
+          with_connection port (fun c ->
               List.iter
-                (fun (target, status) ->
-                  with_connection port (fun c ->
-                      send c
-                        ("POST " ^ target
-                       ^ " HTTP/1.1\r\n\
-                          Host: x\r\n\
-                          Expect: 100-continue\r\n\
-                          Content-Length: 4\r\n\
-                          \r\n");
-                      let first = head c in
-                      require
-                        (starts ~prefix:("HTTP/1.1 " ^ status) first)
-                        "Expect decision";
-                      if status = "100" then (
-                        send c "body";
-                        let r = response c "POST" in
-                        require
-                          (r.status = 200 && r.body = "body")
-                          "Expect final body")))
-                [ ("/echo", "100"); ("/missing", "404") ];
-              Printf.printf
-                "PASS %s routing/middleware over persistent HTTP\n%!" runtime)))
-    [ "eio"; "lwt" ]
+                (fun (meth, path, body, status, payload, allow) ->
+                  let r = request ~body c meth path in
+                  require
+                    (r.status = status && r.body = payload
+                    && header "x-example" r = "httpkit"
+                    && header "allow" r = allow)
+                    ("Routing response: " ^ path))
+                [
+                  ("GET", "/", "", 200, "Hello /\n", "");
+                  ("GET", "/users/me", "", 200, "Current user\n", "");
+                  ("GET", "/users/123?view=full", "", 200, "User 123\n", "");
+                  ("GET", "/users/%2F", "", 200, "User %2F\n", "");
+                  ("GET", "/files/a//b", "", 200, "Raw path: a//b\n", "");
+                  ("GET", "/missing", "", 404, "Not found\n", "");
+                  ("POST", "/users/123", "", 405, "Method not allowed\n", "GET");
+                  ("HEAD", "/users/123", "", 405, "", "GET");
+                  ("POST", "/echo", "body\000bytes", 200, "body\000bytes", "");
+                  ("GET", "/", "", 200, "Hello /\n", "");
+                ];
+              List.iter
+                (fun (headers, status, payload) ->
+                  let r = request ~headers c "GET" "/protected" in
+                  require
+                    (r.status = status && r.body = payload)
+                    "Protected route")
+                [
+                  ([], 401, "Demo identity required\n");
+                  ([ ("x-demo-user", "demo") ], 200, "Hello demo\n");
+                ]);
+          List.iter
+            (fun (target, status) ->
+              with_connection port (fun c ->
+                  send c
+                    ("POST " ^ target
+                   ^ " HTTP/1.1\r\n\
+                      Host: x\r\n\
+                      Expect: 100-continue\r\n\
+                      Content-Length: 4\r\n\
+                      \r\n");
+                  let first = head c in
+                  require
+                    (starts ~prefix:("HTTP/1.1 " ^ status) first)
+                    "Expect decision";
+                  if status = "100" then (
+                    send c "body";
+                    let r = response c "POST" in
+                    require
+                      (r.status = 200 && r.body = "body")
+                      "Expect final body")))
+            [ ("/echo", "100"); ("/missing", "404") ];
+          print_endline "PASS eio routing/middleware over persistent HTTP"))

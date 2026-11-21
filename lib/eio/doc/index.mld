@@ -11,5 +11,5 @@ for bounded output capacity; body collection has a separate explicit cap.
 The caller owns listener creation, TLS, backlog, and application routing.
 
 See examples/runtime/eio_example.ml for a complete socket-pair exchange with a
-pure handler also used by the Lwt example. The installed-package matrix executes
-both examples in bytecode and native mode without the other runtime available.
+pure, runtime-independent handler. The installed-package matrix executes the
+example in bytecode and native mode.

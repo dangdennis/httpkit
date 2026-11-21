@@ -79,13 +79,12 @@ Default behavior is to ignore forwarding headers unless the immediate peer is
 explicitly trusted. Public documentation of a header name does not authenticate
 its contents. Do not infer trust from a private IP range or an existing header.
 
-Both runtime `Common.proxy` helpers use the pure `Httpkit.Proxy.resolve` policy.
+`Httpkit_eio.Common.proxy` uses the pure `Httpkit.Proxy.resolve` policy.
 The default remains one X-Forwarded-For IP and one X-Forwarded-Proto value. For a
 peer verified to normalize X-Real-IP, select it explicitly:
 
 ```ocaml
 Httpkit_eio.Common.proxy ~ip_header:Httpkit.Proxy.Real_ip ~trusted_peer request
-(* Httpkit_lwt.Common.proxy has the same synchronous policy API. *)
 ```
 
 Duplicate selected fields, chains and RFC Forwarded are rejected. There is no

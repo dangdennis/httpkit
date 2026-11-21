@@ -81,7 +81,7 @@ allocation results have a small sampling overhead. Resource checks force GC only
 outside those intervals. The client and server share a host; client byte checking,
 thread scheduling, laptop load and GC can limit throughput. A short run is a
 functional check, not a statistical baseline. No automatic timing threshold is
-introduced. Stable baselines, Lwt parity, separate load hosts and external framework
+introduced. Stable baselines, separate load hosts and external framework
 comparisons remain in the [measurement backlog](benchmark-todos.md).
 
 The developer load client retains at most 8 KiB of read-ahead per connection.
@@ -208,7 +208,7 @@ failure and no following dispatch. Select cases using `--scenarios`; reports are
 under `_artifacts/framework/unread-body-*/`.
 
 The shared fixture uses the same capacity/resource/cleanup checks as backpressure
-controls. These short tests complement 66 segmented Eio/Lwt controls for ignored
+controls. These short tests complement 33 segmented Eio controls for ignored
 versus consumed bodies, partial reads, quotas, trailers and application timeout
 with body-idle timeout disabled. No new draining policy or production behavior
 is introduced. Long frozen-candidate acceptance remains separate.

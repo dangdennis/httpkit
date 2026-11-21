@@ -117,14 +117,12 @@ let http_sessions env store shared =
   check "logout revokes across stores" (S.find store (S.token session) = None);
   status (http env handler "GET" "/private" [ cookie ]) 401
 
-module Corrupt = struct
-  open Caqti.Templater
-
-  let update =
-    static
-      T.(t4 string string string string -->. unit)
-      "UPDATE httpkit_sessions SET subject=?, value=?, csrf=? WHERE namespace=?"
-end
+let corrupt db (subject, value, csrf) =
+  D.use db (fun c ->
+      D.execute c
+        "UPDATE httpkit_sessions SET subject=?, value=?, csrf=? WHERE \
+         namespace=?"
+        [ Text subject; Text value; Text csrf; Text "corrupt" ])
 
 let stored_constraints db store ~sqlite =
   let session = S.issue store ~subject:"valid" "valid" in
@@ -146,17 +144,13 @@ let stored_constraints db store ~sqlite =
   in
   List.iter
     (fun (subject, value, csrf) ->
-      D.use db (fun (module C) ->
-          Caqti_eio.or_fail
-            (C.exec Corrupt.update (subject, value, csrf, "corrupt")));
+      corrupt db (subject, value, csrf);
       match S.find store (S.token session) with
       | _ -> failwith "stored session violated issuance constraints"
       | exception Failure message ->
           check "corrupt row fails closed" (message = "invalid stored session"))
     cases;
-  D.use db (fun (module C) ->
-      Caqti_eio.or_fail
-        (C.exec Corrupt.update ("valid", "restored", S.csrf session, "corrupt")));
+  corrupt db ("valid", "restored", S.csrf session);
   check "corrupt read does not poison database lease"
     (S.value (Option.get (S.find store (S.token session))) = "restored")
 

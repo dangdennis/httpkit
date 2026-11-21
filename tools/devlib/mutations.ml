@@ -81,7 +81,6 @@ let main layer =
         "base64";
         "mtime.clock.os";
         "eio_main";
-        "lwt.unix";
         "crowbar";
         "ipaddr";
         "digestif";

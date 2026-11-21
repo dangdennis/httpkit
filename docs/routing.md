@@ -68,17 +68,15 @@ of dynamic values.
 [The shared example application](../examples/routing/application.ml) implements
 `GET /`, `GET /users/me`, `GET /users/:id`, `GET /files/*path` and `POST /echo`.
 It constructs 404/405/400 responses explicitly and uses basic middleware to add a
-response header. Two native server programs use this exact application:
+response header. A native Eio server program runs this application:
 
 ```sh
 tools/dune-pkg exec ./examples/routing/eio_server.exe
-# Or, in another terminal:
-tools/dune-pkg exec ./examples/routing/lwt_server.exe
 ```
 
-Each prints its loopback URL with an automatically selected port. Use that URL
+It prints its loopback URL with an automatically selected port. Use that URL
 with curl, for example `curl 'http://127.0.0.1:PORT/users/123'`. Ctrl-C stops the
-example process. Listeners bind only to loopback, with a backlog of 32, at most 16
+example process. The listener binds only to loopback, with a backlog of 32, at most 16
 active connections, and a 64 KiB collected request-body cap. These are small
 application examples, not a deployment template; TLS and application authorization
 remain separate concerns.
@@ -88,7 +86,7 @@ tools/dev routing-test
 tools/dev consumer router
 ```
 
-The first check uses an OCaml client checked against http/af against both servers over
+The first check uses an OCaml client checked against http/af against the server over
 persistent connections: precedence, raw captures, 404/405 and Allow, HEAD body
 suppression, middleware headers and binary echo. The second installs only core
 and router, checks native/bytecode consumers, and rejects a forged pattern.

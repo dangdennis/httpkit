@@ -23,7 +23,7 @@ evidence is `NOT_READY`, with exit 3. Unknown profiles are usage errors. Harness
 Consumers of the old `READY` result must migrate to the explicit profile result.
 
 Both profiles require local Linux x86_64 and macOS arm64 validation on OCaml 5.5.0,
-all installed native/bytecode consumers, six direct/Nginx interop lanes, all seven
+all installed native/bytecode consumers, three direct/Nginx interop lanes, all seven
 curated mutants, measured coverage, all fourteen native fuzz targets, feature
 review, stress/soak, deployment, dependency and packaging evidence. Production
 additionally requires independent security and API reviews. Their absence remains

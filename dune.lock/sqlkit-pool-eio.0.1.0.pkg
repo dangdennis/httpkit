@@ -1,0 +1,15 @@
+(version 0.1.0)
+
+(build
+ (all_platforms ((dune))))
+
+(depends
+ (all_platforms
+  (ocaml sqlkit eio mtime)))
+
+(source
+ (fetch
+  (url
+   git+https://github.com/dangdennis/sqlkit.git#77241d9f76365f58578e1e7fd0c4a6ca6ef67f17)))
+
+(dev)

@@ -34,8 +34,8 @@ finalized upload; reuse still waits for its acknowledgements. This distinguishes
 the general continued-transmission guidance in [RFC 9110 §7.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5)
 from the rejection/closing case in [RFC 9112 §9.5](https://www.rfc-editor.org/rfc/rfc9112.html#section-9.5).
 Aborting a writer that the caller has not finished remains httpkit's conservative
-early-final policy. Already in-flight bytes cannot be recalled. Both adapters
-ignore a successful write's acknowledgement when its queue was cancelled during
+early-final policy. Already in-flight bytes cannot be recalled. The Eio adapter
+ignores a successful write's acknowledgement when its queue was cancelled during
 the write, while retaining write-count validation and transport-error handling.
 
 Shutdown stops admission and closes after the active exchange finishes. An adapter owns its deadline and aborts on expiry. Abort is idempotent, preserves the first failure, drops pending work and exposes one Closed event. A peer half-close after a complete request still permits the server to finish its response.
@@ -54,7 +54,7 @@ acknowledgement boundaries, persistent/closing/EOF framing, and 200/413 finals
 after 103. Every case uses whole, bytewise, every-split and seeded segmentation
 with work budgets 1, 7 and 16384. It checks exact response suffix ownership,
 response-body delivery, output cancellation or preservation, event identities,
-closure and reuse. Eio/Lwt controls also hold a transport write across the final
+closure and reuse. Eio controls also hold a transport write across the final
 head, complete it partially or fully, and require the response body plus joined
 cleanup with no further upload writes.
 

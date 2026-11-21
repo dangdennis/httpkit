@@ -49,7 +49,6 @@ let features =
     "http1";
     "engine";
     "eio";
-    "lwt";
     "routing-middleware";
     "json-forms";
     "streaming-sse";
@@ -80,12 +79,7 @@ let fuzz_targets =
   ]
 
 let lanes =
-  List.concat_map
-    (fun runtime ->
-      List.map
-        (fun lane -> runtime ^ "/" ^ lane)
-        [ "direct"; "nginx-buffering-on"; "nginx-buffering-off" ])
-    [ "eio"; "lwt" ]
+  [ "eio/direct"; "eio/nginx-buffering-on"; "eio/nginx-buffering-off" ]
 
 let inventory rows key expected =
   match rows with

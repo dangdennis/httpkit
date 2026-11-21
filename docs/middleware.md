@@ -52,12 +52,9 @@ there is no implicit retry, recovery, resource cleanup, or response framing.
 
 ## Native runtime use
 
-For Eio, write an ordinary wrapper that performs Eio operations before calling
-`next`. For Lwt, use `let*` inside the wrapper and keep the output type as a native
-Lwt promise. The combinators neither bind nor inspect that promise. Response work
-that should run after an asynchronous endpoint must be inside the runtime's bind;
-calling `next` merely obtains the promise. Cancellation and resource scopes remain
-owned by the adapter/application.
+For Eio, write an ordinary direct-style wrapper that performs Eio operations
+before or after calling `next`. The combinators never inspect the output value.
+Cancellation and resource scopes remain owned by the adapter/application.
 
 ## Executable example
 

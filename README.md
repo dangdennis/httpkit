@@ -1,11 +1,11 @@
 # httpkit
 
 Small, composable HTTP libraries for OCaml. Use checked HTTP values, incremental
-HTTP/1 codecs and a Sans-I/O engine independently, or add native Eio and Lwt adapters
+HTTP/1 codecs and a Sans-I/O engine independently, or add the native Eio adapter
 for streaming clients and servers.
 
-Core has no dependencies beyond the OCaml standard library. Each adapter uses its
-runtime's native concurrency and cancellation model.
+Core has no dependencies beyond the OCaml standard library. The adapter uses
+Eio's native concurrency and cancellation model.
 
 For outbound requests, try the experimental [streaming HTTP/HTTPS client](docs/client.md).
 
@@ -58,17 +58,10 @@ The executable links `httpkit-transport-eio` and `eio_main`; the handler needs o
 `httpkit-core`. This small example collects bodies; use the adapter's streaming
 operations for larger transfers and configure limits for your application.
 
-Prefer Lwt? Run the [equivalent example](examples/runtime/lwt_example.ml):
-
-```sh
-tools/dune-pkg exec ./examples/runtime/lwt_example.exe
-```
-
 ## Packages and documentation
 
-Use `httpkit-eio` or `httpkit-lwt` for applications and `httpkit-client-eio` or
-`httpkit-client-lwt` for outbound requests. Add database, cookie, session, password
-and OIDC packages as needed. The core values, codecs, engine, router and middleware
+Use `httpkit-eio` for applications and `httpkit-client-eio` for outbound
+requests. Add database, cookie, session, password and OIDC packages as needed. The core values, codecs, engine, router and middleware
 are independently usable; applications supply listeners and server-side TLS.
 
 - [Documentation index](docs/index.md): guides organized by task.

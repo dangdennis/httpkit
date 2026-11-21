@@ -1,3 +1,2 @@
 (library (name subject) (modules subject) (libraries httpkit-core))
 (executable (name eio_server) (modules eio_server) (libraries subject httpkit-transport-eio eio_main))
-(executable (name lwt_server) (modules lwt_server) (libraries subject httpkit-transport-lwt lwt.unix))

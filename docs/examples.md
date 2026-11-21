@@ -15,7 +15,7 @@ tools/dune-pkg exec ./examples/pure/in_memory.exe
 
 Expected output is `Hello /stream` followed by a newline. The example links only
 `httpkit-core` and `httpkit-engine` (which depends on the HTTP/1 codec).
-No Eio or Lwt types enter this application.
+No Eio types enter this application.
 
 Read [the source](../examples/pure/in_memory.ml) in this order:
 
@@ -39,19 +39,18 @@ instead of spinning. Both native and bytecode versions run under `dune runtest`.
 check also compiles this exact source outside the repository with only the
 installed protocol packages available.
 
-## The same pure handler with native adapters
+## A pure handler with the native Eio adapter
 
 ```sh
 tools/dune-pkg exec ./examples/runtime/eio_example.exe
-tools/dune-pkg exec ./examples/runtime/lwt_example.exe
 ```
 
-Both print `Hello /` and call the same pure
-[handler](../examples/runtime/transform.ml). Each uses a local socket pair to make
-client/server cleanup reproducible. Eio owns fibers and switches; Lwt owns promises
-and cancellation. There is no shared promise interface in the production core.
+It prints `Hello /` and calls a pure
+[handler](../examples/runtime/transform.ml) that has no runtime dependency. It uses
+a local socket pair to make client/server cleanup reproducible. Eio owns fibers,
+switches and cancellation. There is no promise interface in the production core.
 
-These small adapter examples collect bodies. The [Eio personal-use examples](personal-eio.md)
+This small adapter example collects bodies. The [Eio personal-use examples](personal-eio.md)
 add incremental upload/download, routing and middleware, peer cancellation, and
 graceful shutdown with active transfers. See [adapter ownership and limits](adapters.md)
 before adapting a recipe to a long-lived application.
@@ -61,8 +60,8 @@ A supported Expect upload receives 100 Continue first; unmatched routes receive
 a final response immediately. Early final responses follow the engine close
 policy and do not wait for the client to transmit a rejected upload.
 
-The `/protected` route demonstrates Transition context plumbing in both native
-runtimes. The Eio wrapper yields and the Lwt wrapper binds a promise before
+The `/protected` route demonstrates Transition context plumbing in the native
+runtime. The Eio wrapper yields before
 supplying an `Application.authenticated` context to the endpoint. Requests with
 `x-demo-user: demo` get the illustrative identity; missing/other values receive
 401. This is an executable composition example, not an authentication protocol.

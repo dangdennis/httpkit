@@ -13,7 +13,6 @@ depends: [
   "httpkit-http1"
   "httpkit-engine"
   "httpkit-transport-eio"
-  "httpkit-transport-lwt"
   "httpkit-middleware"
   "httpkit-router"
   "httpkit"
@@ -24,10 +23,8 @@ depends: [
   "httpkit-session-eio"
   "httpkit-oidc"
   "httpkit-oidc-eio"
-  "httpkit-lwt"
   "httpkit-client"
   "httpkit-client-eio"
-  "httpkit-client-lwt"
   "ca-certs" {= "1.0.3"}
   "eio_main"
   "routes" {= "2.0.0"}

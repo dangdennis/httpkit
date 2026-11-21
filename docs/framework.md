@@ -6,12 +6,14 @@ The framework is three optional packages above the HTTP primitives:
   HTML, multipart events, SSE formatting and a WebSocket server codec.
 - `httpkit-eio`: application dispatch, lifecycle, common middleware, files,
   in-memory browser sessions and realtime transport loops.
-- `httpkit-db-eio`: Caqti pools, transactions and migrations for PostgreSQL and
-  file-backed SQLite. Existing typed Caqti requests remain directly usable.
+- `httpkit-db-eio`: pools, transactions, migrations and portable statements for
+  PostgreSQL and file-backed SQLite. PostgreSQL runs on sqlkit's pure OCaml
+  driver; SQLite runs on Caqti. Typed Caqti requests remain usable on SQLite
+  only, through `Db.sqlite`.
 
 The core, HTTP codecs, router and middleware remain independently composable.
-This guide covers the Eio application layer. `httpkit-lwt` provides native Lwt
-application dispatch, sessions and realtime helpers; see [extensions](extensions.md).
+This guide covers the Eio application layer; see [extensions](extensions.md) for
+sessions, passwords and OIDC.
 
 ## Run the example
 
@@ -41,7 +43,9 @@ On Railway, configure `APP_ORIGIN` for the public HTTPS origin and use its `PORT
 Railway owns edge HTTPS; application authentication and authorization remain yours.
 Use a persistent volume for SQLite and a single application replica if using the
 in-memory session store. PostgreSQL connection settings, including TLS verification,
-are delegated to Caqti/libpq and the supplied URI.
+come from the supplied URI as interpreted by sqlkit-pgwire, not libpq. The
+default `sslmode=prefer` does not verify the server certificate; see
+[database ownership](#database-ownership).
 
 ## Compose handlers
 
@@ -127,22 +131,67 @@ are 1 MiB/4 MiB, with a 30-second read/write/callback timeout.
 
 ## Database ownership
 
-Use native executables for PostgreSQL; the pinned bytecode binding has a
-[known startup crash](status.md#what-we-found).
+PostgreSQL runs on sqlkit's pure OCaml driver (`sqlkit-pgwire`): no libpq and no
+C stubs. SQLite runs on Caqti. The earlier advice to use native executables for
+PostgreSQL referred to a [bytecode crash](status.md#what-we-found) in a binding
+that was removed on 2026-11-21.
 
-Create a pool inside an Eio switch, then use `Db.use pool` with a Caqti connection
-callback. `Db.transaction pool` commits when the callback returns and rolls back
-on exceptions or cancellation. Connections must not escape, run concurrently,
-or be used for nested transactions. Failed rollback evicts the connection.
+Create a pool inside an Eio switch with `Db.create ~sw ~stdenv uri`; `stdenv` is
+still `(env :> Caqti_eio.stdenv)` and the URI is `postgresql://` or file-backed
+`sqlite3:`. `Db.use pool` leases an abstract `Db.connection` to a callback.
+`Db.transaction pool` commits when the callback returns and rolls back
+on exceptions or cancellation. After a query failure the transaction cannot
+commit, even if the callback catches the failure; later operations raise
+`Connection_invalidated`. Connections must not escape or run concurrently, and
+the callback must leave transaction control to the wrapper. The one exception:
+on PostgreSQL, `Sqlkit.transaction` may be used inside and nests as a savepoint.
+Failed rollback evicts the connection.
 Pools default to eight connections and at most 32 waiting/active-overflow callers;
-excess callers raise `Busy`. Closing the wrapper is terminal.
+excess callers raise `Busy`. Closing the wrapper is terminal. `Db.size` counts
+open connections on SQLite but leases in use on PostgreSQL, where idle
+connections belong to the driver's pool.
+
+Portable statements work on both backends: `?` placeholders, values
+`Null | Int of int64 | Text of string`, and one `Integer | String` kind per
+result column. From the example's `/db` route:
+
+```ocaml
+Db.use db (fun connection ->
+    match
+      Db.query connection ~kinds:[ Integer ]
+        "SELECT 1" []
+    with
+    | [ [ Db.Int n ] ] -> Int64.to_string n
+    | _ -> "unexpected result")
+```
+
+`Db.execute connection sql values` runs a statement without rows. Database
+errors from these raise `Db.Failed { sqlstate; message }`; SQLite errors carry
+no `sqlstate`. For typed or backend-specific queries take the native handle:
+`Db.postgresql connection` returns a `Sqlkit.conn option` for sqlkit's generated
+queries, and `Db.sqlite connection` returns a `Caqti_eio.connection option`.
+Errors from a native handle keep that library's own form.
 
 Migrations supply increasing versions and separate PostgreSQL/SQLite SQL lists.
 The helper checks stored checksums and history, serializes migration writers
 inside the database, and applies the batch transactionally. SQL is trusted source
-code; application query parameters belong in typed Caqti requests. PostgreSQL gets
-a statement timeout; SQLite gets a bounded lock wait and foreign keys. SQLite
+code; application query parameters belong in statement values, never in the SQL
+text. PostgreSQL gets a server-side statement timeout (10 seconds by default),
+set when a connection is opened rather than per lease, with a client deadline
+five seconds behind it that costs the connection if reached. sqlkit's default
+5-second lock timeout and 1-minute idle-in-transaction timeout also apply.
+SQLite gets a bounded lock wait and foreign keys. SQLite
 statement execution does not acquire PostgreSQL's timeout guarantee.
+
+PostgreSQL connection strings are sqlkit-pgwire's. `sslmode` defaults to
+`prefer`: TLS when offered, certificate not verified. `require`, `verify-ca`,
+`verify-full` and `sslrootcert` are supported; use `verify-full` on a network
+you do not control. Authentication is trust, password, MD5 or SCRAM-SHA-256
+without channel binding. Client certificates, `channel_binding`, multiple hosts,
+service files and `.pgpass` are unsupported, and `Db.create` raises
+`Invalid_argument` for a parameter the driver cannot honour instead of ignoring
+it. This authentication and TLS code is new and has not had an independent
+review.
 
 ## Validation
 
@@ -156,10 +205,13 @@ tools/dev framework-validate --long
 ```
 
 Database tests create and stop an isolated PostgreSQL instance. Set
-`FRAMEWORK_PG_BIN` if its binaries are not discoverable. Building the Caqti drivers
-requires PostgreSQL and SQLite development libraries and pkg-config (plus GMP for
-transitive dependencies). See [status](status.md) for validation results;
-implementation is separate from public release approval.
+`FRAMEWORK_PG_BIN` if its binaries are not discoverable; the tests need a
+PostgreSQL server installation, but the build needs no PostgreSQL client library.
+Building requires SQLite development libraries and pkg-config (plus GMP for
+transitive dependencies). On 2026-11-21 `tools/dev consumer framework` and
+`tools/dev databases` passed on the new driver; the coverage, mutation and
+`--long` commands above were not re-run. See [status](status.md) for validation
+results; implementation is separate from public release approval.
 
 The validation coordinator freezes the source hash, retains per-step logs, and
 runs the existing regression checks before an isolated profile, a 30-minute
@@ -170,12 +222,13 @@ Protocol references: [JSON](https://www.rfc-editor.org/rfc/rfc8259),
 [cookies](https://www.rfc-editor.org/rfc/rfc6265),
 [multipart](https://www.rfc-editor.org/rfc/rfc7578),
 [WebSockets](https://www.rfc-editor.org/rfc/rfc6455),
-[SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html), and
+[SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html).
+Database libraries: [sqlkit](https://github.com/dangdennis/sqlkit) and
 [Caqti](https://github.com/paurkedal/ocaml-caqti).
 
 ## Further checks
 
 [Testing](testing.md) covers generated input, package consumers and resource
 validation. [Observations](observability.md) defines lifecycle metrics;
-[deployment](deployment.md#forwarded-metadata-fail-closed) defines the shared
-Eio/Lwt proxy policy and explicit `X-Real-IP` selection.
+[deployment](deployment.md#forwarded-metadata-fail-closed) defines the
+proxy policy and explicit `X-Real-IP` selection.

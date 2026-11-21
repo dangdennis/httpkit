@@ -1,7 +1,8 @@
 # Validation status
 
-Updated 2026-09-18. Library code baseline: `d39f021`; the starter and documentation
-follow that baseline.
+Updated 2026-09-18; database-layer entry added 2026-11-21 for the uncommitted
+working tree. Library code baseline for the September results: `d39f021`; the
+starter and documentation followed that baseline.
 
 The libraries have substantial local test coverage. They are **not yet signed off
 for broad internal deployment or production**. Prepare internal applications using
@@ -19,19 +20,62 @@ for broad internal deployment or production**. Prepare internal applications usi
 | Earlier coverage | On `ef12cbf`: core 95.37%, framework 87.11%, extensions 84.83%, plus seven detected curated mutations. These are instrumented-point measurements, not a security score. |
 | New-application starter | Native SQLite and PostgreSQL route, invalid-input, parameterized-query, restart/migration and SIGTERM checks passed. The copied app also passed natively in a separate Dune project using the previously installed `ef12cbf` packages. SQLite bytecode passed; PostgreSQL bytecode crashed at startup. This checks application wiring, not a fresh GitHub installation or candidate release. |
 
+2026-11-21: the Lwt transport, application and client packages were removed; Eio
+is the only runtime, and the Lwt results above are historical.
+
+2026-11-21: PostgreSQL in `httpkit-db-eio` moved from Caqti/libpq to sqlkit's
+pure OCaml driver, `sqlkit-pgwire`, pinned from Git; SQLite stays on Caqti. The
+patched `caqti-driver-postgresql`, `postgresql.5.4.0`, `conf-postgresql` and the
+local `toolchain/opam-fixes` repository were removed. `httpkit-session-eio` no
+longer depends on Caqti. See [dependencies](dependencies.md#postgresql-driver).
+
+| 2026-11-21 check (macOS arm64, working tree) | Result and scope |
+| --- | --- |
+| `tools/dune-pkg runtest` | Passed. |
+| Fast harness tier | Passed, 150 cases. |
+| `tools/dev databases` | Passed: "PASS PostgreSQL and SQLite". |
+| `test/db_eio/db_test.ml`, `test/extensions/sql_session_test.ml` | Passed on SQLite and on PostgreSQL through the new driver. |
+| `tools/dev consumer framework`, `tools/dev consumer extensions` | Passed. |
+| Starter as bytecode | `examples/starter/main.bc`, run via `tools/dune-pkg exec`, saved and listed a note against PostgreSQL 18. |
+
+Not re-run on 2026-11-21: coverage, mutations, fuzz, soak and load campaigns,
+Linux validation, and the opam-switch installation. Every database-layer result
+in the September table — the PostgreSQL two-hour soak, coverage and mutation
+figures, Linux validation and the starter's PostgreSQL checks — was obtained on
+the Caqti PostgreSQL path and is historical for it. It is not evidence about the
+new driver. The driver's authentication and TLS code is new and has not had an
+independent review.
+
 Earlier results are history, not fresh acceptance for a different source hash.
 The Linux runs used amd64 emulation on an arm64 host; they establish compatibility,
 not native Linux throughput. Client measurements include the local fixture server.
 
 ## What we found
 
-**PostgreSQL bytecode — blocked:** both the separately installed starter and the
-current in-repository bytecode build crashed with
+**PostgreSQL bytecode — closed 2026-11-21 by removing the binding:** in
+September both the separately installed starter and the then-current
+in-repository bytecode build crashed with
 SIGSEGV in `PQsendQueryParams_stub`, called by `PQsendQueryParams_stub_bc`, in the
-pinned `postgresql.5.4.0` binding. Its six-argument bytecode wrapper is a suspected
-calling-convention defect; no dependency patch has been applied or validated.
-Native execution passed with both databases. The starter guide uses native builds;
-earlier bytecode consumer passes do not establish PostgreSQL bytecode safety.
+pinned `postgresql.5.4.0` binding. Its six-argument bytecode wrapper was a suspected
+calling-convention defect; no dependency patch was applied or validated.
+Native execution passed with both databases. The defect was never diagnosed or
+fixed: the binding is no longer a dependency, and PostgreSQL has no C stubs on
+the new path. On 2026-11-21 the in-repository starter built as bytecode saved
+and listed a note against PostgreSQL 18. That is one bytecode run of one
+program; the separately installed (opam) starter was not repeated.
+
+**PostgreSQL driver — new, one review:** the replacement driver's
+authentication (trust, password, MD5, SCRAM-SHA-256 without channel binding)
+and TLS code had one adversarial review on 2026-11-21, which included a scripted
+hostile server. It found twelve issues, three of them high severity (host name
+not checked under `verify-full` for some names, message lengths wrapping at
+4 GiB, and no authentication-method policy). All are fixed in the pinned commit
+`77241d9` with regression tests. That review was produced with the same tooling
+that wrote the driver; there has been no review by an independent party.
+`sslmode` defaults to `prefer`, which does not verify the server certificate,
+and the password itself is sent only over TLS or a Unix socket unless
+`require_auth` says otherwise. Earlier PostgreSQL fault, soak
+and cancellation campaigns ran against libpq and have not been repeated.
 
 **Client fixture isolation:** IPv4-only listeners used `localhost`, which could
 resolve to an unrelated IPv6 listener on the same port. A controlled collision
@@ -56,7 +100,9 @@ unresolved; their investigation is deferred. They are separate from the profilin
 ## What remains
 
 - Resolve or explicitly bound the applicability of the hang before broad rollout.
-- Diagnose and validate the PostgreSQL binding before supporting database bytecode builds.
+- Obtain an independent review of the PostgreSQL driver's authentication and TLS code.
+- Repeat the PostgreSQL soak, fault, coverage, mutation and Linux checks on the new driver.
+- Re-validate the opam-switch installation with the sqlkit Git pins, including bytecode.
 - Freeze the internal candidate and collect fresh package/consumer/platform checks.
 - Exercise the actual application's proxy/TLS, database, limits, shutdown and rollback.
 - Record deployment owners, monitoring and recovery procedures.

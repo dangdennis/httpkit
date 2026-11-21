@@ -27,8 +27,7 @@ This is an experiment backlog, not a required package roadmap.
   timing gap to validation without evidence.
 - Refine router experiments to parse once and bound fallback construction while
   preserving declaration order, raw paths and ordered Allow results.
-- Add Lwt endpoint benchmark parity when prioritized; correctness parity remains
-  required. Runtime/framework comparisons need equivalent handlers and limits.
+- Runtime/framework comparisons need equivalent handlers and limits.
 - Measure observation-hook overhead and mixed workloads with bounded password work.
 
 Every new lane needs a stated ownership/input contract, independent result checks,

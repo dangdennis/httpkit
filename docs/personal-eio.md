@@ -17,7 +17,7 @@ completion; `finish` finalizes outgoing framing. Chunked messages may emit
 `with_connection` flushes accepted output on normal callback return.
 
 The installed-consumer check compiles and runs this source in native and bytecode
-forms with Lwt unavailable:
+forms:
 
 ```sh
 tools/dev consumer adapter

@@ -93,67 +93,51 @@ let prepare t ~subject value =
     expires = Int64.add (now t) (Int64.of_int t.ttl);
   }
 
+(* Written once for both backends with the portable statements: [?]
+   placeholders, text and integer values. *)
 module Q = struct
-  open Caqti.Templater
-
   let insert =
-    static
-      T.(t2 (t3 string string string) (t3 string string int64) -->? string)
-      "INSERT INTO httpkit_sessions(namespace, token_hash, subject, value, \
-       csrf, expires) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(namespace, \
-       token_hash) DO NOTHING RETURNING token_hash"
+    "INSERT INTO httpkit_sessions(namespace, token_hash, subject, value, csrf, \
+     expires) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(namespace, token_hash) DO \
+     NOTHING RETURNING token_hash"
 
   let find =
-    static
-      T.(t3 string string int64 -->? t4 string string string int64)
-      "SELECT subject, value, csrf, expires FROM httpkit_sessions WHERE \
-       namespace=? AND token_hash=? AND expires>?"
+    "SELECT subject, value, csrf, expires FROM httpkit_sessions WHERE \
+     namespace=? AND token_hash=? AND expires>?"
 
   let rotate =
-    static
-      T.(
-        t2 (t4 string string string string) (t4 int64 string string int64)
-        -->? string)
-      "UPDATE httpkit_sessions SET token_hash=?, subject=?, value=?, csrf=?, \
-       expires=? WHERE namespace=? AND token_hash=? AND expires>? RETURNING \
-       token_hash"
+    "UPDATE httpkit_sessions SET token_hash=?, subject=?, value=?, csrf=?, \
+     expires=? WHERE namespace=? AND token_hash=? AND expires>? RETURNING \
+     token_hash"
 
-  let revoke =
-    static
-      T.(t2 string string -->. unit)
-      "DELETE FROM httpkit_sessions WHERE namespace=? AND token_hash=?"
-
-  let subject =
-    static
-      T.(t2 string string -->. unit)
-      "DELETE FROM httpkit_sessions WHERE namespace=? AND subject=?"
+  let revoke = "DELETE FROM httpkit_sessions WHERE namespace=? AND token_hash=?"
+  let subject = "DELETE FROM httpkit_sessions WHERE namespace=? AND subject=?"
 
   let prune =
-    static
-      T.(t4 string string int64 int -->. unit)
-      "DELETE FROM httpkit_sessions WHERE namespace=? AND token_hash IN \
-       (SELECT token_hash FROM httpkit_sessions WHERE namespace=? AND \
-       expires<=? ORDER BY expires LIMIT ?)"
+    "DELETE FROM httpkit_sessions WHERE namespace=? AND token_hash IN (SELECT \
+     token_hash FROM httpkit_sessions WHERE namespace=? AND expires<=? ORDER \
+     BY expires LIMIT ?)"
 end
-
-let run t f =
-  D.use t.db (fun (module C : Caqti_eio.CONNECTION) ->
-      f (module C : Caqti_eio.CONNECTION))
 
 let issue t ~subject value =
   let rec attempt n =
     let s = prepare t ~subject value in
     let added =
-      run t (fun (module C) ->
-          Caqti_eio.or_fail
-            (C.find_opt Q.insert
-               ( (t.namespace, digest s.token, s.subject),
-                 (s.value, s.csrf, s.expires) )))
+      D.use t.db (fun c ->
+          D.query c ~kinds:[ String ] Q.insert
+            [
+              Text t.namespace;
+              Text (digest s.token);
+              Text s.subject;
+              Text s.value;
+              Text s.csrf;
+              Int s.expires;
+            ])
     in
     match added with
-    | Some _ -> s
-    | None when n > 0 -> attempt (n - 1)
-    | None -> failwith "session entropy collision"
+    | _ :: _ -> s
+    | [] when n > 0 -> attempt (n - 1)
+    | [] -> failwith "session entropy collision"
   in
   attempt 2
 
@@ -161,13 +145,19 @@ let find t token =
   if not (token_valid token) then None
   else
     let current = now t in
-    run t (fun (module C) ->
-        Caqti_eio.or_fail
-          (C.find_opt Q.find (t.namespace, digest token, current)))
-    |> Option.map (fun (subject, value, csrf, expires) ->
+    match
+      D.use t.db (fun c ->
+          D.query c
+            ~kinds:[ String; String; String; Integer ]
+            Q.find
+            [ Text t.namespace; Text (digest token); Int current ])
+    with
+    | [] -> None
+    | [ [ D.Text subject; D.Text value; D.Text csrf; D.Int expires ] ] ->
         if (not (valid_payload t ~subject value)) || not (token_valid csrf) then
           failwith "invalid stored session";
-        { token; subject; value; csrf; expires })
+        Some { token; subject; value; csrf; expires }
+    | _ -> failwith "invalid stored session"
 
 let rotate t old ~subject value =
   if not (token_valid old) then None
@@ -175,30 +165,42 @@ let rotate t old ~subject value =
     let s = prepare t ~subject value in
     if Eqaf.equal old s.token then failwith "session entropy collision";
     let current = now t in
-    let changed =
-      run t (fun (module C) ->
-          Caqti_eio.or_fail
-            (C.find_opt Q.rotate
-               ( (digest s.token, s.subject, s.value, s.csrf),
-                 (s.expires, t.namespace, digest old, current) )))
-    in
-    Option.map (fun _ -> s) changed
+    match
+      D.use t.db (fun c ->
+          D.query c ~kinds:[ String ] Q.rotate
+            [
+              Text (digest s.token);
+              Text s.subject;
+              Text s.value;
+              Text s.csrf;
+              Int s.expires;
+              Text t.namespace;
+              Text (digest old);
+              Int current;
+            ])
+    with
+    | [] -> None
+    | _ :: _ -> Some s
 
 let revoke t token =
   if token_valid token then
-    run t (fun (module C) ->
-        Caqti_eio.or_fail (C.exec Q.revoke (t.namespace, digest token)))
+    D.use t.db (fun c ->
+        D.execute c Q.revoke [ Text t.namespace; Text (digest token) ])
 
 let revoke_subject t subject =
-  run t (fun (module C) ->
-      Caqti_eio.or_fail (C.exec Q.subject (t.namespace, subject)))
+  D.use t.db (fun c -> D.execute c Q.subject [ Text t.namespace; Text subject ])
 
 let prune ?(limit = 1000) t =
   if limit < 1 || limit > 10000 then invalid_arg "prune limit";
   let current = now t in
-  run t (fun (module C) ->
-      Caqti_eio.or_fail
-        (C.exec Q.prune (t.namespace, t.namespace, current, limit)))
+  D.use t.db (fun c ->
+      D.execute c Q.prune
+        [
+          Text t.namespace;
+          Text t.namespace;
+          Int current;
+          Int (Int64.of_int limit);
+        ])
 
 let request_token t r =
   match

@@ -8,7 +8,7 @@ validation outcomes and unresolved issues.
 | Resource | Owner and retirement | Important boundary |
 | --- | --- | --- |
 | Listener/backlog | Caller of `serve` / `serve_connections` | Caller configures backlog and closes the listener; accepted transports transfer to workers |
-| Connection | `with_connection`, or the successful handoff recipient | One domain/event loop; join callback, reader and writer before one close; primary failure survives cleanup failure |
+| Connection | `with_connection`, or the successful handoff recipient | One domain; join callback, reader and writer before one close; primary failure survives cleanup failure |
 | Engine/exchange | Connection driver | One mutable owner; connection-specific IDs; abort is idempotent |
 | Request reader | Active application exchange | Single reader; cannot escape its documented scope |
 | Handler/response producer | Application exchange | Cancellation reaches owned work; finalizers join before scope completion |
@@ -22,9 +22,8 @@ validation outcomes and unresolved issues.
 
 ## Cancellation and deadlines
 
-Both native adapters join suspended callback finalizers before closing transport.
-Lwt application deadlines also cancel and join the losing branch while preserving
-the winning result. Protected cleanup uses `Lwt.no_cancel` or `Eio.Cancel.protect`.
+The native adapter joins suspended callback finalizers before closing transport.
+Protected cleanup uses `Eio.Cancel.protect`.
 A slow finalizer extends completion; a deadline cannot safely impose a second
 hard cutoff by abandoning cleanup.
 
@@ -67,7 +66,7 @@ finish; a graceful HTTP deadline does not permit abandoning it.
 ## Regression entry points
 
 - `test/adapter`: suspended finalizers, transport failures and cancellation.
-- `test/extensions/lwt_app_test.ml`: handler/stream/WebSocket deadlines.
+- `test/production/timeouts_test.ml`: application deadlines in every request phase.
 - `test/web_eio/runtime_test.ml`: per-part lifetime, I/O faults and upload cleanup.
 - `test/db_eio/db_test.ml`: real SQLite/PostgreSQL leases, rollback and shutdown.
 - `test/production/websocket_deadline_test.ml`: absolute closing budget.

@@ -1,4 +1,4 @@
-(* The same pure handler is linked by both runtime examples. It consumes only
+(* A pure handler linked by the Eio runtime example. It consumes only
    validated request metadata and owns the body value it returns. *)
 open Httpkit_core
 

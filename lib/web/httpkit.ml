@@ -1,5 +1,5 @@
 (** Runtime-neutral web primitives from the [httpkit] library. Application
-    dispatch lives in [Httpkit_eio] and [Httpkit_lwt]. *)
+    dispatch lives in [Httpkit_eio]. *)
 
 module Url = Url
 module Reply = Reply

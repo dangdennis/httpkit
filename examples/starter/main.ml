@@ -2,13 +2,12 @@ module App = Httpkit_eio
 module Web = Httpkit
 module Db = Httpkit_db_eio
 
+(* Portable statements run unchanged on SQLite and PostgreSQL. For typed
+   PostgreSQL queries, generate them with sqlkit and run them on
+   [Db.postgresql connection]. *)
 module Query = struct
-  open Caqti.Templater
-
-  let insert = static T.(string -->. unit) "INSERT INTO notes(body) VALUES (?)"
-
-  let list =
-    static T.(unit -->* string) "SELECT body FROM notes ORDER BY body LIMIT 100"
+  let insert = "INSERT INTO notes(body) VALUES (?)"
+  let list = "SELECT body FROM notes ORDER BY body LIMIT 100"
 end
 
 let migration : Db.migration =
@@ -51,24 +50,21 @@ let () =
                         | Some name -> text ("Hello " ^ name ^ "\n"));
                     App.route Httpkit_core.Method.get "/notes" (fun _ ->
                         let notes =
-                          Db.use db (fun (module C : Caqti_eio.CONNECTION) ->
-                              let rows = ref [] in
-                              Caqti_eio.or_fail
-                                (C.iter_s Query.list
-                                   (fun body ->
-                                     rows := `String body :: !rows;
-                                     Ok ())
-                                   ());
-                              List.rev !rows)
+                          Db.use db (fun connection ->
+                              List.filter_map
+                                (function
+                                  | [ Db.Text body ] -> Some (`String body)
+                                  | _ -> None)
+                                (Db.query connection ~kinds:[ String ]
+                                   Query.list []))
                         in
                         App.reply (Web.Reply.json (`List notes)));
                     App.route Httpkit_core.Method.post "/notes" (fun request ->
                         match App.json request with
                         | Ok (`Assoc [ ("body", `String body) ])
                           when String.trim body <> "" ->
-                            Db.transaction db
-                              (fun (module C : Caqti_eio.CONNECTION) ->
-                                Caqti_eio.or_fail (C.exec Query.insert body));
+                            Db.transaction db (fun connection ->
+                                Db.execute connection Query.insert [ Text body ]);
                             text ~status:201 "Saved\n"
                         | _ ->
                             text ~status:400

@@ -2,5 +2,5 @@
  (name main)
  (modes byte exe)
  (libraries bigstringaf tls x509 domain-name
-  mirage-crypto-rng.unix decompress.gz bytesrw.zlib closeable_zlib eio_main lwt.unix yojson)
+  mirage-crypto-rng.unix decompress.gz bytesrw.zlib closeable_zlib eio_main yojson)
  (deps (glob_files fixtures/*)))

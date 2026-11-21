@@ -3,12 +3,7 @@ open Common
 let main () =
   let digest = Build.source_hash () in
   Build.call
-    [
-      "build";
-      "bench/stream_bench.exe";
-      "test/interop/eio_server.exe";
-      "test/interop/lwt_server.exe";
-    ];
+    [ "build"; "bench/stream_bench.exe"; "test/interop/eio_server.exe" ];
   let samples =
     List.init 5 (fun _ ->
         Yojson.Basic.from_string
@@ -52,97 +47,86 @@ let main () =
               `Float (Benchmarks.stdev values /. Benchmarks.mean values) );
           ])
   in
-  let loads =
-    List.map
-      (fun runtime ->
-        Interop.backend runtime (fun port child ->
-            let rss = ref []
-            and stopped = Atomic.make false
-            and error = ref None in
-            let sampler =
-              Thread.create
-                (fun () ->
-                  try
-                    while not (Atomic.get stopped) do
-                      (try
-                         let value =
-                           int_of_string
-                             (String.trim
-                                (Process.output ~timeout:2.
-                                   [
-                                     "ps";
-                                     "-o";
-                                     "rss=";
-                                     "-p";
-                                     string_of_int child.Process.pid;
-                                   ]))
-                         in
-                         rss := value :: !rss
-                       with Error _ | Failure _ -> ());
-                      Load.interruptible_sleep stopped 0.02
-                    done
-                  with exn -> error := Some exn)
-                ()
-            in
-            let start = monotonic () in
-            let outputs =
-              Fun.protect
-                ~finally:(fun () ->
-                  Atomic.set stopped true;
-                  Thread.join sampler)
-                (fun () ->
-                  Load.parallel 4 (fun stop index ->
-                      let rng = Random.State.make [| 42 + index |]
-                      and latencies = ref []
-                      and total = ref 0 in
-                      Network.with_connection port (fun c ->
-                          for _ = 1 to 50 do
-                            require
-                              (not (Atomic.get stop))
-                              "Peer load worker failed";
-                            let sizes = [| 0; 17; 4096; 262144 |] in
-                            let size = sizes.(Random.State.int rng 4)
-                            and chunked = Random.State.bool rng in
-                            let path =
-                              if chunked then "/chunked" else "/fixed"
-                            in
-                            let body = String.make size 'a' in
-                            let start = monotonic () in
-                            let r =
-                              Network.request ~body ~chunked c "POST" path
-                            in
-                            require
-                              (r.status = 200
-                              && r.body = Interop.expected "POST" path body)
-                              "Mixed workload response";
-                            latencies :=
-                              ((monotonic () -. start) *. 1e9) :: !latencies;
-                            total := !total + size
-                          done);
-                      (!latencies, !total)))
-            in
-            Option.iter raise !error;
-            let elapsed = monotonic () -. start in
-            let values =
-              List.concat_map fst outputs |> List.sort Float.compare
-            in
-            require
-              (List.length values = 200 && !rss <> [])
-              "Missing load/RSS observations";
-            `Assoc
-              [
-                ("runtime", `String runtime);
-                ("requests", `Int 200);
-                ("concurrency", `Int 4);
-                ( "body_bytes",
-                  `Int (List.fold_left (fun n (_, s) -> n + s) 0 outputs) );
-                ("elapsed_seconds", `Float elapsed);
-                ("p50_ns", `Float (Benchmarks.median values));
-                ("p99_ns", `Float (List.nth values 197));
-                ("peak_process_rss_kib", `Int (List.fold_left max 0 !rss));
-                ("rss_samples", `Int (List.length !rss));
-              ]))
-      [ "eio"; "lwt" ]
+  let load =
+    Interop.backend (fun port child ->
+        let rss = ref [] and stopped = Atomic.make false and error = ref None in
+        let sampler =
+          Thread.create
+            (fun () ->
+              try
+                while not (Atomic.get stopped) do
+                  (try
+                     let value =
+                       int_of_string
+                         (String.trim
+                            (Process.output ~timeout:2.
+                               [
+                                 "ps";
+                                 "-o";
+                                 "rss=";
+                                 "-p";
+                                 string_of_int child.Process.pid;
+                               ]))
+                     in
+                     rss := value :: !rss
+                   with Error _ | Failure _ -> ());
+                  Load.interruptible_sleep stopped 0.02
+                done
+              with exn -> error := Some exn)
+            ()
+        in
+        let start = monotonic () in
+        let outputs =
+          Fun.protect
+            ~finally:(fun () ->
+              Atomic.set stopped true;
+              Thread.join sampler)
+            (fun () ->
+              Load.parallel 4 (fun stop index ->
+                  let rng = Random.State.make [| 42 + index |]
+                  and latencies = ref []
+                  and total = ref 0 in
+                  Network.with_connection port (fun c ->
+                      for _ = 1 to 50 do
+                        require
+                          (not (Atomic.get stop))
+                          "Peer load worker failed";
+                        let sizes = [| 0; 17; 4096; 262144 |] in
+                        let size = sizes.(Random.State.int rng 4)
+                        and chunked = Random.State.bool rng in
+                        let path = if chunked then "/chunked" else "/fixed" in
+                        let body = String.make size 'a' in
+                        let start = monotonic () in
+                        let r = Network.request ~body ~chunked c "POST" path in
+                        require
+                          (r.status = 200
+                          && r.body = Interop.expected "POST" path body)
+                          "Mixed workload response";
+                        latencies :=
+                          ((monotonic () -. start) *. 1e9) :: !latencies;
+                        total := !total + size
+                      done);
+                  (!latencies, !total)))
+        in
+        Option.iter raise !error;
+        let elapsed = monotonic () -. start in
+        let values = List.concat_map fst outputs |> List.sort Float.compare in
+        require
+          (List.length values = 200 && !rss <> [])
+          "Missing load/RSS observations";
+        `Assoc
+          [
+            ("runtime", `String "eio");
+            ("requests", `Int 200);
+            ("concurrency", `Int 4);
+            ( "body_bytes",
+              `Int (List.fold_left (fun n (_, s) -> n + s) 0 outputs) );
+            ("elapsed_seconds", `Float elapsed);
+            ("p50_ns", `Float (Benchmarks.median values));
+            ("p99_ns", `Float (List.nth values 197));
+            ("peak_process_rss_kib", `Int (List.fold_left max 0 !rss));
+            ("rss_samples", `Int (List.length !rss));
+          ])
   in
   require
     (Build.source_hash () = digest)
@@ -154,7 +138,7 @@ let main () =
       ("hard_queue_bound", `Int 32768);
       ("sessions", `List samples);
       ("noise", `List noise);
-      ("mixed_loads", `List loads);
+      ("mixed_loads", `List [ load ]);
       ("timing_verdict", `String "ADVISORY");
       ("stable_runner_gate", `String "NOT_READY");
       ( "limitations",
@@ -164,11 +148,10 @@ let main () =
              hardware.";
             "RSS includes runtime, GC and OS effects; queue payload counts are \
              not RSS bounds.";
-            "200 mixed requests per adapter are smoke evidence, not the \
-             release soak.";
+            "200 mixed requests are smoke evidence, not the release soak.";
           ] );
     ];
-  print_endline "PASS queue bounds and mixed adapter loads; timing ADVISORY"
+  print_endline "PASS queue bounds and mixed adapter load; timing ADVISORY"
 
 let profile args =
   let iterations = int_of_string (option args "--iterations" "50")

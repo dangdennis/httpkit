@@ -9,8 +9,9 @@ homepage: "https://github.com/dangdennis/httpkit"
 bug-reports: "https://github.com/dangdennis/httpkit/issues"
 depends: [
   "dune" {>= "3.24"}
+  "sqlkit"
+  "sqlkit-pgwire"
   "caqti-eio"
-  "caqti-driver-postgresql" {= "3.0.1+httpkit1"}
   "caqti-driver-sqlite3"
   "digestif"
   "ocaml" {= "5.5.0"}

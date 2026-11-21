@@ -1,16 +1,28 @@
-(** Caqti integration; typed SQL requests remain directly usable. Pools are
-    scoped to one Eio switch/domain. Callback connections must not escape or be
-    shared. *)
+(** Database pools for PostgreSQL and file-backed SQLite.
 
-type connection = Caqti_eio.connection
+    PostgreSQL runs on sqlkit's pure OCaml driver ([sqlkit-pgwire]); SQLite runs
+    on Caqti. A lease is a {!connection}: reach the native handle with
+    {!val-postgresql} or {!val-sqlite}, or use the portable {!query} and
+    {!execute}, which work on both.
+
+    Pools are scoped to one Eio switch/domain. Callback connections must not
+    escape or be shared. *)
+
 type t
+type connection
 
 exception Busy
 
 exception Connection_invalidated
 (** A previous query failed within the transaction, or a driver call raised.
-    Further queries and commit are refused; the pool retires this connection
-    after the lease. Rollback/close remain available for cleanup. *)
+    Further queries and commit are refused; the connection is not handed out
+    again in that state. Rollback/close remain available for cleanup. *)
+
+exception Failed of { sqlstate : string option; message : string }
+(** A database error from {!query}, {!execute}, {!transaction}, {!migrate} or,
+    on PostgreSQL, from acquiring a connection. [sqlstate] is PostgreSQL's
+    five-character code; SQLite errors carry none. Errors from a native handle
+    keep that library's own form. *)
 
 val create :
   ?max_connections:int ->
@@ -20,27 +32,55 @@ val create :
   stdenv:Caqti_eio.stdenv ->
   Uri.t ->
   t
-(** PostgreSQL or file-backed SQLite only. SQLite enables foreign keys and a
-    bounded lock wait. Statement deadlines are supported by PostgreSQL, not
-    SQLite. *)
+(** PostgreSQL ([postgresql://]) or file-backed SQLite ([sqlite3:]) only. SQLite
+    enables foreign keys and a bounded lock wait. Statement deadlines are
+    supported by PostgreSQL, not SQLite; the server enforces them, with a client
+    deadline five seconds behind that costs the connection if it is ever
+    reached.
+
+    PostgreSQL connection strings are sqlkit-pgwire's: [sslmode] defaults to
+    [prefer] (TLS when offered, certificate not verified); ask for [verify-full]
+    on a network you do not control. A parameter the driver cannot honour raises
+    [Invalid_argument]. *)
 
 val use : t -> (connection -> 'a) -> 'a
 
 val transaction : t -> (connection -> 'a) -> 'a
 (** Commit on return; rollback on exceptions/cancellation. A failed rollback
-    evicts the connection. No implicit retry or nested transaction support. The
-    transaction cannot succeed after a query failure, even if the callback
-    catches it; subsequent operations raise [Connection_invalidated]. Such
-    invalidated connections are retired conservatively. The callback must leave
-    transaction/session control and connection validation to the wrapper; it
-    must not start, finish or reset the session. PostgreSQL completion retains
-    the driver's retry guard; a later lease may reconnect during validation,
-    with configured session settings restored. Losing a connection during commit
-    can leave the commit outcome unknown; an exception does not prove that the
-    database rolled back. Reconciliation and idempotency belong to the
-    application. *)
+    evicts the connection. No implicit retry. The transaction cannot succeed
+    after a query failure, even if the callback catches it; subsequent
+    operations raise [Connection_invalidated] (through a native PostgreSQL
+    handle they return an error instead). The callback must leave transaction
+    and session control to the wrapper, with one exception: on PostgreSQL,
+    [Sqlkit.transaction] may be used inside and nests as a savepoint. Losing a
+    connection during commit can leave the commit outcome unknown; an exception
+    does not prove that the database rolled back. Reconciliation and idempotency
+    belong to the application. *)
+
+val postgresql : connection -> Sqlkit.conn option
+(** The lease as a sqlkit handle, for generated queries. [None] on SQLite. *)
+
+val sqlite : connection -> Caqti_eio.connection option
+(** The lease as a Caqti connection. [None] on PostgreSQL. *)
+
+(** {1 Portable statements}
+
+    Enough to write a statement once for both backends: [?] placeholders
+    (outside quoted text), integer and text values. Raises {!Failed} on a
+    database error. *)
+
+type value = Null | Int of int64 | Text of string
+type kind = Integer | String
+
+val query :
+  connection -> kinds:kind list -> string -> value list -> value list list
+(** One [kind] per result column, in order. *)
+
+val execute : connection -> string -> value list -> unit
 
 val size : t -> int
+(** SQLite: connections currently open. PostgreSQL: leases currently in use;
+    idle connections are owned by the driver's pool and not counted. *)
 
 val close : t -> unit
 (** Stops admission immediately, then waits for every lease callback, including
@@ -59,4 +99,4 @@ type migration = {
 val migrate : t -> migration list -> unit
 (** Ordered, append-only migrations. Serializes writers in the database,
     verifies checksums/history, and applies the batch transactionally. SQL is
-    trusted code. *)
+    trusted code and runs verbatim. *)

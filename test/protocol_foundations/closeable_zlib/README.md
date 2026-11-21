@@ -13,6 +13,6 @@ calls inflateEnd and clears its native pointer; the finalizer is then inert.
 No new codec or C implementation is introduced. This is a one-domain prototype.
 
 A supported upstream API or a separately reviewed ownership layer is required
-before adoption. Cancellation tests cover Eio input suspension and Lwt consumer
+before adoption. Cancellation tests cover Eio input suspension and Eio consumer
 suspension. Native allocation instrumentation, cross-domain behavior, all
 suspension points and maintained native-library policy remain unproved.

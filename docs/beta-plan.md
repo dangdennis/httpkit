@@ -16,8 +16,7 @@ supports uploads and bounded origin pools; its API review remains deferred by
 request. HTTP/2/3, new infrastructure, custom cryptography and speculative package
 expansion are outside this work.
 
-Eio is the first deployment target. Lwt correctness is required; benchmark parity
-is deferred. Railway direct is the planned hosted topology, with Caddy optional.
+Eio is the only supported runtime and deployment target. Railway direct is the planned hosted topology, with Caddy optional.
 No hosted environment is implied by passing local tests.
 
 Implementation and validation outcomes live in [status](status.md). Historical

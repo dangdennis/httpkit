@@ -20,12 +20,14 @@ candidate: all contribute to its fingerprint.
 `validate` builds libraries, examples and API docs; runs regression/property,
 tooling and integration checks; and builds separate installed-package consumers.
 It does not run every long campaign or certify every backend/mode combination.
-In particular, PostgreSQL bytecode is currently blocked by a
-[recorded binding crash](status.md#what-we-found), despite other bytecode passes.
+The [recorded PostgreSQL bytecode crash](status.md#what-we-found) was in a binding
+removed on 2026-11-21; one bytecode starter run has passed on the replacement
+driver, and longer database campaigns have not been repeated on it.
 
 Database checks start and stop their own PostgreSQL instance and exercise SQLite.
 Set `FRAMEWORK_PG_BIN` to an existing PostgreSQL binary directory if needed.
-They require native database libraries and local process/socket access.
+They require PostgreSQL server binaries, the native SQLite library and local
+process/socket access. No PostgreSQL client library is needed.
 
 ## Security and correctness
 

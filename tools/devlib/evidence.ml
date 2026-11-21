@@ -61,7 +61,7 @@ let check milestone =
               else if starts ~prefix:"performance-" name then
                 ok
                 && field "hard_queue_bound" data = `Int 32768
-                && List.length (list (field "mixed_loads" data)) = 2
+                && List.length (list (field "mixed_loads" data)) = 1
               else ok
             in
             if ok then "PASS" else "STALE_OR_FAILED"

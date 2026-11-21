@@ -11,7 +11,7 @@ WebSockets remain experimental.
 ## Install selected packages
 
 Use opam 2.5 and OCaml 5.5.0. Start in an httpkit checkout or extracted source
-archive. Keep `toolchain/opam-fixes` and both Dune lock directories in that source.
+archive. Keep both Dune lock directories in that source.
 If you already have a suitable switch, use it; otherwise create one:
 
 ```sh
@@ -19,30 +19,48 @@ opam switch create httpkit-beta ocaml-base-compiler.5.5.0
 eval "$(opam env --switch=httpkit-beta --set-switch)"
 ```
 
-Select the tested repository snapshot and local PostgreSQL fix for this switch:
+Select the tested repository snapshot for this switch:
 
 ```sh
 opam repository add httpkit-tested \
   'git+https://github.com/ocaml/opam-repository.git#5d711cd97e038d93464ab855e041c0ff624c9d07' \
   --this-switch
-opam repository add httpkit-fixes "$PWD/toolchain/opam-fixes" --this-switch
-opam repository set-repos httpkit-fixes httpkit-tested --this-switch
+opam repository set-repos httpkit-tested --this-switch
 opam pin add --kind=path --no-action .
 opam install dune.3.24.1 httpkit-eio eio_main
 ```
 
-The pin discovers all 20 package definitions; `--no-action` avoids installing the
+The database and SQL-session packages need sqlkit, which is not on opam. Pin its
+three packages from Git at the revision the Dune locks use, before installing
+`httpkit-db-eio` or `httpkit-session-eio`:
+
+```sh
+SQLKIT='git+https://github.com/dangdennis/sqlkit.git#77241d9f76365f58578e1e7fd0c4a6ca6ef67f17'
+opam pin add --no-action sqlkit.0.1.0 "$SQLKIT"
+opam pin add --no-action sqlkit-pool-eio.0.1.0 "$SQLKIT"
+opam pin add --no-action sqlkit-pgwire.0.1.0 "$SQLKIT"
+opam install httpkit-db-eio
+```
+
+**Not re-validated:** these opam commands were not run after the 2026-11-21
+PostgreSQL driver change. Only the Dune-locked build in this repository was
+built and tested that day. The earlier opam recipe added a local
+`httpkit-fixes` repository from `toolchain/opam-fixes`; that directory and the
+patched `caqti-driver-postgresql.3.0.1+httpkit1` it supplied no longer exist.
+
+The pin discovers all 17 package definitions; `--no-action` avoids installing the
 whole workspace. Install only what your application uses. `httpkit-harness` is
 for development and is unnecessary for applications. An Eio executable selects
 `eio_main`; `httpkit-eio` itself needs only Eio interfaces. For a pure codec, use
 `opam install httpkit-http1`. Optional packages include `httpkit-cookie`,
 `httpkit-password`, `httpkit-db-eio`, `httpkit-session-eio` and `httpkit-oidc-eio`.
 
-Keep the pinned source directory available for updates. Database and SQL-session
-packages require the exact local driver `caqti-driver-postgresql.3.0.1+httpkit1`;
-central opam alone cannot supply it. See [dependency fixes](../toolchain/opam-fixes/README.md).
+Keep the pinned source directory available for updates. Central opam alone
+cannot supply sqlkit; see the [driver record](dependencies.md#postgresql-driver),
+including its unreviewed authentication and TLS code.
 Native dependencies include a C toolchain and, depending on selected packages,
-pkg-config, GMP, libffi, libargon2, libpq and SQLite. The local validation used
+pkg-config, GMP, libffi, libargon2 and SQLite. PostgreSQL needs no client
+library: libpq is no longer used. The September validation used
 existing system libraries and did not install OS packages automatically.
 
 ## Check application composition
@@ -78,8 +96,11 @@ lifetime setup are covered in the [application guide](framework.md).
 
 ## Retained installation evidence
 
-This section describes an older archive, not current-candidate approval. The three
-client packages were added later; the current tree has 19 runtime packages.
+This section describes an older archive, not current-candidate approval. Client
+packages were added later and the Lwt packages were removed on 2026-11-21;
+the current tree has 16 runtime packages. The PostgreSQL driver was also
+replaced on 2026-11-21: the archive below installed Caqti's PostgreSQL driver
+and libpq, and nothing in it exercises sqlkit or the Git pins above.
 
 On 2026-09-15, all 16 runtime packages installed from a Git archive of `a21d8ee`
 on macOS arm64 into a fresh opam root, with Dune 3.24.1 and the repository snapshot
@@ -103,6 +124,8 @@ advisory scan, native-library inventory, complete license review, Linux install
 check, final candidate archive check, or production approval.
 
 The source MIT license does not replace dependency licenses. Preserve the Caqti
-LGPL linking-exception notice and the bundled `closeable_zlib` test fixture's ISC
-notice. Complete distribution notices, final archive checks and release notes
-remain publication gates. Report vulnerabilities using [SECURITY.md](../SECURITY.md).
+LGPL linking-exception notice (Caqti still serves SQLite) and the bundled
+`closeable_zlib` test fixture's ISC notice. sqlkit declares MIT; it and its added
+dependencies decimal and uuidm are absent from the archived inventory and their
+notices have not been collected. Complete distribution notices, final archive
+checks and release notes remain publication gates. Report vulnerabilities using [SECURITY.md](../SECURITY.md).
