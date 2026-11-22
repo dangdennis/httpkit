@@ -187,8 +187,12 @@ let () =
         [
           Alcotest.test_case "fixed/chunked slow peer and early response" `Quick
             (fun () ->
+              (* Two dozen plain and TLS upload scenarios in one case: about
+                 four seconds on a development machine, more than ten on a
+                 hosted CI runner. The watchdog is here to catch a hang, not
+                 to time the run. *)
               match
-                Harness_runtime.Watchdog.run ~seconds:10. (fun () ->
+                Harness_runtime.Watchdog.run ~seconds:60. (fun () ->
                     List.iter
                       (fun tls ->
                         List.iter
